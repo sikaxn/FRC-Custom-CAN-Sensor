@@ -8,12 +8,49 @@ This project is **for demo and under work**. Faulty CAN frame could bring entire
 This project use **AI generated content**. 
 
 ---
+![image](img/img.jpg)
+---
 
 # 📄 FRC-Arduino CAN Protocol & Hardware Pin Assignment
 
 ## 🧭 Overview
 
 This document describes the **CAN protocol** used between an Arduino Mega (with MCP2515) and a roboRIO, and outlines the **hardware pin assignments** needed for the connection.
+
+
+
+---
+
+# 📄 Python Arduino Simulator 
+
+![image](img/sim.JPG)
+
+This Python simulator emulates an Arduino CAN device on the FRC CAN bus using a **CANalyst-II adapter** and the `python-can` library. It interacts with the roboRIO using standard 29-bit extended CAN frames, following FRC-style protocol structure.
+
+---
+
+## 🔧 Hardware Requirements
+
+* **CANalyst-II USB CAN adapter**
+* Properly terminated FRC CAN bus (with roboRIO on the same network)
+
+---
+
+## 🧰 Python Dependencies
+
+Install via pip:
+
+```bash
+pip install python-can
+```
+
+This simulator provides a reliable way to **test and debug the roboRIO-side CAN code** without needing real Arduino hardware, while faithfully simulating:
+
+* Button input
+* Analog data
+* LED control
+* Servo updates
+
 
 ---
 
@@ -139,5 +176,3 @@ The Arduino and roboRIO communicate using **FRC-compatible 29-bit CAN identifier
 * All print and GPIO handling is offloaded to RTOS tasks for reliability
 
 ---
-
-Let me know if you'd like this exported as a Markdown or PDF file!
