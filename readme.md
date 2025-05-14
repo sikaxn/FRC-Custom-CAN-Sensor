@@ -3,4 +3,4 @@
 
 ## ⚠️ Disclaimer
 
-This protocol is **Still under work**. Faulty firmware could bring entire CAN bus down. 
+This project is **for demo and under work**. Faulty CAN frame could bring entire CAN bus down. 
