@@ -32,6 +32,6 @@ public class Robot extends TimedRobot {
 
     @Override
     public void disabledExit() {
-        arduino.stop(); // Stop polling when robot is disabled
+        //arduino.stop(); // Stop polling when robot is disabled
     }
 }
