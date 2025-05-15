@@ -1,6 +1,15 @@
 
 # Custom CAN sensor with roboRIO
 
+## Video
+
+Potentiometer analog input
+https://www.youtube.com/watch?v=bEm6USGRP-E
+LED (pin 13) digital output
+https://www.youtube.com/shorts/q937u09llhw
+roboRIO heartbeat (look at the LED blinking while enabled)
+https://www.youtube.com/shorts/c1ieu9o8Lzo
+
 ## ⚠️ Disclaimer
 
 This project is **for demo and under work**. Faulty CAN frame could bring entire CAN bus down. 
