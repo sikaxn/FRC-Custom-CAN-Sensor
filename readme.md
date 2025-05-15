@@ -175,4 +175,69 @@ The Arduino and roboRIO communicate using **FRC-compatible 29-bit CAN identifier
 * MCP2515 is configured for **1 Mbps / 8 MHz**, driven by interrupt
 * All print and GPIO handling is offloaded to RTOS tasks for reliability
 
+
 ---
+
+# 🟢 Color Sensor CAN Protocol — `0x184`
+
+
+
+## ✅ Pinout & Wiring
+
+| Sensor Pin | Connect To (Arduino Mega) | Notes                |
+| ---------- | ------------------------- | -------------------- |
+| **SDA**    | **Pin 20**                | I²C data             |
+| **SCL**    | **Pin 21**                | I²C clock            |
+| **GND**    | **GND**                   | Ground               |
+| **3.3V**   | **3.3V**                  | **Use 3.3V only** ⚠️ |
+
+> ⚠️ **Important:** The REV Color Sensor V3 is a 3.3V device.
+> **Do not connect it to 5V** — it may damage the sensor.
+
+---
+
+
+## ✅ Overview
+
+This protocol sends color data from an Arduino to the roboRIO using CAN ID `0x184`.
+
+It is used with the REV Color Sensor V3 connected via I²C.
+
+---
+
+## 🛠 CAN Frame Info
+
+* **CAN ID**: `0x184` (standard 11-bit)
+* **Length**: 8 bytes
+
+### 🔢 Data Format
+
+| Byte | Data         | Description                     |
+| ---- | ------------ | ------------------------------- |
+| 0-1  | Red (16-bit) | High + low byte of red value    |
+| 2-3  | Green        | High + low byte of green value  |
+| 4-5  | Blue         | High + low byte of blue value   |
+| 6    | Proximity    | Proximity reading (0–255)       |
+| 7    | IR           | High byte of IR value (low-res) |
+
+---
+
+## ⚠️ Fault Condition
+
+If the sensor is disconnected, the Arduino sends:
+
+```
+Byte 0 = 0xFF
+```
+
+All other bytes are ignored. The roboRIO should mark the sensor as disconnected.
+
+
+
+---
+
+## 🔁 Update Rate
+
+* Sent by Arduino every 100 ms
+* Reconnects automatically if sensor is unplugged and replugged
+

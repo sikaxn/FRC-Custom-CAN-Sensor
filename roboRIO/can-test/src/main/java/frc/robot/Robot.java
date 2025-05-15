@@ -28,10 +28,20 @@ public class Robot extends TimedRobot {
         SmartDashboard.putBoolean("Button 1", arduino.buttons[1]);
         SmartDashboard.putBoolean("Button 2", arduino.buttons[2]);
         SmartDashboard.putNumber("Analog Value", arduino.analogValue);
+
+        // === Color Sensor Values ===
+        SmartDashboard.putBoolean("Color Sensor Connected", arduino.colorSensorConnected);
+        //if (arduino.colorSensorConnected) {
+            SmartDashboard.putNumber("Color Red", arduino.red);
+            SmartDashboard.putNumber("Color Green", arduino.green);
+            SmartDashboard.putNumber("Color Blue", arduino.blue);
+            SmartDashboard.putNumber("Color Proximity", arduino.proximity);
+            SmartDashboard.putNumber("Color IR", arduino.ir);
+        //}
     }
 
     @Override
     public void disabledExit() {
-        //arduino.stop(); // Stop polling when robot is disabled
+        // arduino.stop(); // optional
     }
 }
