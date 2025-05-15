@@ -6,15 +6,14 @@
 
 // === CAN and Pins ===
 #define CAN_CS_PIN 53
-#define CONTROL_ID     0x0A086400
-#define STATUS_ID      0x0A086000
-#define HEARTBEAT_ID   0x01011840
-#define COLOR_SENSOR_ID 0x0A086100
+#define CONTROL_ID       0x0A086400
+#define STATUS_ID        0x0A086000
+#define HEARTBEAT_ID     0x01011840
+#define COLOR_SENSOR_ID  0x0A086100
 
 MCP_CAN CAN(CAN_CS_PIN);
 Servo myServo;
 
-// Pins
 const int buttonPins[3] = {3, 4, 5};
 const int ledPins[2] = {6, 7};
 const int analogPin = A0;
@@ -70,7 +69,6 @@ void setup() {
   CAN.setMode(MCP_NORMAL);
   Serial.println("CAN initialized.");
 
-  // Init sensor
   byte id = read8(REG_PART_ID);
   Serial.print("Sensor ID: 0x"); Serial.println(id, HEX);
   if (id == 0xC2) {
@@ -81,7 +79,6 @@ void setup() {
     Serial.println("Color sensor not detected.");
   }
 
-  // Start RTOS tasks
   xTaskCreate(TaskCANSend, "CAN Send", 128, NULL, 1, NULL);
   xTaskCreate(TaskCANReceive, "CAN Receive", 128, NULL, 2, NULL);
   xTaskCreate(TaskHeartbeatLED, "Heartbeat", 128, NULL, 1, NULL);
@@ -165,7 +162,7 @@ void TaskHeartbeatLED(void* pvParameters) {
   }
 }
 
-// === Color Sensor Task with Hotplug Support ===
+// === Color Sensor Task with Fault Tolerance ===
 void TaskColorSensor(void* pvParameters) {
   uint8_t retryCounter = 0;
 
@@ -179,16 +176,30 @@ void TaskColorSensor(void* pvParameters) {
       uint32_t ir = read20(REG_IR_DATA);
       uint8_t  p  = read8(REG_PROX_DATA);
 
-      if (r == 0xFFFFFF || g == 0xFFFFFF || b == 0xFFFFFF || ir == 0xFFFFFF || p == 0xFF) {
+      // Check for all invalid
+      bool rBad  = (r == 0xFFFFFF || r == 0x000000);
+      bool gBad  = (g == 0xFFFFFF || g == 0x000000);
+      bool bBad  = (b == 0xFFFFFF || b == 0x000000);
+      bool irBad = (ir == 0xFFFFFF || ir == 0x000000);
+      bool proxBad = (p == 0xFF || p == 0x00);
+
+      if (rBad && gBad && bBad && irBad && proxBad) {
+
         sensorOK = false;
-        Serial.println("Sensor disconnected.");
+        Serial.println("Sensor disconnected or overflow.");
         tx[0] = 0xFF;
       } else {
-        tx[0] = (r >> 8) & 0xFF; tx[1] = r & 0xFF;
-        tx[2] = (g >> 8) & 0xFF; tx[3] = g & 0xFF;
-        tx[4] = (b >> 8) & 0xFF; tx[5] = b & 0xFF;
+        r = min(r, 65535UL);
+        g = min(g, 65535UL);
+        b = min(b, 65535UL);
+        ir = min(ir, 65535UL);
+        p = min(p, 255);
+
+        tx[0] = (r >> 8); tx[1] = r & 0xFF;
+        tx[2] = (g >> 8); tx[3] = g & 0xFF;
+        tx[4] = (b >> 8); tx[5] = b & 0xFF;
         tx[6] = p;
-        tx[7] = (ir >> 8) & 0xFF;
+        tx[7] = (ir >> 8);
         retryCounter = 0;
       }
     } else {
@@ -231,8 +242,6 @@ uint32_t read20(uint8_t reg) {
   Wire.write(reg);
   Wire.endTransmission(false);
   Wire.requestFrom(REV_SENSOR_ADDR, 3);
-  uint32_t d0 = Wire.read();
-  uint32_t d1 = Wire.read();
-  uint32_t d2 = Wire.read();
+  uint8_t d0 = Wire.read(), d1 = Wire.read(), d2 = Wire.read();
   return (d2 << 16) | (d1 << 8) | d0;
 }
