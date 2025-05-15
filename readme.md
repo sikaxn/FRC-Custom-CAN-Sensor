@@ -28,7 +28,7 @@ This project use **AI generated content**.
 
 This document describes the **CAN protocol** used between an Arduino Mega (with MCP2515) and a roboRIO, and outlines the **hardware pin assignments** needed for the connection.
 
-
+Only roboRIO CAN work with this project. Please do not connect Arduino to CTRE CANivore. I don't know what will happen if you try to do so. 
 
 ---
 
