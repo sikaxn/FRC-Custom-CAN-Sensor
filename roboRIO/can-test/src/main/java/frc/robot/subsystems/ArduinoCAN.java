@@ -22,7 +22,7 @@ public class ArduinoCAN {
     private Timer pollTimer;
 
     public ArduinoCAN() {
-        can = new CAN(0);
+        can = new CAN(33);
         startPolling();
     }
 

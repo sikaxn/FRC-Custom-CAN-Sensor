@@ -9,9 +9,9 @@ MCP_CAN CAN(CAN_CS_PIN);
 Servo myServo;
 
 // === CAN Constants ===
-#define DEVICE_ID        0x0A
-#define MANUFACTURER_ID  0x08
-#define DEVICE_NUMBER    0  // Device Number 0-63
+#define DEVICE_ID        0x0A  //DONOT CHANGE
+#define MANUFACTURER_ID  0x08  //DONOT CHANGE
+#define DEVICE_NUMBER    33  // Device Number 0-63
 #define STATUS_API_ID        0x180
 #define COLOR_SENSOR_API_ID  0x184
 #define CONTROL_API_ID       0x190

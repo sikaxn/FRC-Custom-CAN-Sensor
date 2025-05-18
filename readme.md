@@ -1,6 +1,9 @@
 
 # Custom CAN sensor with roboRIO
 
+## ChiefDelphi Thread
+https://www.chiefdelphi.com/t/custom-can-sensor-some-good-progress/501764
+
 ## Video
 
 Potentiometer analog input
@@ -17,6 +20,35 @@ https://www.youtube.com/shorts/c1ieu9o8Lzo
 This project is **for demo and under work**. Faulty CAN frame could bring entire CAN bus down. 
 
 This project use **AI generated content**. 
+
+---
+## Update
+
+1. REVCOlourSensorV3 Arduino sketch has been updated to do conversion in code. In addition, rm_dt7 is added to handle Robomaster / DJI DT7 Remote with DR16. This is not legal to use in FRC. However you could still take a look at these conversion. 
+
+```
+// === CAN Constants ===
+#define DEVICE_ID        0x0A  //DONOT CHANGE
+#define MANUFACTURER_ID  0x08  //DONOT CHANGE
+#define DEVICE_NUMBER    33  // Device Number 0-63
+#define STATUS_API_ID        0x180
+#define COLOR_SENSOR_API_ID  0x184
+#define CONTROL_API_ID       0x190
+#define DT7_API1_ID          0x185
+#define DT7_API2_ID          0x186
+#define DT7_API3_ID          0x187
+#define HEARTBEAT_ID         0x01011840
+
+uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, uint8_t deviceNumber) {
+  return ((uint32_t)(deviceID & 0xFF) << 24) |
+         ((uint32_t)(manufacturerID & 0xFF) << 16) |
+         ((uint32_t)(apiID & 0x3FF) << 6) |
+         (deviceNumber & 0x3F);
+}
+```
+2. An ID converter script is added. see below for usage.
+
+3. DO NOT change DEVICE_ID and MANUFACTURER_ID as this will result roboRIO code stop working. 
 
 ---
 ![image](img/img.jpg)
