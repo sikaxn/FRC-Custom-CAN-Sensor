@@ -29,9 +29,9 @@ The 'CAN ID' we talked about when setting up motor controllers (Spark, Kraken, P
 
 https://docs.wpilib.org/en/stable/docs/software/can-devices/can-addressing.html#requirements-for-frc-can-nodes
 
-CAN identifier is calculated from device ID (device type), manufacturer ID, API ID (in the documentation it talked about API Class and Index but doesn't matter and it is just a suggestion. Each device will have its unique API ID designed for its use) and device number (0-63 as the traditional 'CAN ID' we talked about in FRC). 
+CAN identifier is calculated from device ID (device type ID), manufacturer ID, API ID (in the documentation it talked about API Class and Index but doesn't matter and it is just a suggestion. Each device will have its unique API ID designed for its use) and device number (0-63 as the traditional 'CAN ID' we talked about in FRC). 
 
-You must generate your CAN identifier (message ID) using this very specific way.
+You must generate your CAN identifier (message ID) using this very specific way. A device will have multiple CAN message sent to and from roboRIO (and possibly to other non-roboRIO device). These different messages will share the same device type ID, manufacturer ID and device number. API ID will change based on use. 
 
 ---
 ## Update
