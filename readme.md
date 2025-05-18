@@ -22,6 +22,18 @@ This project is **for demo and under work**. Faulty CAN frame could bring entire
 This project use **AI generated content**. 
 
 ---
+
+## How FRC CAN bus works
+
+The 'CAN ID' we talked about when setting up motor controllers (Spark, Kraken, PDP, etc) is a number from 0-63. This is not the CAN identifier (message ID) used in CAN data layer. FRC Use a very specific scheme outlined in FRC CAN specification to convert certain information to CAN identifier. All device connected to roboRIO must follow this scheme when determine what ID to send data to and read form.
+
+https://docs.wpilib.org/en/stable/docs/software/can-devices/can-addressing.html#requirements-for-frc-can-nodes
+
+CAN identifier is calculated from device ID (device type), manufacturer ID, API ID (in the documentation it talked about API Class and Index but doesn't matter and it is just a suggestion. Each device will have its unique API ID designed for its use) and device number (0-63 as the traditional 'CAN ID' we talked about in FRC). 
+
+You must generate your CAN identifier (message ID) using this very specific way.
+
+---
 ## Update
 
 1. REVCOlourSensorV3 Arduino sketch has been updated to do conversion in code. In addition, rm_dt7 is added to handle Robomaster / DJI DT7 Remote with DR16. This is not legal to use in FRC. However you could still take a look at these conversion. 
