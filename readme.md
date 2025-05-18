@@ -34,9 +34,6 @@ This project use **AI generated content**.
 #define STATUS_API_ID        0x180
 #define COLOR_SENSOR_API_ID  0x184
 #define CONTROL_API_ID       0x190
-#define DT7_API1_ID          0x185
-#define DT7_API2_ID          0x186
-#define DT7_API3_ID          0x187
 #define HEARTBEAT_ID         0x01011840
 
 uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, uint8_t deviceNumber) {
@@ -63,7 +60,7 @@ This document describes the **CAN protocol** used between an Arduino Mega (with 
 Only roboRIO CAN work with this project. Please do not connect Arduino to CTRE CANivore. I don't know what will happen if you try to do so. 
 
 ---
-**Message ID Generator GUI Tool**
+## **Message ID Generator GUI Tool**
 
 A minimal Tkinter application for converting between FRC 29-bit CAN IDs and their four fields.
 
