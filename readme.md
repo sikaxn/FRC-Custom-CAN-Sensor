@@ -31,6 +31,52 @@ This document describes the **CAN protocol** used between an Arduino Mega (with 
 Only roboRIO CAN work with this project. Please do not connect Arduino to CTRE CANivore. I don't know what will happen if you try to do so. 
 
 ---
+**Message ID Generator GUI Tool**
+
+A minimal Tkinter application for converting between FRC 29-bit CAN IDs and their four fields.
+
+![image](img/gen.JPG)
+
+
+
+### Features
+
+* **Decode**: Enter a full CAN ID (hex or decimal) and see:
+
+  * Device Type (bits \[28:24])
+  * Manufacturer ID (bits \[23:16])
+  * API/Message ID (bits \[15:6])
+  * Device Number (bits \[5:0])
+* **Encode**: Enter those four values to get the full 29-bit CAN ID.
+
+
+
+### Conversion Logic
+
+```python
+# Decode:
+def decode_id(id):
+    return (
+      (id>>24)&0xFF,   # device type
+      (id>>16)&0xFF,   # manufacturer
+      (id>>6)&0x3FF,   # api
+      id&0x3F          # device number
+    )
+
+# Encode:
+def encode_id(dt, man, api, dn):
+    return (dt<<24)|(man<<16)|(api<<6)|dn
+```
+
+---
+
+### Example
+
+* **Decode** `0x0A086003` → `(0x0A, 0x08, 0x180, 3)`
+* **Encode** `(0x0A, 0x08, 0x184, 2)` → `0x0A086102`
+
+---
+
 
 # 📄 Python Arduino Simulator 
 
