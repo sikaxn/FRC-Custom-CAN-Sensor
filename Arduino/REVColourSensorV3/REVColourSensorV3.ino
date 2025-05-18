@@ -5,25 +5,40 @@
 #include <Arduino_FreeRTOS.h>
 
 // === CAN and Pins ===
-#define CAN_CS_PIN      53
-#define CONTROL_ID      0x0A086400
-#define STATUS_ID       0x0A086000
-#define HEARTBEAT_ID    0x01011840
-#define COLOR_SENSOR_ID 0x0A086100
-
+#define CAN_CS_PIN 53
 MCP_CAN CAN(CAN_CS_PIN);
 Servo myServo;
+
+// === CAN Constants ===
+#define DEVICE_ID        0x0A
+#define MANUFACTURER_ID  0x08
+#define DEVICE_NUMBER    0
+#define STATUS_API_ID        0x180
+#define COLOR_SENSOR_API_ID  0x184
+#define CONTROL_API_ID       0x190
+#define HEARTBEAT_ID         0x01011840
+
+uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, uint8_t deviceNumber) {
+  return ((uint32_t)(deviceID & 0xFF) << 24) |
+         ((uint32_t)(manufacturerID & 0xFF) << 16) |
+         ((uint32_t)(apiID & 0x3FF) << 6) |
+         (deviceNumber & 0x3F);
+}
+
+uint32_t STATUS_ID;
+uint32_t COLOR_SENSOR_ID;
+uint32_t CONTROL_ID;
 
 const int buttonPins[3] = {3, 4, 5};
 const int ledPins[2]    = {6, 7};
 const int analogPin     = A0;
 const int servoPin      = 9;
 
-bool prevLed0    = false;
-bool prevLed1    = false;
-int  prevAngle   = -1;
+bool prevLed0 = false;
+bool prevLed1 = false;
+int  prevAngle = -1;
 
-volatile bool        last_enabled          = false;
+volatile bool        last_enabled = false;
 volatile unsigned long heartbeat_last_seen = 0;
 
 bool sensorOK = false;
@@ -38,16 +53,35 @@ bool sensorOK = false;
 #define REG_BLUE_DATA    0x10
 #define REG_RED_DATA     0x13
 
-// Task prototypes
-void TaskCANSend(void* pvParameters);
-void TaskCANReceive(void* pvParameters);
-void TaskHeartbeatLED(void* pvParameters);
-void TaskColorSensor(void* pvParameters);
+void write8(uint8_t reg, uint8_t val) {
+  Wire.beginTransmission(REV_SENSOR_ADDR);
+  Wire.write(reg);
+  Wire.write(val);
+  Wire.endTransmission();
+}
 
-// I2C helpers
-void write8(uint8_t reg, uint8_t val);
-uint8_t read8(uint8_t reg);
-uint32_t read20(uint8_t reg);
+uint8_t read8(uint8_t reg) {
+  Wire.beginTransmission(REV_SENSOR_ADDR);
+  Wire.write(reg);
+  Wire.endTransmission(false);
+  Wire.requestFrom(REV_SENSOR_ADDR, 1);
+  return Wire.available() ? Wire.read() : 0xFF;
+}
+
+uint32_t read20(uint8_t reg) {
+  Wire.beginTransmission(REV_SENSOR_ADDR);
+  Wire.write(reg);
+  Wire.endTransmission(false);
+  Wire.requestFrom(REV_SENSOR_ADDR, 3);
+  return ((uint32_t)Wire.read()) |
+         ((uint32_t)Wire.read() << 8) |
+         ((uint32_t)Wire.read() << 16);
+}
+
+void TaskCANSend(void*);
+void TaskCANReceive(void*);
+void TaskHeartbeatLED(void*);
+void TaskColorSensor(void*);
 
 void setup() {
   Serial.begin(115200);
@@ -65,6 +99,14 @@ void setup() {
   }
   CAN.setMode(MCP_NORMAL);
   Serial.println("CAN initialized.");
+
+  STATUS_ID        = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, STATUS_API_ID, DEVICE_NUMBER);
+  COLOR_SENSOR_ID  = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, COLOR_SENSOR_API_ID, DEVICE_NUMBER);
+  CONTROL_ID       = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, CONTROL_API_ID, DEVICE_NUMBER);
+
+  Serial.print("STATUS_ID: 0x"); Serial.println(STATUS_ID, HEX);
+  Serial.print("COLOR_SENSOR_ID: 0x"); Serial.println(COLOR_SENSOR_ID, HEX);
+  Serial.print("CONTROL_ID: 0x"); Serial.println(CONTROL_ID, HEX);
 
   uint8_t id = read8(REG_PART_ID);
   Serial.print("Sensor ID: 0x"); Serial.println(id, HEX);
@@ -84,7 +126,6 @@ void setup() {
 
 void loop() {}
 
-// CAN Transmit Task
 void TaskCANSend(void* pvParameters) {
   for (;;) {
     byte btn = 0;
@@ -103,7 +144,6 @@ void TaskCANSend(void* pvParameters) {
   }
 }
 
-// CAN Receive Task
 void TaskCANReceive(void* pvParameters) {
   for (;;) {
     if (CAN.checkReceive() == CAN_MSGAVAIL) {
@@ -136,7 +176,6 @@ void TaskCANReceive(void* pvParameters) {
   }
 }
 
-// Heartbeat LED Task
 void TaskHeartbeatLED(void* pvParameters) {
   for (;;) {
     unsigned long now = millis();
@@ -157,7 +196,6 @@ void TaskHeartbeatLED(void* pvParameters) {
   }
 }
 
-// Color Sensor Task with improved fault tolerance
 void TaskColorSensor(void* pvParameters) {
   uint8_t retryCounter = 0;
   for (;;) {
@@ -176,7 +214,6 @@ void TaskColorSensor(void* pvParameters) {
         Serial.println("Sensor disconnected.");
         tx[0] = 0xFF;
       } else {
-        // clamp to 16-bit
         r  = (r  > 65535UL ? 65535UL : r);
         g  = (g  > 65535UL ? 65535UL : g);
         b  = (b  > 65535UL ? 65535UL : b);
@@ -206,31 +243,4 @@ void TaskColorSensor(void* pvParameters) {
     CAN.sendMsgBuf(COLOR_SENSOR_ID, 1, 8, tx);
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
-}
-
-// I2C Register Access
-void write8(uint8_t reg, uint8_t val) {
-  Wire.beginTransmission(REV_SENSOR_ADDR);
-  Wire.write(reg);
-  Wire.write(val);
-  Wire.endTransmission();
-}
-
-uint8_t read8(uint8_t reg) {
-  Wire.beginTransmission(REV_SENSOR_ADDR);
-  Wire.write(reg);
-  Wire.endTransmission(false);
-  Wire.requestFrom(REV_SENSOR_ADDR, 1);
-  return Wire.available() ? Wire.read() : 0xFF;
-}
-
-uint32_t read20(uint8_t reg) {
-  Wire.beginTransmission(REV_SENSOR_ADDR);
-  Wire.write(reg);
-  Wire.endTransmission(false);
-  Wire.requestFrom(REV_SENSOR_ADDR, 3);
-  uint32_t d0 = Wire.read();
-  uint32_t d1 = Wire.read();
-  uint32_t d2 = Wire.read();
-  return (d2 << 16) | (d1 << 8) | d0;
 }
