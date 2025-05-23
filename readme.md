@@ -130,7 +130,6 @@ This Python simulator emulates an Arduino CAN device on the FRC CAN bus using a 
 ## 🔧 Hardware Requirements
 
 * **CANalyst-II USB CAN adapter**
-* Properly terminated FRC CAN bus (with roboRIO on the same network)
 
 ---
 
