@@ -15,6 +15,8 @@ https://www.youtube.com/shorts/q937u09llhw
 roboRIO heartbeat (look at the LED blinking while enabled)
 https://www.youtube.com/shorts/c1ieu9o8Lzo
 
+
+
 ## ⚠️ Disclaimer
 
 This project is **for demo and under work**. Faulty CAN frame could bring entire CAN bus down. 
@@ -22,7 +24,14 @@ This project is **for demo and under work**. Faulty CAN frame could bring entire
 This project use **AI generated content**. 
 
 ---
+# Demos:
 
+1. Digital Analog bi-directional ([Docs](Arduino/readme.md) / [Arduino Firmware](Arduino/Digital_Analog/) / [roboRIO](roboRIO/can-test/))
+2. REV Colour sensor  ([Docs](Arduino/readme.md) / [Arduino Firmware](Arduino/REVColourSensorV3/) / [roboRIO](roboRIO/can-test/)) (this share the same roboRIO code with the first one)
+3. LCD Screen  ([Arduino Firmware](Arduino/LCD/) / [roboRIO](roboRIO/can-LCD/))
+4. Robomaster motor gateway (dual CAN on ESP32)  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/djimotor/))
+5. Robomaster DT7 Remote on CAN  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/dt7/))
+---
 ## How FRC CAN bus works
 
 The 'CAN ID' we talked about when setting up motor controllers (Spark, Kraken, PDP, etc) is a number from 0-63. This is not the CAN identifier (message ID) used in CAN data layer. FRC Use a very specific scheme outlined in FRC CAN specification to convert certain information to CAN identifier. All device connected to roboRIO must follow this scheme when determine what ID to send data to and read form.
@@ -64,10 +73,3 @@ uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, 
 ---
 
 ---
-# Demos:
-
-1. Digital Analog bi-directional ([Arduino Firmware](Arduino/Digital_Analog/) / [roboRIO](roboRIO/can-test/))
-2. REV Colour sensor  ([Arduino Firmware](Arduino/REVColourSensorV3/) / [roboRIO](roboRIO/can-test/)) (this share the same roboRIO code with the first one)
-3. LCD Screen  ([Arduino Firmware](Arduino/LCD/) / [roboRIO](roboRIO/can-LCD/))
-4. Robomaster motor gateway (dual CAN on ESP32)  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/djimotor/))
-5. Robomaster DT7 Remote on CAN  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/dt7/))
