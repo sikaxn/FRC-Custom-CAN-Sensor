@@ -1,5 +1,7 @@
 ## 🔌 CAN Message Structure
 
+![image](lcd.jpeg)
+
 Each CAN message sent to the LCD follows this 8-byte payload format:
 
 ```
