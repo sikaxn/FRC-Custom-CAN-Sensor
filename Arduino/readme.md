@@ -11,7 +11,7 @@ Only roboRIO CAN work with this project. Please do not connect Arduino to CTRE C
 
 A minimal Tkinter application for converting between FRC 29-bit CAN IDs and their four fields.
 
-![image](img/gen.JPG)
+![image](../img/gen.JPG)
 
 
 
