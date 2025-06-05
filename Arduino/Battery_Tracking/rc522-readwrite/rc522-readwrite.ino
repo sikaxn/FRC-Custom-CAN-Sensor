@@ -41,30 +41,56 @@ void setup() {
   MFRC522Debug::PCD_DumpVersionToSerial(mfrc2, Serial);
   Serial.println(F("System ready. Present tag to one reader."));
 }
-
 void loop() {
-  // Only one reader active per loop
-  if (mfrc1.PICC_IsNewCardPresent() && mfrc1.PICC_ReadCardSerial()) {
-    handleReader(mfrc1, 1);
-    return;
-  }
+  // Serial command mode
+  if (Serial.available()) {
+    String input = Serial.readStringUntil('\n');
+    input.trim();
 
-  if (mfrc2.PICC_IsNewCardPresent() && mfrc2.PICC_ReadCardSerial()) {
-    handleReader(mfrc2, 2);
-    return;
+    if (input == "1" || input == "2") {
+      int readerId = input.toInt();
+      Serial.printf("[WRITE] Triggered by serial for reader %d\n", readerId);
+      writeNewUsageLog(123, "2506051238", 0, 0.0, readerId);  // Example args
+    } else if (input.equalsIgnoreCase("read")) {
+      Serial.println("[READ] Waiting for card on either reader...");
+
+      unsigned long startTime = millis();
+      const unsigned long timeout = 10000;  // 10 sec timeout
+      String json = "";
+
+      while (millis() - startTime < timeout) {
+        if (mfrc1.PICC_IsNewCardPresent() && mfrc1.PICC_ReadCardSerial()) {
+          Serial.println("[READ] Card found on Reader 1");
+          json = handleReader(mfrc1, 1);
+          break;
+        }
+
+        if (mfrc2.PICC_IsNewCardPresent() && mfrc2.PICC_ReadCardSerial()) {
+          Serial.println("[READ] Card found on Reader 2");
+          json = handleReader(mfrc2, 2);
+          break;
+        }
+
+        delay(100);
+      }
+
+      if (json != "") {
+        //Serial.println("[RESULT] JSON received:");
+        //Serial.println(json);
+        printParsedBatteryJson(json);
+      } else {
+        Serial.println("[READ] Timeout or invalid tag.");
+      }
+    } else {
+      Serial.printf("[ERROR] Unknown command: %s\n", input.c_str());
+    }
   }
-if (Serial.available()) {
-  char cmd = Serial.read();
-  if (cmd == '1') {
-    Serial.println("[WRITE] Write triggered by serial command");
-    writeNewUsageLog();
-  }
-}
 
   delay(100);
 }
 
-void handleReader(MFRC522& reader, int readerNum) {
+
+String handleReader(MFRC522& reader, int readerNum) {
   const int MAX_BLOCKS = 64;
   String raw = "";
   bool blockValid[MAX_BLOCKS] = {false};
@@ -74,8 +100,8 @@ void handleReader(MFRC522& reader, int readerNum) {
   reader.PCD_Init();
 
   if (!reader.PICC_IsNewCardPresent() || !reader.PICC_ReadCardSerial()) {
-    Serial.printf("[Reader %d] Tag lost before reading\n", readerNum);
-    return;
+    //Serial.printf("[Reader %d] Tag lost before reading\n", readerNum);
+    return "";
   }
 
   for (byte block = 4; block < MAX_BLOCKS; block++) {
@@ -121,13 +147,13 @@ void handleReader(MFRC522& reader, int readerNum) {
 
     if (accepted) {
       blockValid[block] = true;
-      Serial.printf("[Reader %d] Block %d HEX: ", readerNum, block);
-      for (byte i = 0; i < 16; i++) {
-        Serial.printf("%02X ", blockData[block][i]);
-      }
-      Serial.println();
+      //Serial.printf("[Reader %d] Block %d HEX: ", readerNum, block);
+      //for (byte i = 0; i < 16; i++) {
+      //  Serial.printf("%02X ", blockData[block][i]);
+      //}
+      //Serial.println();
     } else {
-      Serial.printf("[Reader %d] Block %d failed validation.\n", readerNum, block);
+      //Serial.printf("[Reader %d] Block %d failed validation.\n", readerNum, block);
     }
   }
 
@@ -138,39 +164,37 @@ void handleReader(MFRC522& reader, int readerNum) {
     for (byte i = 0; i < 16; i++) raw += (char)blockData[block][i];
   }
 
-  Serial.printf("\n[Reader %d] Final RAW NDEF (len: %d bytes):\n", readerNum, raw.length());
-  Serial.println(raw);
+  //Serial.printf("\n[Reader %d] Final RAW NDEF (len: %d bytes):\n", readerNum, raw.length());
+  //Serial.println(raw);
 
   // Extract and verify JSON
   String cleanJson = extractJsonFromNdefText(raw);
-  Serial.println("[DEBUG] Extracted JSON:");
-  Serial.println(cleanJson);
+  //Serial.println("[DEBUG] Extracted JSON:");
+  //Serial.println(cleanJson);
 
   bool validStart = cleanJson.startsWith("{");
   bool validEnd = cleanJson.endsWith("}");
   bool hasSn = cleanJson.indexOf("\"sn\"") > 0;
   bool hasCc = cleanJson.indexOf("\"cc\"") > 0;
   bool hasU = cleanJson.indexOf("\"u\"") > 0;
-
+/*
   Serial.printf("[DEBUG] Starts with '{': %s\n", validStart ? "YES" : "NO");
   Serial.printf("[DEBUG] Ends with '}': %s\n", validEnd ? "YES" : "NO");
   Serial.printf("[DEBUG] Contains 'sn': %s\n", hasSn ? "YES" : "NO");
   Serial.printf("[DEBUG] Contains 'cc': %s\n", hasCc ? "YES" : "NO");
-  Serial.printf("[DEBUG] Contains 'u': %s\n", hasU ? "YES" : "NO");
-
-  if (validStart && validEnd && hasSn && hasCc && hasU) {
-    Serial.printf("\n----- Reader %d CLEANED JSON -----\n", readerNum);
-    Serial.println(cleanJson);
-    Serial.println(F("----------------------------------"));
-    printParsedBatteryJson(cleanJson);
-  } else {
-    Serial.printf("[Reader %d] JSON failed validation.\n", readerNum);
-  }
+  Serial.printf("[DEBUG] Contains 'u': %s\n", hasU ? "YES" : "NO");*/
 
   reader.PICC_HaltA();
   reader.PCD_StopCrypto1();
   delay(500);
+
+  if (validStart && validEnd && hasSn && hasCc && hasU) {
+    return cleanJson;
+  } else {
+    return "";  // Invalid or corrupted
+  }
 }
+
 
 
 // Reuse your existing JSON parsing code...
@@ -285,22 +309,23 @@ String extractJsonFromNdefText(const String& raw) {
     }
   }
 
-  Serial.println("[NDEF] JSON braces not balanced");
+  //Serial.println("[NDEF] JSON braces not balanced");
   return "";
 }
 
 
 
-void writeNewUsageLog() {
+void writeNewUsageLog(int eventId, const String& timeStr, int energy, float voltage, int readerId) {
   const int MAX_BLOCKS = 64;
   const int MAX_LOGS = 14;
-  MFRC522& reader = mfrc1;
+  MFRC522& reader = (readerId == 2) ? mfrc2 : mfrc1;
 
   reader.PCD_Reset();
   reader.PCD_Init();
 
+
   if (!reader.PICC_IsNewCardPresent() || !reader.PICC_ReadCardSerial()) {
-    Serial.println("[WRITE] No tag present");
+    //Serial.println("[WRITE] No tag present");
     return;
   }
 
@@ -344,20 +369,20 @@ void writeNewUsageLog() {
 
   String cleanJson = extractJsonFromNdefText(raw);
   if (cleanJson == "") {
-    Serial.println("[WRITE] Invalid JSON. Abort.");
+    //Serial.println("[WRITE] Invalid JSON. Abort.");
     return;
   }
 
   // Step 2: Parse and modify JSON
   StaticJsonDocument<2048> doc;
   if (deserializeJson(doc, cleanJson)) {
-    Serial.println("[WRITE] JSON parse failed");
+    //Serial.println("[WRITE] JSON parse failed");
     return;
   }
 
   JsonArray logs = doc["u"].as<JsonArray>();
   if (!logs) {
-    Serial.println("[WRITE] Usage log array invalid");
+    //Serial.println("[WRITE] Usage log array invalid");
     return;
   }
 
@@ -381,16 +406,17 @@ void writeNewUsageLog() {
   }
 
   JsonObject newEntry = logs.createNestedObject();
-  newEntry["i"] = maxId + 1;
-  newEntry["t"] = "0000000000";
-  newEntry["d"] = 1;
-  newEntry["e"] = 0;
-  newEntry["v"] = 0;
+  newEntry["i"] = eventId;
+  newEntry["t"] = timeStr;
+  newEntry["d"] = 1;  // robot by default, or add logic if needed
+  newEntry["e"] = energy;
+  newEntry["v"] = voltage;
+
 
   String newJson;
   serializeJson(doc, newJson);
-  Serial.println("[DEBUG] JSON:");
-  Serial.println(newJson);
+  //Serial.println("[DEBUG] JSON:");
+  //Serial.println(newJson);
 
   // Step 3: NDEF encode
   NdefMessage ndef;
@@ -438,7 +464,7 @@ void writeNewUsageLog() {
     if (reader.MIFARE_Write(block, &buffer[i], 16) != MFRC522Constants::STATUS_OK) {
       Serial.printf("[WRITE] Failed block %d\n", block);
     } else {
-      Serial.printf("[WRITE] Wrote block %d\n", block);
+      //Serial.printf("[WRITE] Wrote block %d\n", block);
     }
     block++;
   }
@@ -456,7 +482,7 @@ void writeNewUsageLog() {
     if (reader.MIFARE_Write(block, blank, 16) != MFRC522Constants::STATUS_OK) {
       Serial.printf("[WRITE] Pad fail block %d\n", block);
     } else {
-      Serial.printf("[WRITE] Padded block %d with 0x00\n", block);
+      //Serial.printf("[WRITE] Padded block %d with 0x00\n", block);
     }
   }
 
