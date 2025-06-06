@@ -53,7 +53,7 @@ MFRC522::MIFARE_Key keyA;
 void TaskCANRx(void* pvParameters);
 void TaskCANTx(void* pvParameters);
 void TaskAutoBatteryManager(void* pvParameters);
-
+void TaskSerialPrint(void* pvParameters);
 // === CAN & System State ===
 volatile bool canAvailable = false;
 volatile bool lastEnabled = false;
@@ -70,6 +70,12 @@ uint16_t batteryCycleCount = 0;
 uint8_t batteryNote = 0;
 bool batteryMetaValid = false;
 int currentSessionId = 0;
+
+volatile unsigned long lastHeartbeatMs = 0;
+volatile bool currentlyEnabled = false;
+volatile bool wasEnabled = false;
+volatile bool heartbeatOk = false;  
+
 
 // === Forward Declarations ===
 String handleReader(MFRC522& reader, int readerNum);
@@ -130,7 +136,7 @@ void setup() {
 
   Serial.println(F("System ready. Present tag to one reader or send a command."));
 
-  //xTaskCreatePinnedToCore(TaskCAN, "CAN Task", 4096, NULL, 1, NULL, 0);
+//xTaskCreatePinnedToCore(TaskSerial, "SerialPrint Task", 4096, NULL, 1, NULL, 0);
 xTaskCreatePinnedToCore(TaskAutoBatteryManager, "Serial Task", 4096, NULL, 1, NULL, 1);
 xTaskCreatePinnedToCore(TaskCANRx, "CAN RX", 4096, NULL, 1, NULL, 0);
 xTaskCreatePinnedToCore(TaskCANTx, "CAN TX", 4096, NULL, 1, NULL, 0);
@@ -142,155 +148,6 @@ xTaskCreatePinnedToCore(TaskCANTx, "CAN TX", 4096, NULL, 1, NULL, 0);
 
 void loop() {}
 
-/*
-void TaskSerial(void* pvParameters) {
-  for (;;) {
-    if (Serial.available()) {
-      String input = Serial.readStringUntil('\n');
-      input.trim();
-
-      if (input.equalsIgnoreCase("read")) {
-        Serial.println("[READ] Waiting for card on either reader...");
-        unsigned long startTime = millis();
-        const unsigned long timeout = 10000;
-        String json = "";
-
-        while (millis() - startTime < timeout) {
-          if (mfrc1.PICC_IsNewCardPresent() && mfrc1.PICC_ReadCardSerial()) {
-            Serial.println("[READ] Card found on Reader 1");
-            json = handleReader(mfrc1, 1);
-            break;
-          }
-          if (mfrc2.PICC_IsNewCardPresent() && mfrc2.PICC_ReadCardSerial()) {
-            Serial.println("[READ] Card found on Reader 2");
-            json = handleReader(mfrc2, 2);
-            break;
-          }
-          delay(100);
-        }
-
-        if (json != "") {
-          printParsedBatteryJson(json);  // also sets batterySN, batteryCycleCount, etc.
-          batteryMetaValid = true;
-        } else {
-          Serial.println("[READ] Timeout or invalid tag.");
-        }
-
-      } else if (input == "1" || input == "2") {
-        int readerId = input.toInt();
-        Serial.printf("[CMD] Trigger write on Reader %d\n", readerId);
-
-        // Construct fake time string in FRC format (YYMMDDHHMM)
-        time_t now = time(nullptr);
-        struct tm* t = localtime(&now);
-        char timeStr[11];  // 10 + null
-        snprintf(timeStr, sizeof(timeStr), "%02d%02d%02d%02d%02d",
-                 (t->tm_year + 1900) % 100, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min);
-
-        static int sessionId = 100;  // Replace with real counter or ID logic
-        sessionId++;
-
-        writeNewUsageLog(sessionId, String(timeStr), 0, 0.0f, readerId);
-
-      } else {
-        Serial.printf("[ERROR] Unknown command: %s\n", input.c_str());
-      }
-    }
-
-    delay(20);
-  }
-}*/
-
-/*
-void TaskCAN(void* pvParameters) {
-  bool lastEnabled = false;
-  bool firstRead = true;
-  bool heartbeatLostPrinted = false;
-
-  unsigned long lastHeartbeatMs = millis();
-  const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
-
-  const uint32_t rfidMeta1 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_1, DEVICE_NUMBER);
-  const uint32_t rfidMeta2 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_2, DEVICE_NUMBER);
-  const uint32_t rfidMeta3 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_3, DEVICE_NUMBER);
-
-  for (;;) {
-    if (canAvailable) {
-      // === Read heartbeat (from roboRIO) ===
-      twai_message_t msg;
-      if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK) {
-        if (msg.extd && msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
-          lastHeartbeatMs = millis();
-          heartbeatLostPrinted = false;
-          bool currentEnabled = msg.data[4] & (1 << 4);
-
-          if (firstRead || currentEnabled != lastEnabled) {
-            Serial.printf(
-              "[CAN] Robot %s at %04d-%02d-%02d %02d:%02d:%02d\n",
-              currentEnabled ? "ENABLED" : "DISABLED",
-              2025, 6, 5, 0, 0, 0  // Dummy timestamp; update if needed
-            );
-            lastEnabled = currentEnabled;
-            firstRead = false;
-          }
-        }
-      }
-
-      // === Heartbeat timeout check ===
-      if (!heartbeatLostPrinted && millis() - lastHeartbeatMs > HEARTBEAT_TIMEOUT_MS) {
-        Serial.println("[CAN] Heartbeat lost. Assuming DISABLED.");
-        heartbeatLostPrinted = true;
-        lastEnabled = false;
-      }
-
-      // === Transmit RFID metadata only ===
-      if (batteryMetaValid) {
-        // RFID meta 1: Serial number part 1
-        twai_message_t meta1 = {};
-        meta1.identifier = rfidMeta1;
-        meta1.extd = 1;
-        meta1.data_length_code = 8;
-        memset(meta1.data, 0, 8);
-        strncpy((char*)meta1.data, batterySN, 8);
-        twai_transmit(&meta1, pdMS_TO_TICKS(10));
-
-        // RFID meta 2: Serial number part 2 + first use date
-        twai_message_t meta2 = {};
-        meta2.identifier = rfidMeta2;
-        meta2.extd = 1;
-        meta2.data_length_code = 8;
-        memset(meta2.data, 0, 8);
-
-        if (strlen(batterySN) > 8) {
-          strncpy((char*)meta2.data, batterySN + 8, 5);
-        }
-
-        uint16_t fuYear = 2025;
-        uint8_t  fuMonth = 6;
-        uint8_t  fuDay = 5;
-
-        meta2.data[4] = fuDay;
-        meta2.data[5] = (fuYear >> 8) & 0xFF;
-        meta2.data[6] = fuYear & 0xFF;
-        meta2.data[7] = fuMonth;
-
-        twai_transmit(&meta2, pdMS_TO_TICKS(10));
-
-        // RFID meta 3: Cycle count + note
-        twai_message_t meta3 = {};
-        meta3.identifier = rfidMeta3;
-        meta3.extd = 1;
-        meta3.data_length_code = 3;
-        meta3.data[0] = (batteryCycleCount >> 8) & 0xFF;
-        meta3.data[1] = batteryCycleCount & 0xFF;
-        meta3.data[2] = batteryNote;
-        twai_transmit(&meta3, pdMS_TO_TICKS(10));
-      }
-    }
-
-    vTaskDelay(20);
-  }
-}*/
 
 void TaskAutoBatteryManager(void* pvParameters) {
   enum State {
@@ -302,13 +159,7 @@ void TaskAutoBatteryManager(void* pvParameters) {
   static State state = STATE_WAIT_FOR_TAG;
 
   static int lockedReader = 0;
-  static bool wasEnabled = false;
-  static bool currentlyEnabled = false;
-  static unsigned long lastHeartbeatMs = millis();
-  static bool heartbeatLostPrinted = false;
-
-  const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
-  unsigned long lastWriteAttempt = 0;
+  bool wasEnabledLocal = false;  // Local copy to detect transition
 
   for (;;) {
     switch (state) {
@@ -329,6 +180,7 @@ void TaskAutoBatteryManager(void* pvParameters) {
               }
               currentSessionId = maxId + 1;
               Serial.printf("[AUTO] Reader 1 locked. Session ID = %d\n", currentSessionId);
+              printParsedBatteryJson(json);
               state = STATE_PARSE_AND_WRITE_INITIAL;
             }
           }
@@ -348,6 +200,7 @@ void TaskAutoBatteryManager(void* pvParameters) {
               }
               currentSessionId = maxId + 1;
               Serial.printf("[AUTO] Reader 2 locked. Session ID = %d\n", currentSessionId);
+              printParsedBatteryJson(json);
               state = STATE_PARSE_AND_WRITE_INITIAL;
             }
           }
@@ -358,26 +211,18 @@ void TaskAutoBatteryManager(void* pvParameters) {
       case STATE_PARSE_AND_WRITE_INITIAL: {
         writeNewUsageLog(currentSessionId, "0000000000", 0, 0.0f, lockedReader);
         Serial.println("[AUTO] Initial placeholder written.");
+        wasEnabledLocal = currentlyEnabled;
         state = STATE_WAIT_FOR_DATA;
         break;
       }
 
       case STATE_WAIT_FOR_DATA: {
-        bool current = lastEnabled;  // updated by TaskCANRx
-        if (wasEnabled && !current) {
-          state = STATE_WRITE_FINAL;
-        }
-        wasEnabled = current;
-
-        // If no heartbeat, assume disabled
-        if (!heartbeatLostPrinted && millis() - lastHeartbeatMs > HEARTBEAT_TIMEOUT_MS) {
-          Serial.println("[AUTO] Heartbeat lost — assuming DISABLED.");
-          heartbeatLostPrinted = true;
-          wasEnabled = true;
-          lastEnabled = false;
+        // Only transition when robot goes from enabled to disabled
+        if (wasEnabledLocal && !currentlyEnabled) {
           state = STATE_WRITE_FINAL;
         }
 
+        wasEnabledLocal = currentlyEnabled;
         break;
       }
 
@@ -392,9 +237,8 @@ void TaskAutoBatteryManager(void* pvParameters) {
           Serial.println("[AUTO] Final write skipped (invalid time).");
         }
 
+        // Stay in WAIT_FOR_DATA but don’t re-write unless robot enables again
         state = STATE_WAIT_FOR_DATA;
-        wasEnabled = false;
-        heartbeatLostPrinted = false;
         lowestVoltage = 0.0f;
         break;
       }
@@ -405,11 +249,9 @@ void TaskAutoBatteryManager(void* pvParameters) {
 }
 
 
-
 void TaskCANRx(void* pvParameters) {
   bool firstRead = true;
-  bool heartbeatLostPrinted = false;
-  unsigned long lastHeartbeatMs = millis();
+  bool lastHeartbeatOk = false;  // Track previous heartbeat status
   const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
 
   for (;;) {
@@ -424,25 +266,23 @@ void TaskCANRx(void* pvParameters) {
 
       if (msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
         lastHeartbeatMs = millis();
-        heartbeatLostPrinted = false;
+        heartbeatOk = true;
 
-        bool currentEnabled = msg.data[4] & (1 << 4);
-        lastEnabled = currentEnabled;  // Shared with AutoBatteryManager
+        currentlyEnabled = msg.data[4] & (1 << 4);
 
-        if (firstRead || currentEnabled != lastEnabled) {
-          firstRead = false;
-
+        if (firstRead || currentlyEnabled != wasEnabled) {
           Serial.printf(
             "[CAN] Robot %s | Voltage: %.1fV | Energy: %d | Lowest: %.2fV | Date: 20%02d-%02d-%02d %02d:%02d:%02d\n",
-            currentEnabled ? "ENABLED" : "DISABLED",
+            currentlyEnabled ? "ENABLED" : "DISABLED",
             voltage,
             energy,
             lowestVoltage,
             year, month, day, hour, minute, second
           );
+          firstRead = false;
+          wasEnabled = currentlyEnabled;
         }
       }
-
       else if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
         year = msg.data[0];
         month = msg.data[1];
@@ -456,21 +296,26 @@ void TaskCANRx(void* pvParameters) {
           lowestVoltage = voltage;
         }
       }
-
       else if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
         energy = (msg.data[0] << 8) | msg.data[1];
       }
     }
 
-    if (!heartbeatLostPrinted && millis() - lastHeartbeatMs > HEARTBEAT_TIMEOUT_MS) {
-      Serial.println("[CAN] Heartbeat lost. Assuming DISABLED.");
-      heartbeatLostPrinted = true;
-      lastEnabled = false;
+    // === Check heartbeat loss ===
+    bool heartbeatCurrentlyOk = (millis() - lastHeartbeatMs) <= HEARTBEAT_TIMEOUT_MS;
+
+    if (!heartbeatCurrentlyOk && lastHeartbeatOk) {
+      // Heartbeat just failed
+      heartbeatOk = false;
+      currentlyEnabled = false;
+      // No print — silent transition
     }
 
+    lastHeartbeatOk = heartbeatCurrentlyOk;
     vTaskDelay(10);
   }
 }
+
 
 
 void TaskCANTx(void* pvParameters) {
@@ -723,7 +568,6 @@ String extractJsonFromNdefText(const String& raw) {
 }
 
 
-
 void writeNewUsageLog(int eventId, const String& timeStr, int energy, float voltage, int readerId) {
   const int MAX_BLOCKS = 64;
   const int MAX_LOGS = 14;
@@ -732,11 +576,7 @@ void writeNewUsageLog(int eventId, const String& timeStr, int energy, float volt
   reader.PCD_Reset();
   reader.PCD_Init();
 
-
-  if (!reader.PICC_IsNewCardPresent() || !reader.PICC_ReadCardSerial()) {
-    //Serial.println("[WRITE] No tag present");
-    return;
-  }
+  if (!reader.PICC_IsNewCardPresent() || !reader.PICC_ReadCardSerial()) return;
 
   byte blockData[MAX_BLOCKS][16];
   bool blockValid[MAX_BLOCKS] = {false};
@@ -759,16 +599,12 @@ void writeNewUsageLog(int eventId, const String& timeStr, int energy, float volt
       }
     }
 
-    bool accepted = false;
-    if (success[0] && success[1] && memcmp(reads[0], reads[1], 16) == 0) {
-      memcpy(blockData[block], reads[0], 16); accepted = true;
-    } else if (success[0] && success[2] && memcmp(reads[0], reads[2], 16) == 0) {
-      memcpy(blockData[block], reads[0], 16); accepted = true;
-    } else if (success[1] && success[2] && memcmp(reads[1], reads[2], 16) == 0) {
-      memcpy(blockData[block], reads[1], 16); accepted = true;
+    if ((success[0] && success[1] && memcmp(reads[0], reads[1], 16) == 0) ||
+        (success[0] && success[2] && memcmp(reads[0], reads[2], 16) == 0) ||
+        (success[1] && success[2] && memcmp(reads[1], reads[2], 16) == 0)) {
+      memcpy(blockData[block], reads[success[0] ? 0 : 1], 16);
+      blockValid[block] = true;
     }
-
-    if (accepted) blockValid[block] = true;
   }
 
   for (byte block = 4; block < MAX_BLOCKS; block++) {
@@ -777,59 +613,73 @@ void writeNewUsageLog(int eventId, const String& timeStr, int energy, float volt
   }
 
   String cleanJson = extractJsonFromNdefText(raw);
-  if (cleanJson == "") {
-    //Serial.println("[WRITE] Invalid JSON. Abort.");
-    return;
-  }
+  if (cleanJson == "") return;
 
-  // Step 2: Parse and modify JSON
   StaticJsonDocument<2048> doc;
-  if (deserializeJson(doc, cleanJson)) {
-    //Serial.println("[WRITE] JSON parse failed");
-    return;
-  }
+  if (deserializeJson(doc, cleanJson)) return;
 
   JsonArray logs = doc["u"].as<JsonArray>();
-  if (!logs) {
-    //Serial.println("[WRITE] Usage log array invalid");
-    return;
-  }
+  if (!logs) return;
 
-  int maxId = 0;
-  while (logs.size() > MAX_LOGS - 1) {
-    int minId = INT_MAX;
-    size_t minIndex = 0;
-    for (size_t i = 0; i < logs.size(); i++) {
-      int id = logs[i]["i"] | 0;
-      if (id < minId) {
-        minId = id;
-        minIndex = i;
+  // Step 2: Remove all duplicates of eventId
+  size_t index = 0;
+  int foundCount = 0;
+  while (index < logs.size()) {
+    int id = logs[index]["i"] | 0;
+    if (id == eventId) {
+      if (foundCount == 0) {
+        ++index;  // Keep the first match
+        ++foundCount;
+      } else {
+        logs.remove(index);  // Remove duplicates
       }
+    } else {
+      ++index;
     }
-    logs.remove(minIndex);
   }
 
+  // Step 3: Either overwrite the first matching or append if not found
+  bool updated = false;
   for (JsonObject obj : logs) {
-    int id = obj["i"] | 0;
-    if (id > maxId) maxId = id;
+    if ((obj["i"] | 0) == eventId) {
+      obj["t"] = timeStr;
+      obj["d"] = 1;
+      obj["e"] = energy;
+      obj["v"] = voltage;
+      updated = true;
+      break;
+    }
   }
 
-  JsonObject newEntry = logs.createNestedObject();
-  newEntry["i"] = eventId;
-  newEntry["t"] = timeStr;
-  newEntry["d"] = 1;  // robot by default, or add logic if needed
-  newEntry["e"] = energy;
-  newEntry["v"] = voltage;
+  if (!updated) {
+    // Remove oldest if over limit
+    while (logs.size() >= MAX_LOGS) {
+      size_t minIndex = 0;
+      int minId = INT_MAX;
+      for (size_t i = 0; i < logs.size(); i++) {
+        int id = logs[i]["i"] | 0;
+        if (id < minId) {
+          minId = id;
+          minIndex = i;
+        }
+      }
+      logs.remove(minIndex);
+    }
 
+    JsonObject newEntry = logs.createNestedObject();
+    newEntry["i"] = eventId;
+    newEntry["t"] = timeStr;
+    newEntry["d"] = 1;
+    newEntry["e"] = energy;
+    newEntry["v"] = voltage;
+  }
 
+  // Step 4: Encode and write as NDEF
   String newJson;
   serializeJson(doc, newJson);
-  //Serial.println("[DEBUG] JSON:");
-  //Serial.println(newJson);
 
-  // Step 3: NDEF encode
   NdefMessage ndef;
-  NdefRecord record = NdefRecord();
+  NdefRecord record;
   record.setTnf(TNF_WELL_KNOWN);
   const char* typeStr = "T";
   record.setType((const byte*)typeStr, 1);
@@ -839,11 +689,11 @@ void writeNewUsageLog(int eventId, const String& timeStr, int energy, float volt
   ndef.addRecord(record);
 
   int msgLen = ndef.getEncodedSize();
-  uint8_t buffer[msgLen + 6];  // for TLV + terminator + pad
+  uint8_t buffer[msgLen + 6];
   int totalLen = 0;
 
   if (msgLen < 0xFF) {
-    buffer[0] = 0x03;           // NDEF TLV
+    buffer[0] = 0x03;
     buffer[1] = msgLen;
     ndef.encode(&buffer[2]);
     totalLen = msgLen + 2;
@@ -856,14 +706,12 @@ void writeNewUsageLog(int eventId, const String& timeStr, int energy, float volt
     totalLen = msgLen + 4;
   }
 
-  if (totalLen < 752) buffer[totalLen++] = 0xFE;  // TLV terminator
-
+  if (totalLen < 752) buffer[totalLen++] = 0xFE;
   while (totalLen % 16 != 0) buffer[totalLen++] = 0x00;
 
-  // Step 4: Write NDEF to blocks
   int block = 4;
   for (int i = 0; i < totalLen; i += 16) {
-    if (block % 4 == 3) block++;  // skip trailer
+    if (block % 4 == 3) block++;
     byte trailer = (block / 4) * 4 + 3;
     if (reader.PCD_Authenticate(MFRC522Constants::PICC_CMD_MF_AUTH_KEY_A, trailer, &keyA, &(reader.uid)) != MFRC522Constants::STATUS_OK) {
       Serial.printf("[WRITE] Auth fail block %d\n", block);
@@ -872,27 +720,20 @@ void writeNewUsageLog(int eventId, const String& timeStr, int energy, float volt
     }
     if (reader.MIFARE_Write(block, &buffer[i], 16) != MFRC522Constants::STATUS_OK) {
       Serial.printf("[WRITE] Failed block %d\n", block);
-    } else {
-      //Serial.printf("[WRITE] Wrote block %d\n", block);
     }
     block++;
   }
 
-  // Step 5: Pad rest of tag with 0x00
+  // Pad remaining blocks
   for (; block < 64; block++) {
     if (block % 4 == 3) continue;
     byte trailer = (block / 4) * 4 + 3;
     if (reader.PCD_Authenticate(MFRC522Constants::PICC_CMD_MF_AUTH_KEY_A, trailer, &keyA, &(reader.uid)) != MFRC522Constants::STATUS_OK) {
 
-      Serial.printf("[WRITE] Auth fail on pad block %d\n", block);
       continue;
     }
     byte blank[16] = {0};
-    if (reader.MIFARE_Write(block, blank, 16) != MFRC522Constants::STATUS_OK) {
-      Serial.printf("[WRITE] Pad fail block %d\n", block);
-    } else {
-      //Serial.printf("[WRITE] Padded block %d with 0x00\n", block);
-    }
+    reader.MIFARE_Write(block, blank, 16);
   }
 
   reader.PICC_HaltA();
