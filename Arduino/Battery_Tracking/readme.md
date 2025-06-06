@@ -6,9 +6,11 @@ Video demo: https://www.youtube.com/watch?v=rKZOKIWVOAg
 
 ![](../../img/batterytrax.JPG)
 
-## Android Companion APP
+## Android Companion APP and roboRIO Driver
 
 https://github.com/sikaxn/FRC-RFID-Battery-Reader/
+
+https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/main/roboRIO/batteryReader
 
 ## Arduino IDE Setup
 
