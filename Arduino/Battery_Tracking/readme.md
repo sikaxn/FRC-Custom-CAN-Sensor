@@ -96,14 +96,24 @@ Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Fo
 ```
 Byte 0–7: ASCII characters of SN
 ```
+Here's the corrected version based on the actual Java code you provided for API ID `0x132`:
 
-##### ➤ `0x132`: Serial (rest) + date info
+
+
+#####  ➤ `0x132`: **Datetime + Voltage Info**
 
 ```
-Byte 0–4: ASCII (optional SN continuation)
-Byte 5: Month (?)
-Byte 6–7: Year (16-bit)
+Byte 0: Year (offset from 2000, e.g., 25 = 2025)
+Byte 1: Month (1–12)
+Byte 2: Day of Month (1–31)
+Byte 3: Hour (0–23)
+Byte 4: Minute (0–59)
+Byte 5: Second (0–59)
+Byte 6: Voltage × 10 (e.g., 13.9V → 139)
+Byte 7: Reserved (set to 0)
 ```
+
+
 
 ##### ➤ `0x133`: Cycle count + note
 
