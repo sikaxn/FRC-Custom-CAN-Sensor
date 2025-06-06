@@ -8,6 +8,13 @@ CD Thread: https://www.chiefdelphi.com/t/rfid-battery-tracking-some-progress/502
 
 https://github.com/sikaxn/FRC-RFID-Battery-Reader/
 
+## Arduino IDE Setup
+
+This Library needs to be manually installed to handle NDEF encoding.
+
+https://github.com/Seeed-Studio/Seeed_Arduino_NFC
+
+
 ## Logic
 
 1. When ESP32 power up, it will scan on both reader (I have 2 reader attached assuming a battery can be installed in any direction), once a card is found, it will lock on with that reader.
