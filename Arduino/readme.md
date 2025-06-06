@@ -56,7 +56,7 @@ def encode_id(dt, man, api, dn):
 
 # 📄 Python Arduino Simulator 
 
-![image](img/sim.JPG)
+![image](../img/sim.JPG)
 
 This Python simulator emulates an Arduino CAN device on the FRC CAN bus using a **CANalyst-II adapter** and the `python-can` library. It interacts with the roboRIO using standard 29-bit extended CAN frames, following FRC-style protocol structure.
 
