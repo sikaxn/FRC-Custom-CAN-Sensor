@@ -31,6 +31,7 @@ This project use **AI generated content**.
 3. LCD Screen  ([Arduino Firmware](Arduino/LCD/) / [roboRIO](roboRIO/can-LCD/) / [RIO Simulator](scripts/LCDSendRIOSIM.py))
 4. Robomaster motor gateway (dual CAN on ESP32)  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/djimotor/))
 5. Robomaster DT7 Remote on CAN  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/dt7/))
+6. Battery Tracking System ([Arduino Firmware](Arduino/Battery_Tracking/batteryReader/) / [roboRIO](roboRIO/batteryReader/) / [Android APP](https://github.com/sikaxn/FRC-RFID-Battery-Reader) / [Docs](Arduino/Battery_Tracking/readme.md))
 ---
 ## How FRC CAN bus works
 
