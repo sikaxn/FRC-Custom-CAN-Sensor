@@ -162,6 +162,23 @@ void TaskSerial(void* pvParameters) {
         } else {
           Serial.println("[READ] Timeout or invalid tag.");
         }
+
+      } else if (input == "1" || input == "2") {
+        int readerId = input.toInt();
+        Serial.printf("[CMD] Trigger write on Reader %d\n", readerId);
+
+        // Construct fake time string in FRC format (YYMMDDHHMM)
+        time_t now = time(nullptr);
+        struct tm* t = localtime(&now);
+        char timeStr[11];  // 10 + null
+        snprintf(timeStr, sizeof(timeStr), "%02d%02d%02d%02d%02d",
+                 (t->tm_year + 1900) % 100, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min);
+
+        static int sessionId = 100;  // Replace with real counter or ID logic
+        sessionId++;
+
+        writeNewUsageLog(sessionId, String(timeStr), 0, 0.0f, readerId);
+
       } else {
         Serial.printf("[ERROR] Unknown command: %s\n", input.c_str());
       }
@@ -177,16 +194,8 @@ void TaskCAN(void* pvParameters) {
   bool firstRead = true;
   bool heartbeatLostPrinted = false;
 
-  uint8_t year = 0, month = 0, day = 0;
-  uint8_t hour = 0, minute = 0, second = 0;
-  uint8_t voltageRaw = 0;
-  uint16_t energyRaw = 0;
-
   unsigned long lastHeartbeatMs = millis();
   const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
-
-  const uint32_t statusId1 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, BATTERY_STATUS_API_ID_1, DEVICE_NUMBER);
-  const uint32_t statusId2 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, BATTERY_STATUS_API_ID_2, DEVICE_NUMBER);
 
   const uint32_t rfidMeta1 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_1, DEVICE_NUMBER);
   const uint32_t rfidMeta2 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_2, DEVICE_NUMBER);
@@ -194,6 +203,7 @@ void TaskCAN(void* pvParameters) {
 
   for (;;) {
     if (canAvailable) {
+      // === Read heartbeat (from roboRIO) ===
       twai_message_t msg;
       if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK) {
         if (msg.extd && msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
@@ -203,12 +213,9 @@ void TaskCAN(void* pvParameters) {
 
           if (firstRead || currentEnabled != lastEnabled) {
             Serial.printf(
-              "[CAN] Robot %s at %04d-%02d-%02d %02d:%02d:%02d, %.1fV, %.1fJ\n",
+              "[CAN] Robot %s at %04d-%02d-%02d %02d:%02d:%02d\n",
               currentEnabled ? "ENABLED" : "DISABLED",
-              2000 + year, month, day,
-              hour, minute, second,
-              voltageRaw / 10.0,
-              energyRaw / 10.0
+              2025, 6, 5, 0, 0, 0  // Dummy timestamp; update if needed
             );
             lastEnabled = currentEnabled;
             firstRead = false;
@@ -216,36 +223,16 @@ void TaskCAN(void* pvParameters) {
         }
       }
 
+      // === Heartbeat timeout check ===
       if (!heartbeatLostPrinted && millis() - lastHeartbeatMs > HEARTBEAT_TIMEOUT_MS) {
         Serial.println("[CAN] Heartbeat lost. Assuming DISABLED.");
         heartbeatLostPrinted = true;
         lastEnabled = false;
       }
 
-      // Read time
-      time_t nowSecs = time(nullptr);
-      struct tm* t = localtime(&nowSecs);
-      if (t && t->tm_year >= 125) {  // year >= 2025
-        year   = t->tm_year + 1900 - 2000;
-        month  = t->tm_mon + 1;
-        day    = t->tm_mday;
-        hour   = t->tm_hour;
-        minute = t->tm_min;
-        second = t->tm_sec;
-      } else {
-        year = 99;  // year 2099 fallback
-        month = 1;
-        day = 1;
-        hour = 0;
-        minute = 0;
-        second = 0;
-      }
-
-      voltageRaw = (uint8_t)(analogRead(A0) * 3.3 / 4095.0 * 10.0);
-      energyRaw  = 255;  // dummy/test
-
+      // === Transmit RFID metadata only ===
       if (batteryMetaValid) {
-        // === RFID meta1: Serial Number part 1 ===
+        // RFID meta 1: Serial number part 1
         twai_message_t meta1 = {};
         meta1.identifier = rfidMeta1;
         meta1.extd = 1;
@@ -254,7 +241,7 @@ void TaskCAN(void* pvParameters) {
         strncpy((char*)meta1.data, batterySN, 8);
         twai_transmit(&meta1, pdMS_TO_TICKS(10));
 
-        // === RFID meta2: Serial Number part 2 + First Use Date ===
+        // RFID meta 2: Serial number part 2 + first use date
         twai_message_t meta2 = {};
         meta2.identifier = rfidMeta2;
         meta2.extd = 1;
@@ -265,7 +252,7 @@ void TaskCAN(void* pvParameters) {
           strncpy((char*)meta2.data, batterySN + 8, 5);
         }
 
-        uint16_t fuYear = 2025;  // ⬅️ Replace with your own value
+        uint16_t fuYear = 2025;
         uint8_t  fuMonth = 6;
         uint8_t  fuDay = 5;
 
@@ -276,7 +263,7 @@ void TaskCAN(void* pvParameters) {
 
         twai_transmit(&meta2, pdMS_TO_TICKS(10));
 
-        // === RFID meta3: Cycle Count + Note ===
+        // RFID meta 3: Cycle count + note
         twai_message_t meta3 = {};
         meta3.identifier = rfidMeta3;
         meta3.extd = 1;
@@ -285,36 +272,13 @@ void TaskCAN(void* pvParameters) {
         meta3.data[1] = batteryCycleCount & 0xFF;
         meta3.data[2] = batteryNote;
         twai_transmit(&meta3, pdMS_TO_TICKS(10));
-
-        // === Battery Status 1 (timestamp + voltage)
-        twai_message_t status1 = {};
-        status1.identifier = statusId1;
-        status1.extd = 1;
-        status1.data_length_code = 8;
-        status1.data[0] = year;
-        status1.data[1] = month;
-        status1.data[2] = day;
-        status1.data[3] = hour;
-        status1.data[4] = minute;
-        status1.data[5] = second;
-        status1.data[6] = voltageRaw;
-        status1.data[7] = 0;
-        twai_transmit(&status1, pdMS_TO_TICKS(10));
-
-        // === Battery Status 2 (energy)
-        twai_message_t status2 = {};
-        status2.identifier = statusId2;
-        status2.extd = 1;
-        status2.data_length_code = 2;
-        status2.data[0] = (energyRaw >> 8) & 0xFF;
-        status2.data[1] = energyRaw & 0xFF;
-        twai_transmit(&status2, pdMS_TO_TICKS(10));
       }
     }
 
     vTaskDelay(20);
   }
 }
+
 
 String handleReader(MFRC522& reader, int readerNum) {
   const int MAX_BLOCKS = 64;
