@@ -2,6 +2,8 @@
 
 CD Thread: https://www.chiefdelphi.com/t/rfid-battery-tracking-some-progress/502847
 
+![](../../img/batterytrax.JPG)
+
 ## Android Companion APP
 
 https://github.com/sikaxn/FRC-RFID-Battery-Reader/
