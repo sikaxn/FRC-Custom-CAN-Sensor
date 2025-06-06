@@ -56,14 +56,14 @@ Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Fo
 
 ##  **CAN Message Types in Use**
 
-#### 1. **Heartbeat (robot status)** — `CAN ID = 0x01011840`
+#### 1. **Heartbeat (robot status)** — `CAN ID = 0x01011840` rio -> ESP32
 
 * **Fixed ID** sent by roboRIO
 * **8-byte payload**, where:
 
   * `data[4] & (1 << 4)` = robot enabled status (bit 4)
 
-#### 2. **BATTERY\_STATUS\_API\_ID\_1** (`apiID = 0x135`)
+#### 2. **BATTERY\_STATUS\_API\_ID\_1** (`apiID = 0x135`) rio -> ESP32
 
 * **ID** = calculated by `makeCANMsgID(...)`
 * **7+ bytes** payload:
@@ -78,7 +78,7 @@ Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Fo
   Byte 6: voltage * 10 (e.g., 139 = 13.9V)
   ```
 
-#### 3. **BATTERY\_STATUS\_API\_ID\_2** (`apiID = 0x136`)
+#### 3. **BATTERY\_STATUS\_API\_ID\_2** (`apiID = 0x136`) rio -> ESP32
 
 * **2 bytes** payload:
 
@@ -91,13 +91,13 @@ Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Fo
 * **API IDs:** `0x131`, `0x132`, `0x133`
 * **Used to send metadata after tag read**
 
-##### ➤ `0x131`: Battery Serial (first 8 bytes)
+##### ➤ `0x131`: Battery Serial (first 8 bytes) ESP32 -> rio
 
 ```
 Byte 0–7: ASCII characters of SN
 ```
 
-#####  ➤ `0x132`: **Datetime + Voltage Info**
+#####  ➤ `0x132`: **Datetime + Voltage Info** ESP32 -> rio
 
 ```
 Byte 0: Year (offset from 2000, e.g., 25 = 2025)
@@ -112,7 +112,7 @@ Byte 7: Reserved (set to 0)
 
 
 
-##### ➤ `0x133`: Cycle count + note
+##### ➤ `0x133`: Cycle count + note ESP32 -> rio
 
 ```
 Byte 0–1: Cycle count (uint16_t)
