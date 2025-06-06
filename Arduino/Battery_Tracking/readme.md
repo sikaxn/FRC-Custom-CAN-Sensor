@@ -96,9 +96,6 @@ Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Fo
 ```
 Byte 0–7: ASCII characters of SN
 ```
-Here's the corrected version based on the actual Java code you provided for API ID `0x132`:
-
-
 
 #####  ➤ `0x132`: **Datetime + Voltage Info**
 
