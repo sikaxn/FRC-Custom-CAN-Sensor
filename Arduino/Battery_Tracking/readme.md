@@ -14,6 +14,12 @@ This Library needs to be manually installed to handle NDEF encoding.
 
 https://github.com/Seeed-Studio/Seeed_Arduino_NFC
 
+these can be installed using arduino library manager
+
+https://github.com/OSSLibraries/Arduino_MFRC522v2
+https://github.com/bblanchon/ArduinoJson
+
+
 
 ## Logic
 
