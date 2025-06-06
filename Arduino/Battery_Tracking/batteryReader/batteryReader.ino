@@ -15,12 +15,12 @@
 #define RST_PIN 22
 
 // === CAN Constants ===
-#define BATTERY_STATUS_API_ID  0x135
+#define BATTERY_STATUS_API_ID_1  0x135
+#define BATTERY_STATUS_API_ID_2  0x136
 #define DISABLE_WRITE_DELAY_MS 1000
 #define DEVICE_ID        0x0A  //DONOT CHANGE
 #define MANUFACTURER_ID  0x08  //DONOT CHANGE
 #define DEVICE_NUMBER    33    // Device Number 0-63
-#define RFID_ID_API_ID       0x130
 #define RFID_META_API_ID_1   0x131
 #define RFID_META_API_ID_2   0x132
 #define RFID_META_API_ID_3   0x133
@@ -52,6 +52,20 @@ bool canAvailable = false;
 
 void TaskCAN(void* pvParameters);
 void TaskSerial(void* pvParameters);
+
+// Forward declarations for custom functions
+String handleReader(MFRC522& reader, int readerNum);
+void printParsedBatteryJson(const String& json);
+String extractJsonFromNdefText(const String& raw);
+int extractInt(const String& src, const char* key);
+String extractString(const String& src, const char* key);
+void writeNewUsageLog(int eventId, const String& timeStr, int energy, float voltage, int readerId);
+
+char batterySN[17] = "";   // up to 16 chars
+uint16_t batteryFirstUse = 0;  // encoded as MMDD (e.g., 603 for June 3)
+uint16_t batteryCycleCount = 0;
+uint8_t batteryNote = 0;
+bool batteryMetaValid = false;
 
 
 
@@ -122,13 +136,8 @@ void TaskSerial(void* pvParameters) {
       String input = Serial.readStringUntil('\n');
       input.trim();
 
-      if (input == "1" || input == "2") {
-        int readerId = input.toInt();
-        Serial.printf("[WRITE] Triggered by serial for reader %d\n", readerId);
-        writeNewUsageLog(123, "2506051238", 0, 0.0, readerId);  // Example args
-      } else if (input.equalsIgnoreCase("read")) {
+      if (input.equalsIgnoreCase("read")) {
         Serial.println("[READ] Waiting for card on either reader...");
-
         unsigned long startTime = millis();
         const unsigned long timeout = 10000;
         String json = "";
@@ -148,7 +157,8 @@ void TaskSerial(void* pvParameters) {
         }
 
         if (json != "") {
-          printParsedBatteryJson(json);
+          printParsedBatteryJson(json);  // also sets batterySN, batteryCycleCount, etc.
+          batteryMetaValid = true;
         } else {
           Serial.println("[READ] Timeout or invalid tag.");
         }
@@ -157,37 +167,154 @@ void TaskSerial(void* pvParameters) {
       }
     }
 
-    delay(20);  // Avoid CPU starvation
+    delay(20);
   }
 }
+
 
 void TaskCAN(void* pvParameters) {
   bool lastEnabled = false;
   bool firstRead = true;
+  bool heartbeatLostPrinted = false;
+
+  uint8_t year = 0, month = 0, day = 0;
+  uint8_t hour = 0, minute = 0, second = 0;
+  uint8_t voltageRaw = 0;
+  uint16_t energyRaw = 0;
+
+  unsigned long lastHeartbeatMs = millis();
+  const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
+
+  const uint32_t statusId1 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, BATTERY_STATUS_API_ID_1, DEVICE_NUMBER);
+  const uint32_t statusId2 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, BATTERY_STATUS_API_ID_2, DEVICE_NUMBER);
+
+  const uint32_t rfidMeta1 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_1, DEVICE_NUMBER);
+  const uint32_t rfidMeta2 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_2, DEVICE_NUMBER);
+  const uint32_t rfidMeta3 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_3, DEVICE_NUMBER);
 
   for (;;) {
     if (canAvailable) {
       twai_message_t msg;
       if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK) {
-        // Check if it's the roboRIO heartbeat
         if (msg.extd && msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
-          // Byte 4, bit 4 = robot enabled flag
+          lastHeartbeatMs = millis();
+          heartbeatLostPrinted = false;
           bool currentEnabled = msg.data[4] & (1 << 4);
 
           if (firstRead || currentEnabled != lastEnabled) {
-            Serial.printf("[CAN] Robot %s\n", currentEnabled ? "ENABLED" : "DISABLED");
+            Serial.printf(
+              "[CAN] Robot %s at %04d-%02d-%02d %02d:%02d:%02d, %.1fV, %.1fJ\n",
+              currentEnabled ? "ENABLED" : "DISABLED",
+              2000 + year, month, day,
+              hour, minute, second,
+              voltageRaw / 10.0,
+              energyRaw / 10.0
+            );
             lastEnabled = currentEnabled;
             firstRead = false;
           }
         }
       }
+
+      if (!heartbeatLostPrinted && millis() - lastHeartbeatMs > HEARTBEAT_TIMEOUT_MS) {
+        Serial.println("[CAN] Heartbeat lost. Assuming DISABLED.");
+        heartbeatLostPrinted = true;
+        lastEnabled = false;
+      }
+
+      // Read time
+      time_t nowSecs = time(nullptr);
+      struct tm* t = localtime(&nowSecs);
+      if (t && t->tm_year >= 125) {  // year >= 2025
+        year   = t->tm_year + 1900 - 2000;
+        month  = t->tm_mon + 1;
+        day    = t->tm_mday;
+        hour   = t->tm_hour;
+        minute = t->tm_min;
+        second = t->tm_sec;
+      } else {
+        year = 99;  // year 2099 fallback
+        month = 1;
+        day = 1;
+        hour = 0;
+        minute = 0;
+        second = 0;
+      }
+
+      voltageRaw = (uint8_t)(analogRead(A0) * 3.3 / 4095.0 * 10.0);
+      energyRaw  = 255;  // dummy/test
+
+      if (batteryMetaValid) {
+        // === RFID meta1: Serial Number part 1 ===
+        twai_message_t meta1 = {};
+        meta1.identifier = rfidMeta1;
+        meta1.extd = 1;
+        meta1.data_length_code = 8;
+        memset(meta1.data, 0, 8);
+        strncpy((char*)meta1.data, batterySN, 8);
+        twai_transmit(&meta1, pdMS_TO_TICKS(10));
+
+        // === RFID meta2: Serial Number part 2 + First Use Date ===
+        twai_message_t meta2 = {};
+        meta2.identifier = rfidMeta2;
+        meta2.extd = 1;
+        meta2.data_length_code = 8;
+        memset(meta2.data, 0, 8);
+
+        if (strlen(batterySN) > 8) {
+          strncpy((char*)meta2.data, batterySN + 8, 5);
+        }
+
+        uint16_t fuYear = 2025;  // ⬅️ Replace with your own value
+        uint8_t  fuMonth = 6;
+        uint8_t  fuDay = 5;
+
+        meta2.data[4] = fuDay;
+        meta2.data[5] = (fuYear >> 8) & 0xFF;
+        meta2.data[6] = fuYear & 0xFF;
+        meta2.data[7] = fuMonth;
+
+        twai_transmit(&meta2, pdMS_TO_TICKS(10));
+
+        // === RFID meta3: Cycle Count + Note ===
+        twai_message_t meta3 = {};
+        meta3.identifier = rfidMeta3;
+        meta3.extd = 1;
+        meta3.data_length_code = 3;
+        meta3.data[0] = (batteryCycleCount >> 8) & 0xFF;
+        meta3.data[1] = batteryCycleCount & 0xFF;
+        meta3.data[2] = batteryNote;
+        twai_transmit(&meta3, pdMS_TO_TICKS(10));
+
+        // === Battery Status 1 (timestamp + voltage)
+        twai_message_t status1 = {};
+        status1.identifier = statusId1;
+        status1.extd = 1;
+        status1.data_length_code = 8;
+        status1.data[0] = year;
+        status1.data[1] = month;
+        status1.data[2] = day;
+        status1.data[3] = hour;
+        status1.data[4] = minute;
+        status1.data[5] = second;
+        status1.data[6] = voltageRaw;
+        status1.data[7] = 0;
+        twai_transmit(&status1, pdMS_TO_TICKS(10));
+
+        // === Battery Status 2 (energy)
+        twai_message_t status2 = {};
+        status2.identifier = statusId2;
+        status2.extd = 1;
+        status2.data_length_code = 2;
+        status2.data[0] = (energyRaw >> 8) & 0xFF;
+        status2.data[1] = energyRaw & 0xFF;
+        twai_transmit(&status2, pdMS_TO_TICKS(10));
+      }
     }
 
-    vTaskDelay(10);  // small delay to yield CPU
+    vTaskDelay(20);
   }
 }
-
-
 
 String handleReader(MFRC522& reader, int readerNum) {
   const int MAX_BLOCKS = 64;
@@ -306,12 +433,16 @@ void printParsedBatteryJson(const String& json) {
   int snIndex = json.indexOf("\"sn\":\"");
   if (snIndex != -1) {
     String sn = json.substring(snIndex + 6, json.indexOf("\"", snIndex + 6));
+    sn.toCharArray(batterySN, sizeof(batterySN));  // ⬅️ Store to global
     Serial.print(F("Serial Number: ")); Serial.println(sn);
   }
 
   int fuIndex = json.indexOf("\"fu\":\"");
   if (fuIndex != -1) {
     String fu = json.substring(fuIndex + 6, json.indexOf("\"", fuIndex + 6));
+    if (fu.length() >= 4) {
+      batteryFirstUse = fu.substring(2, 4).toInt() * 100 + fu.substring(4, 6).toInt(); // e.g. 2506051238 -> 0605
+    }
     Serial.print(F("First Use: ")); Serial.println(fu);
   }
 
@@ -321,18 +452,16 @@ void printParsedBatteryJson(const String& json) {
     int end = json.indexOf(",", start);
     if (end == -1) end = json.indexOf("}", start);
     if (end != -1) {
-      String cc = json.substring(start, end);
-      Serial.print(F("Cycle Count: ")); Serial.println(cc);
-    } else {
-      Serial.println(F("Cycle Count: Not found"));
+      batteryCycleCount = json.substring(start, end).toInt();  // ⬅️ Store to global
+      Serial.print(F("Cycle Count: ")); Serial.println(batteryCycleCount);
     }
   }
 
   int nIndex = json.indexOf("\"n\":");
   if (nIndex != -1) {
-    int note = json.substring(nIndex + 4, json.indexOf(",", nIndex)).toInt();
+    batteryNote = json.substring(nIndex + 4, json.indexOf(",", nIndex)).toInt();  // ⬅️ Store to global
     Serial.print(F("Note Type: "));
-    switch (note) {
+    switch (batteryNote) {
       case 0: Serial.println(F("Normal")); break;
       case 1: Serial.println(F("Practice Only")); break;
       case 2: Serial.println(F("Scrap")); break;
@@ -341,29 +470,7 @@ void printParsedBatteryJson(const String& json) {
     }
   }
 
-  int uIndex = json.indexOf("\"u\":[");
-  if (uIndex != -1) {
-    Serial.println(F("--- Usage Log ---"));
-    int pos = uIndex;
-    while (true) {
-      int entryStart = json.indexOf("{", pos);
-      int entryEnd = json.indexOf("}", entryStart);
-      if (entryStart == -1 || entryEnd == -1) break;
-
-      String entry = json.substring(entryStart, entryEnd + 1);
-      int id = extractInt(entry, "\"i\":");
-      String time = extractString(entry, "\"t\":\"");
-      int device = extractInt(entry, "\"d\":");
-
-      Serial.print(F("  #")); Serial.print(id);
-      Serial.print(F(" at ")); Serial.print(time);
-      Serial.print(F(" on "));
-      Serial.println(device == 1 ? "Robot" : "Charger");
-
-      pos = entryEnd + 1;
-    }
-  }
-
+  // You don't need to store usage logs in global for now.
   Serial.println(F("============================\n"));
 }
 
