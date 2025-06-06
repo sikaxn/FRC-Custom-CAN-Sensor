@@ -8,24 +8,28 @@
 #include <NdefMessage.h>
 #include <NdefRecord.h>
 
-
 #include "driver/twai.h"
 
-
+// === Pin Definitions ===
 #define RST_PIN 22
+#define CAN_TX_PIN GPIO_NUM_16
+#define CAN_RX_PIN GPIO_NUM_17
 
 // === CAN Constants ===
 #define BATTERY_STATUS_API_ID_1  0x135
 #define BATTERY_STATUS_API_ID_2  0x136
-#define DISABLE_WRITE_DELAY_MS 1000
-#define DEVICE_ID        0x0A  //DONOT CHANGE
-#define MANUFACTURER_ID  0x08  //DONOT CHANGE
-#define DEVICE_NUMBER    33    // Device Number 0-63
-#define RFID_META_API_ID_1   0x131
-#define RFID_META_API_ID_2   0x132
-#define RFID_META_API_ID_3   0x133
-#define HEARTBEAT_ID         0x01011840
+#define RFID_META_API_ID_1       0x131
+#define RFID_META_API_ID_2       0x132
+#define RFID_META_API_ID_3       0x133
+#define HEARTBEAT_ID             0x01011840
 
+#define DEVICE_ID        0x0A  // DO NOT CHANGE
+#define MANUFACTURER_ID  0x08  // DO NOT CHANGE
+#define DEVICE_NUMBER    33    // Device Number 0–63
+
+#define DISABLE_WRITE_DELAY_MS 1000
+
+// === CAN Message ID Constructor ===
 uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, uint8_t deviceNumber) {
   return ((uint32_t)(deviceID & 0xFF) << 24) |
          ((uint32_t)(manufacturerID & 0xFF) << 16) |
@@ -33,10 +37,7 @@ uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, 
          (deviceNumber & 0x3F);
 }
 
-#define CAN_TX_PIN GPIO_NUM_16  
-#define CAN_RX_PIN GPIO_NUM_17  
-
-
+// === RFID Setup ===
 MFRC522DriverPinSimple ss_pin1(5);  // Reader 1 SS
 MFRC522DriverPinSimple ss_pin2(4);  // Reader 2 SS
 
@@ -47,26 +48,36 @@ MFRC522 mfrc1{driver1};
 MFRC522 mfrc2{driver2};
 
 MFRC522::MIFARE_Key keyA;
-bool canAvailable = false;
 
+// === Task Declarations ===
+void TaskCANRx(void* pvParameters);
+void TaskCANTx(void* pvParameters);
+void TaskAutoBatteryManager(void* pvParameters);
 
-void TaskCAN(void* pvParameters);
-void TaskSerial(void* pvParameters);
+// === CAN & System State ===
+volatile bool canAvailable = false;
+volatile bool lastEnabled = false;
 
-// Forward declarations for custom functions
+volatile uint8_t year = 0, month = 0, day = 0;
+volatile uint8_t hour = 0, minute = 0, second = 0;
+volatile float voltage = 0.0, lowestVoltage = 0.0;
+volatile int energy = 0;
+
+// === Battery Metadata (from tag) ===
+char batterySN[17] = "";            // Up to 16 characters + null
+uint16_t batteryFirstUse = 0;       // Encoded as MMDD (e.g., 603 for June 3)
+uint16_t batteryCycleCount = 0;
+uint8_t batteryNote = 0;
+bool batteryMetaValid = false;
+int currentSessionId = 0;
+
+// === Forward Declarations ===
 String handleReader(MFRC522& reader, int readerNum);
 void printParsedBatteryJson(const String& json);
 String extractJsonFromNdefText(const String& raw);
 int extractInt(const String& src, const char* key);
 String extractString(const String& src, const char* key);
 void writeNewUsageLog(int eventId, const String& timeStr, int energy, float voltage, int readerId);
-
-char batterySN[17] = "";   // up to 16 chars
-uint16_t batteryFirstUse = 0;  // encoded as MMDD (e.g., 603 for June 3)
-uint16_t batteryCycleCount = 0;
-uint8_t batteryNote = 0;
-bool batteryMetaValid = false;
-
 
 
 void setup() {
@@ -119,8 +130,10 @@ void setup() {
 
   Serial.println(F("System ready. Present tag to one reader or send a command."));
 
-  xTaskCreatePinnedToCore(TaskCAN, "CAN Task", 4096, NULL, 1, NULL, 0);
-xTaskCreatePinnedToCore(TaskSerial, "Serial Task", 4096, NULL, 1, NULL, 1);
+  //xTaskCreatePinnedToCore(TaskCAN, "CAN Task", 4096, NULL, 1, NULL, 0);
+xTaskCreatePinnedToCore(TaskAutoBatteryManager, "Serial Task", 4096, NULL, 1, NULL, 1);
+xTaskCreatePinnedToCore(TaskCANRx, "CAN RX", 4096, NULL, 1, NULL, 0);
+xTaskCreatePinnedToCore(TaskCANTx, "CAN TX", 4096, NULL, 1, NULL, 0);
 
 }
 
@@ -129,7 +142,7 @@ xTaskCreatePinnedToCore(TaskSerial, "Serial Task", 4096, NULL, 1, NULL, 1);
 
 void loop() {}
 
-
+/*
 void TaskSerial(void* pvParameters) {
   for (;;) {
     if (Serial.available()) {
@@ -186,9 +199,9 @@ void TaskSerial(void* pvParameters) {
 
     delay(20);
   }
-}
+}*/
 
-
+/*
 void TaskCAN(void* pvParameters) {
   bool lastEnabled = false;
   bool firstRead = true;
@@ -277,7 +290,233 @@ void TaskCAN(void* pvParameters) {
 
     vTaskDelay(20);
   }
+}*/
+
+void TaskAutoBatteryManager(void* pvParameters) {
+  enum State {
+    STATE_WAIT_FOR_TAG,
+    STATE_PARSE_AND_WRITE_INITIAL,
+    STATE_WAIT_FOR_DATA,
+    STATE_WRITE_FINAL
+  };
+  static State state = STATE_WAIT_FOR_TAG;
+
+  static int lockedReader = 0;
+  static bool wasEnabled = false;
+  static bool currentlyEnabled = false;
+  static unsigned long lastHeartbeatMs = millis();
+  static bool heartbeatLostPrinted = false;
+
+  const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
+  unsigned long lastWriteAttempt = 0;
+
+  for (;;) {
+    switch (state) {
+      case STATE_WAIT_FOR_TAG: {
+        if (mfrc1.PICC_IsNewCardPresent() && mfrc1.PICC_ReadCardSerial()) {
+          String json = handleReader(mfrc1, 1);
+          if (json != "") {
+            lockedReader = 1;
+            batteryMetaValid = true;
+
+            StaticJsonDocument<2048> doc;
+            if (!deserializeJson(doc, json)) {
+              JsonArray logs = doc["u"].as<JsonArray>();
+              int maxId = 0;
+              for (JsonObject log : logs) {
+                int id = log["i"] | 0;
+                if (id > maxId) maxId = id;
+              }
+              currentSessionId = maxId + 1;
+              Serial.printf("[AUTO] Reader 1 locked. Session ID = %d\n", currentSessionId);
+              state = STATE_PARSE_AND_WRITE_INITIAL;
+            }
+          }
+        } else if (mfrc2.PICC_IsNewCardPresent() && mfrc2.PICC_ReadCardSerial()) {
+          String json = handleReader(mfrc2, 2);
+          if (json != "") {
+            lockedReader = 2;
+            batteryMetaValid = true;
+
+            StaticJsonDocument<2048> doc;
+            if (!deserializeJson(doc, json)) {
+              JsonArray logs = doc["u"].as<JsonArray>();
+              int maxId = 0;
+              for (JsonObject log : logs) {
+                int id = log["i"] | 0;
+                if (id > maxId) maxId = id;
+              }
+              currentSessionId = maxId + 1;
+              Serial.printf("[AUTO] Reader 2 locked. Session ID = %d\n", currentSessionId);
+              state = STATE_PARSE_AND_WRITE_INITIAL;
+            }
+          }
+        }
+        break;
+      }
+
+      case STATE_PARSE_AND_WRITE_INITIAL: {
+        writeNewUsageLog(currentSessionId, "0000000000", 0, 0.0f, lockedReader);
+        Serial.println("[AUTO] Initial placeholder written.");
+        state = STATE_WAIT_FOR_DATA;
+        break;
+      }
+
+      case STATE_WAIT_FOR_DATA: {
+        bool current = lastEnabled;  // updated by TaskCANRx
+        if (wasEnabled && !current) {
+          state = STATE_WRITE_FINAL;
+        }
+        wasEnabled = current;
+
+        // If no heartbeat, assume disabled
+        if (!heartbeatLostPrinted && millis() - lastHeartbeatMs > HEARTBEAT_TIMEOUT_MS) {
+          Serial.println("[AUTO] Heartbeat lost — assuming DISABLED.");
+          heartbeatLostPrinted = true;
+          wasEnabled = true;
+          lastEnabled = false;
+          state = STATE_WRITE_FINAL;
+        }
+
+        break;
+      }
+
+      case STATE_WRITE_FINAL: {
+        if (year > 20) {
+          char timeStr[11];
+          snprintf(timeStr, sizeof(timeStr), "%02d%02d%02d%02d%02d",
+                   year, month, day, hour, minute);
+          writeNewUsageLog(currentSessionId, String(timeStr), energy, lowestVoltage, lockedReader);
+          Serial.println("[AUTO] Final usage log updated.");
+        } else {
+          Serial.println("[AUTO] Final write skipped (invalid time).");
+        }
+
+        state = STATE_WAIT_FOR_DATA;
+        wasEnabled = false;
+        heartbeatLostPrinted = false;
+        lowestVoltage = 0.0f;
+        break;
+      }
+    }
+
+    vTaskDelay(20);
+  }
 }
+
+
+
+void TaskCANRx(void* pvParameters) {
+  bool firstRead = true;
+  bool heartbeatLostPrinted = false;
+  unsigned long lastHeartbeatMs = millis();
+  const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
+
+  for (;;) {
+    if (!canAvailable) {
+      vTaskDelay(10);
+      continue;
+    }
+
+    twai_message_t msg;
+    if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK && msg.extd) {
+      uint32_t apiId = (msg.identifier >> 6) & 0x3FF;
+
+      if (msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
+        lastHeartbeatMs = millis();
+        heartbeatLostPrinted = false;
+
+        bool currentEnabled = msg.data[4] & (1 << 4);
+        lastEnabled = currentEnabled;  // Shared with AutoBatteryManager
+
+        if (firstRead || currentEnabled != lastEnabled) {
+          firstRead = false;
+
+          Serial.printf(
+            "[CAN] Robot %s | Voltage: %.1fV | Energy: %d | Lowest: %.2fV | Date: 20%02d-%02d-%02d %02d:%02d:%02d\n",
+            currentEnabled ? "ENABLED" : "DISABLED",
+            voltage,
+            energy,
+            lowestVoltage,
+            year, month, day, hour, minute, second
+          );
+        }
+      }
+
+      else if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
+        year = msg.data[0];
+        month = msg.data[1];
+        day = msg.data[2];
+        hour = msg.data[3];
+        minute = msg.data[4];
+        second = msg.data[5];
+        voltage = msg.data[6] / 10.0f;
+
+        if (voltage >= 5.0 && (lowestVoltage == 0.0 || voltage < lowestVoltage)) {
+          lowestVoltage = voltage;
+        }
+      }
+
+      else if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
+        energy = (msg.data[0] << 8) | msg.data[1];
+      }
+    }
+
+    if (!heartbeatLostPrinted && millis() - lastHeartbeatMs > HEARTBEAT_TIMEOUT_MS) {
+      Serial.println("[CAN] Heartbeat lost. Assuming DISABLED.");
+      heartbeatLostPrinted = true;
+      lastEnabled = false;
+    }
+
+    vTaskDelay(10);
+  }
+}
+
+
+void TaskCANTx(void* pvParameters) {
+  const uint32_t rfidMeta1 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_1, DEVICE_NUMBER);
+  const uint32_t rfidMeta2 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_2, DEVICE_NUMBER);
+  const uint32_t rfidMeta3 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_3, DEVICE_NUMBER);
+
+  for (;;) {
+    if (canAvailable && batteryMetaValid) {
+      // Meta 1: SN part 1
+      twai_message_t meta1 = {};
+      meta1.identifier = rfidMeta1;
+      meta1.extd = 1;
+      meta1.data_length_code = 8;
+      memset(meta1.data, 0, 8);
+      strncpy((char*)meta1.data, batterySN, 8);
+      twai_transmit(&meta1, pdMS_TO_TICKS(10));
+
+      // Meta 2: SN part 2 + date
+      twai_message_t meta2 = {};
+      meta2.identifier = rfidMeta2;
+      meta2.extd = 1;
+      meta2.data_length_code = 8;
+      memset(meta2.data, 0, 8);
+      if (strlen(batterySN) > 8) strncpy((char*)meta2.data, batterySN + 8, 5);
+      meta2.data[4] = 5;
+      meta2.data[5] = (2025 >> 8) & 0xFF;
+      meta2.data[6] = 2025 & 0xFF;
+      meta2.data[7] = 6;
+      twai_transmit(&meta2, pdMS_TO_TICKS(10));
+
+      // Meta 3: cycles + note
+      twai_message_t meta3 = {};
+      meta3.identifier = rfidMeta3;
+      meta3.extd = 1;
+      meta3.data_length_code = 3;
+      meta3.data[0] = (batteryCycleCount >> 8) & 0xFF;
+      meta3.data[1] = batteryCycleCount & 0xFF;
+      meta3.data[2] = batteryNote;
+      twai_transmit(&meta3, pdMS_TO_TICKS(10));
+    }
+    vTaskDelay(100);
+  }
+}
+
+
 
 
 String handleReader(MFRC522& reader, int readerNum) {

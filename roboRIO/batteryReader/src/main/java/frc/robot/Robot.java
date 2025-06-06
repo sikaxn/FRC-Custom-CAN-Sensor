@@ -30,7 +30,7 @@ public class Robot extends TimedRobot {
       SmartDashboard.putString("Battery SN", "INVALID");
       SmartDashboard.putString("Battery First Use Date", "0000-00-00");
       SmartDashboard.putNumber("Battery Cycle Count", 0);
-      SmartDashboard.putNumber("Battery Note", -1);
+      SmartDashboard.putString("Battery Note", "INVALID");
     }
   }
 
