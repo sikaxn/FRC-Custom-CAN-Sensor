@@ -12,6 +12,11 @@ https://github.com/sikaxn/FRC-RFID-Battery-Reader/
 
 https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/main/roboRIO/batteryReader
 
+## To be done
+
+1. Reading date and time from roboRIO Heartbeat
+2. Auto discovery of CTRE PDP or REV PDH so no more requirement of having roboRIO Driver sending voltage and energy (unless using PDP 2.0)
+
 ## Arduino IDE Setup
 
 This Library needs to be manually installed to handle NDEF encoding.
