@@ -84,6 +84,8 @@ String extractJsonFromNdefText(const String& raw);
 int extractInt(const String& src, const char* key);
 String extractString(const String& src, const char* key);
 void writeNewUsageLog(int eventId, const String& timeStr, int energy, float voltage, int readerId);
+char batteryFirstUseFull[11] = "";  // Format: "yyMMddHHmm"
+
 
 
 void setup() {
@@ -227,13 +229,15 @@ void TaskAutoBatteryManager(void* pvParameters) {
       }
 
       case STATE_WRITE_FINAL: {
+        char timeStr[11];
         if (year > 20) {
-          char timeStr[11];
+          
           snprintf(timeStr, sizeof(timeStr), "%02d%02d%02d%02d%02d",
                    year, month, day, hour, minute);
           writeNewUsageLog(currentSessionId, String(timeStr), energy, lowestVoltage, lockedReader);
           Serial.println("[AUTO] Final usage log updated.");
         } else {
+          Serial.println(timeStr);
           Serial.println("[AUTO] Final write skipped (invalid time).");
         }
 
@@ -334,18 +338,33 @@ void TaskCANTx(void* pvParameters) {
       strncpy((char*)meta1.data, batterySN, 8);
       twai_transmit(&meta1, pdMS_TO_TICKS(10));
 
-      // Meta 2: SN part 2 + date
+      // Meta 2: SN part 2 + date (parsed from batteryFirstUseFull)
       twai_message_t meta2 = {};
       meta2.identifier = rfidMeta2;
       meta2.extd = 1;
       meta2.data_length_code = 8;
       memset(meta2.data, 0, 8);
-      if (strlen(batterySN) > 8) strncpy((char*)meta2.data, batterySN + 8, 5);
-      meta2.data[4] = 5;
-      meta2.data[5] = (2025 >> 8) & 0xFF;
-      meta2.data[6] = 2025 & 0xFF;
-      meta2.data[7] = 6;
+
+      // Copy SN part 2 (up to 5 characters)
+      if (strlen(batterySN) > 8) {
+        strncpy((char*)meta2.data, batterySN + 8, 5);
+      }
+
+      // Parse year, month, day from batteryFirstUseFull (format: "yyMMddHHmm")
+      int yy = atoi(String(batteryFirstUseFull).substring(0, 2).c_str());
+      int mm = atoi(String(batteryFirstUseFull).substring(2, 4).c_str());
+      int dd = atoi(String(batteryFirstUseFull).substring(4, 6).c_str());
+      int fullYear = 2000 + yy;
+
+      // Pack into CAN message
+      meta2.data[4] = mm;
+      meta2.data[5] = (fullYear >> 8) & 0xFF;
+      meta2.data[6] = fullYear & 0xFF;
+      meta2.data[7] = dd;
+
       twai_transmit(&meta2, pdMS_TO_TICKS(10));
+
+
 
       // Meta 3: cycles + note
       twai_message_t meta3 = {};
@@ -488,9 +507,11 @@ void printParsedBatteryJson(const String& json) {
   int fuIndex = json.indexOf("\"fu\":\"");
   if (fuIndex != -1) {
     String fu = json.substring(fuIndex + 6, json.indexOf("\"", fuIndex + 6));
-    if (fu.length() >= 4) {
-      batteryFirstUse = fu.substring(2, 4).toInt() * 100 + fu.substring(4, 6).toInt(); // e.g. 2506051238 -> 0605
-    }
+if (fu.length() >= 10) {
+  strncpy(batteryFirstUseFull, fu.c_str(), sizeof(batteryFirstUseFull));
+  batteryFirstUseFull[10] = '\0';  // Ensure null termination
+}
+
     Serial.print(F("First Use: ")); Serial.println(fu);
   }
 

@@ -21,19 +21,23 @@ public class Robot extends TimedRobot {
 
     if (batteryCan != null && batteryCan.valid) {
       SmartDashboard.putString("Battery SN", batteryCan.serialNumber);
-      SmartDashboard.putString("Battery First Use Date (UTC Date)",
-      String.format("%04d-%02d-%02d", batteryCan.firstUseYear, batteryCan.firstUseMonth, batteryCan.firstUseDay));
-    SmartDashboard.putString("Battery Note", batteryCan.noteText);
-    
+      SmartDashboard.putString("Battery First Use (UTC)", 
+          String.format("%04d-%02d-%02d",
+              batteryCan.firstUseYear,
+              batteryCan.firstUseMonth,
+              batteryCan.firstUseDay
+          )
+      );
+      SmartDashboard.putString("Battery Note", batteryCan.noteText);
       SmartDashboard.putNumber("Battery Cycle Count", batteryCan.cycleCount);
-    } else {
+  } else {
       SmartDashboard.putString("Battery SN", "INVALID");
-      SmartDashboard.putString("Battery First Use Date (UTC Date)", "0000-00-00");
-      SmartDashboard.putNumber("Battery Cycle Count", 0);
+      SmartDashboard.putString("Battery First Use (UTC)", "0000-00-00");
       SmartDashboard.putString("Battery Note", "INVALID");
-    }
+      SmartDashboard.putNumber("Battery Cycle Count", 0);
+      }
   }
-
+  
   @Override
   public void disabledInit() {}
 

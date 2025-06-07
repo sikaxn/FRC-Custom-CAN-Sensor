@@ -11,9 +11,6 @@ import java.time.LocalDateTime;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 
 
 public class batteryCAN {
@@ -38,6 +35,10 @@ public class batteryCAN {
     public int note = 0;
     public String noteText = "Unknown";
     public boolean valid = false;
+    public int firstUseHour = 0;
+    public int firstUseMinute = 0;
+    public int firstUseSecond = 0;
+
 
     public batteryCAN() {
         can = new CAN(33); // ESP32 device number
@@ -79,13 +80,22 @@ public class batteryCAN {
 
                     // First use date (if valid)
                     if (rx2.length >= 8) {
-                        int yearRaw = ((rx2.data[5] & 0xFF) << 8) | (rx2.data[6] & 0xFF);
+                        // Fix year parsing (MSB = byte 7, LSB = byte 6)
+                        int yearRaw = ((rx2.data[7] & 0xFF) << 8) | (rx2.data[6] & 0xFF);
+                    
                         if (yearRaw >= 2000 && yearRaw <= 2100) {
                             firstUseYear = yearRaw;
-                            firstUseMonth = rx2.data[7] & 0xFF;
-                            firstUseDay = rx2.data[4] & 0xFF;
+                            firstUseMonth = rx2.data[4] & 0xFF;  // byte 4 = month
+                            firstUseDay   = rx2.data[5] & 0xFF;  // byte 5 = day
+                    
+                            firstUseHour   = rx2.data[1] & 0xFF;
+                            firstUseMinute = rx2.data[2] & 0xFF;
+                            firstUseSecond = rx2.data[3] & 0xFF;
                         }
                     }
+                    
+                    
+                    
 
                     // Cycle count and note
                     cycleCount = ((rx3.data[0] & 0xFF) << 8) | (rx3.data[1] & 0xFF);
