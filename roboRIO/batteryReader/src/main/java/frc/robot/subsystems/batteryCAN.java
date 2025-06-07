@@ -121,7 +121,7 @@ private void startSending() {
 
 
     private byte[] buildTimeVoltagePayload() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         int voltageRaw = (int) (RobotController.getBatteryVoltage() * 10); // 0.1V precision
 
         byte[] payload = new byte[8];
