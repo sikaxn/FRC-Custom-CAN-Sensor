@@ -32,6 +32,8 @@ https://github.com/bblanchon/ArduinoJson
 
 https://makerworld.com/en/models/1504037-frc-battery-tracking-example-rfid-reader-holder#profileId-1573770
 
+![](../../img/readerHolder.JPG)
+
 ## Logic
 
 1. When ESP32 power up, it will scan on both reader (I have 2 reader attached assuming a battery can be installed in any direction), once a card is found, it will lock on with that reader.
