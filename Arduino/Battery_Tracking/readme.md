@@ -28,7 +28,9 @@ these can be installed using arduino library manager
 https://github.com/OSSLibraries/Arduino_MFRC522v2
 https://github.com/bblanchon/ArduinoJson
 
+## Example RFID Reader holder
 
+https://makerworld.com/en/models/1504037-frc-battery-tracking-example-rfid-reader-holder#profileId-1573770
 
 ## Logic
 
