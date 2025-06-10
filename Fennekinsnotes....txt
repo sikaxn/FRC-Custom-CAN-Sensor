@@ -11,3 +11,16 @@ controlApiId = 0x190 / #define CONTROL_ID      0x0A086400
 dt7Api1Id1 = = 0x185
 dt7Api1Id2 = = 0x186
 dt7Api1Id3 = = 0x187
+
+
+ctre pdp
+target: 0x804148b
+Type ID: 0x08
+Manufacture ID: 0x04
+API ID: 0x052
+
+rev pdh
+target: 0x8051901
+Type ID: 0x08
+Manufacture ID: 0x05
+API ID: 0x064
