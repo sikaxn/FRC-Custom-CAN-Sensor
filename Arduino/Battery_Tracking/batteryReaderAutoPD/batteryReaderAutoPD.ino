@@ -178,6 +178,8 @@ xTaskCreatePinnedToCore(TaskCANTx,              "CAN TX",          4096, NULL, 1
 xTaskCreatePinnedToCore(TaskCANRxPD,            "CAN RX PD",       4096, NULL, 1, NULL, 0);
 xTaskCreatePinnedToCore(TaskCANRxJava,          "CAN RX Java",     4096, NULL, 1, NULL, 0);
 xTaskCreatePinnedToCore(TaskCANRxrioHeartbeat,  "CAN RX Heartbeat",4096, NULL, 1, NULL, 0);
+xTaskCreatePinnedToCore(TaskEnergyCalc, "Energy Calc", 4096, NULL, 1, NULL, 1);
+
 
 }
 
@@ -424,29 +426,34 @@ void TaskCANRxrioHeartbeat(void* pvParameters) {
 }
 
 void TaskCANRxJava(void* pvParameters) {
+  float rioVoltage = 0.0f;
+
   for (;;) {
     if (!canAvailable) {
       vTaskDelay(10);
       continue;
     }
 
-    // Always prefer PDvoltage if valid
-    if (pdType != NO_PD && PDvoltage > 5.0f) {
-      voltage = PDvoltage;
-
-      if (lowestVoltage == 0.0f || voltage < lowestVoltage) {
-        lowestVoltage = voltage;
-      }
-    }
-
-    // Also listen for energy value from Java code (optional)
     twai_message_t msg;
     if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK && msg.extd) {
       uint16_t apiId = (msg.identifier >> 6) & 0x3FF;
 
-      if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
-        energy = (msg.data[0] << 8) | msg.data[1];
+      if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
+        rioVoltage = msg.data[6] / 10.0f;
+      } else if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
+        //energy = (msg.data[0] << 8) | msg.data[1];
       }
+    }
+
+    // Always prefer PD voltage if available
+    if (pdType != NO_PD && PDvoltage > 5.0f) {
+      voltage = PDvoltage;
+    } else if (rioVoltage > 5.0f) {
+      voltage = rioVoltage;
+    }
+
+    if (voltage >= 5.0f && (lowestVoltage == 0.0f || voltage < lowestVoltage)) {
+      lowestVoltage = voltage;
     }
 
     vTaskDelay(10);
@@ -510,6 +517,43 @@ void TaskCANTx(void* pvParameters) {
     vTaskDelay(100);
   }
 }
+
+void TaskEnergyCalc(void* pvParameters) {
+  const TickType_t sampleInterval = pdMS_TO_TICKS(100);  // 100 ms
+  const float dt = 0.1f;  // Time step in seconds
+  static float localEnergyJ = 0.0f;  // Persistent local energy in J
+  unsigned long lastPrint = millis();
+  int lastKJ = 0;
+
+  for (;;) {
+    if (energy < INT32_MAX) {
+      // Always accumulate, even if V or I = 0 (idle is part of energy tracking)
+      localEnergyJ += voltage * PDcurrent * dt;
+    }
+
+    if (millis() - lastPrint >= 1000) {
+      lastPrint = millis();
+
+      int currentKJ = (int)((localEnergyJ / 1000.0f) + 0.5f);  // Round to nearest kJ
+      int deltaKJ = currentKJ - lastKJ;
+
+      if (deltaKJ > 0 && energy < INT32_MAX - deltaKJ) {
+        energy += deltaKJ;
+      } else if (energy >= INT32_MAX - deltaKJ) {
+        energy = INT32_MAX;
+      }
+
+      Serial.printf("[EnergyCalc] +%d kJ | Total: %.1f J | (%d kJ) | V: %.2f V | I: %.2f A\n",
+                    deltaKJ, localEnergyJ, energy, voltage, PDcurrent);
+
+      lastKJ = currentKJ;
+    }
+
+    vTaskDelay(sampleInterval);
+  }
+}
+
+
 
 //=======READER Handing function DO NOT CHANGE========
 
