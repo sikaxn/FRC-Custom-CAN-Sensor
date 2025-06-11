@@ -328,7 +328,7 @@ void TaskCANRxPD(void* pvParameters) {
 
           if (voltage > 0) {
             //Serial.printf("[CANRxPD] Voltage: %.2f V | Current: %.2f A\n", PDvoltage, PDcurrent);
-            PDvoltage = PDcurrent = 0;
+            //PDvoltage = PDcurrent = 0;
           }
           
         }
@@ -342,7 +342,7 @@ void TaskCANRxPD(void* pvParameters) {
 
           if (PDvoltage > 0) {
             //Serial.printf("[CANRxPD] Voltage: %.2f V | Current: %.2f A\n", PDvoltage, PDcurrent);
-            PDvoltage = PDcurrent = 0;
+            //PDvoltage = PDcurrent = 0;
           }
         }
         break;
@@ -430,24 +430,21 @@ void TaskCANRxJava(void* pvParameters) {
       continue;
     }
 
+    // Always prefer PDvoltage if valid
+    if (pdType != NO_PD && PDvoltage > 5.0f) {
+      voltage = PDvoltage;
+
+      if (lowestVoltage == 0.0f || voltage < lowestVoltage) {
+        lowestVoltage = voltage;
+      }
+    }
+
+    // Also listen for energy value from Java code (optional)
     twai_message_t msg;
     if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK && msg.extd) {
       uint16_t apiId = (msg.identifier >> 6) & 0x3FF;
 
-      if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
-        float fallbackVoltage = msg.data[6] / 10.0f;
-
-        if (pdType != NO_PD && PDvoltage > 5.0f) {
-          voltage = PDvoltage;
-          PDvoltage = 0.0f;
-        } else {
-          voltage = fallbackVoltage;
-        }
-
-        if (voltage >= 5.0f && (lowestVoltage == 0.0f || voltage < lowestVoltage)) {
-          lowestVoltage = voltage;
-        }
-      } else if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
+      if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
         energy = (msg.data[0] << 8) | msg.data[1];
       }
     }
