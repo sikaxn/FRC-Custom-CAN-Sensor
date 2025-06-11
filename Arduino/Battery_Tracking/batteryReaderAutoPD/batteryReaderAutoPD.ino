@@ -346,66 +346,72 @@ void TaskCANRxPD(void* pvParameters) {
 
 
 
-
 void TaskCANRx(void* pvParameters) {
   bool firstRead = true;
-  bool lastHeartbeatOk = false;  // Track previous heartbeat status
+  bool lastHeartbeatOk = false;
   const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
   const char* pdTypeStr = "";
   const char* stateStr = "";
 
-  
-
-
   for (;;) {
+    // Update PD type string
+    switch (pdType) {
+      case NO_PD:     pdTypeStr = "NO_PD"; break;
+      case CTRE_PDP:  pdTypeStr = "CTRE_PDP"; break;
+      case REV_PDH:   pdTypeStr = "REV_PDH"; break;
+      default:        pdTypeStr = "UNKNOWN_PD"; break;
+    }
 
-  switch (pdType) {
-    case NO_PD:     pdTypeStr = "NO_PD"; break;
-    case CTRE_PDP:  pdTypeStr = "CTRE_PDP"; break;
-    case REV_PDH:   pdTypeStr = "REV_PDH"; break;
-    default:        pdTypeStr = "UNKNOWN_PD"; break;
-  }
-
-  // Convert State to string
-  switch (currentState) {
-    case STATE_WAIT_FOR_TAG:            stateStr = "WAIT_FOR_TAG"; break;
-    case STATE_PARSE_AND_WRITE_INITIAL:stateStr = "PARSE_AND_WRITE_INITIAL"; break;
-    case STATE_WAIT_FOR_DATA:          stateStr = "WAIT_FOR_DATA"; break;
-    case STATE_WRITE_FINAL:            stateStr = "WRITE_FINAL"; break;
-    default:                           stateStr = "UNKNOWN_STATE"; break;
-  }
+    // Update state string
+    switch (currentState) {
+      case STATE_WAIT_FOR_TAG:            stateStr = "WAIT_FOR_TAG"; break;
+      case STATE_PARSE_AND_WRITE_INITIAL: stateStr = "PARSE_AND_WRITE_INITIAL"; break;
+      case STATE_WAIT_FOR_DATA:           stateStr = "WAIT_FOR_DATA"; break;
+      case STATE_WRITE_FINAL:             stateStr = "WRITE_FINAL"; break;
+      default:                            stateStr = "UNKNOWN_STATE"; break;
+    }
 
     if (!canAvailable) {
       vTaskDelay(10);
       continue;
     }
 
+    // --- Apply PD voltage fallback if available ---
+    if (pdType != NO_PD && PDvoltage > 5.0f) {
+      voltage = PDvoltage;
+      if (lowestVoltage == 0.0f || voltage < lowestVoltage) {
+        lowestVoltage = voltage;
+      }
+      PDvoltage = 0.0f;
+    }
+
     twai_message_t msg;
     if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK && msg.extd) {
       uint32_t apiId = (msg.identifier >> 6) & 0x3FF;
 
+      // --- Handle heartbeat ---
       if (msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
         lastHeartbeatMs = millis();
         heartbeatOk = true;
-
         currentlyEnabled = msg.data[4] & (1 << 4);
 
         if (firstRead || currentlyEnabled != wasEnabled) {
           Serial.printf(
-  "[CAN] Robot %s | Voltage: %.1fV | Energy: %d | Lowest: %.2fV | Date: 20%02d-%02d-%02d %02d:%02d:%02d | PD: %s | State: %s\n",
-  currentlyEnabled ? "ENABLED" : "DISABLED",
-  voltage,
-  energy,
-  lowestVoltage,
-  year, month, day, hour, minute, second,
-  pdTypeStr,
-  stateStr
-);
-
+            "[CAN] Robot %s | Voltage: %.1fV | Energy: %d | Lowest: %.2fV | Date: 20%02d-%02d-%02d %02d:%02d:%02d | PD: %s | State: %s\n",
+            currentlyEnabled ? "ENABLED" : "DISABLED",
+            voltage,
+            energy,
+            lowestVoltage,
+            year, month, day, hour, minute, second,
+            pdTypeStr,
+            stateStr
+          );
           firstRead = false;
           wasEnabled = currentlyEnabled;
         }
       }
+
+      // --- Handle battery status part 1 (datetime + voltage) ---
       else if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
         year = msg.data[0];
         month = msg.data[1];
@@ -413,32 +419,39 @@ void TaskCANRx(void* pvParameters) {
         hour = msg.data[3];
         minute = msg.data[4];
         second = msg.data[5];
-        voltage = msg.data[6] / 10.0f;
 
-        if (voltage >= 5.0 && (lowestVoltage == 0.0 || voltage < lowestVoltage)) {
+        float rawVoltage = msg.data[6] / 10.0f;
+
+        if (pdType != NO_PD && PDvoltage > 5.0f) {
+          voltage = PDvoltage;
+          PDvoltage = 0.0f;
+        } else {
+          voltage = rawVoltage;
+        }
+
+        if (voltage >= 5.0f && (lowestVoltage == 0.0f || voltage < lowestVoltage)) {
           lowestVoltage = voltage;
         }
       }
+
+      // --- Handle battery status part 2 (energy) ---
       else if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
         energy = (msg.data[0] << 8) | msg.data[1];
       }
     }
 
-    // === Check heartbeat loss ===
+    // --- Heartbeat timeout detection ---
     bool heartbeatCurrentlyOk = (millis() - lastHeartbeatMs) <= HEARTBEAT_TIMEOUT_MS;
 
     if (!heartbeatCurrentlyOk && lastHeartbeatOk) {
-      // Heartbeat just failed
       heartbeatOk = false;
       currentlyEnabled = false;
-      // No print — silent transition
     }
 
     lastHeartbeatOk = heartbeatCurrentlyOk;
     vTaskDelay(10);
   }
 }
-
 
 
 void TaskCANTx(void* pvParameters) {
