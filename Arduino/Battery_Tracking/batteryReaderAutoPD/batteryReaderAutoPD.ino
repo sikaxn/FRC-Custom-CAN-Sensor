@@ -103,6 +103,8 @@ volatile bool heartbeatOk = false;
     STATE_WAIT_FOR_DATA,
     STATE_WRITE_FINAL
   };
+volatile PDType pdType = NO_PD;
+volatile State currentState = STATE_WAIT_FOR_TAG;
 
 
 // === Forward Declarations ===
@@ -180,14 +182,14 @@ void loop() {}
 
 
 void TaskAutoBatteryManager(void* pvParameters) {
-
-  static State state = STATE_WAIT_FOR_TAG;
-
   static int lockedReader = 0;
   bool wasEnabledLocal = false;  // Local copy to detect transition
 
+  // Ensure initial state is set
+  currentState = STATE_WAIT_FOR_TAG;
+
   for (;;) {
-    switch (state) {
+    switch (currentState) {
       case STATE_WAIT_FOR_TAG: {
         if (mfrc1.PICC_IsNewCardPresent() && mfrc1.PICC_ReadCardSerial()) {
           String json = handleReader(mfrc1, 1);
@@ -206,7 +208,7 @@ void TaskAutoBatteryManager(void* pvParameters) {
               currentSessionId = maxId + 1;
               Serial.printf("[AUTO] Reader 1 locked. Session ID = %d\n", currentSessionId);
               printParsedBatteryJson(json);
-              state = STATE_PARSE_AND_WRITE_INITIAL;
+              currentState = STATE_PARSE_AND_WRITE_INITIAL;
             }
           }
         } else if (mfrc2.PICC_IsNewCardPresent() && mfrc2.PICC_ReadCardSerial()) {
@@ -226,7 +228,7 @@ void TaskAutoBatteryManager(void* pvParameters) {
               currentSessionId = maxId + 1;
               Serial.printf("[AUTO] Reader 2 locked. Session ID = %d\n", currentSessionId);
               printParsedBatteryJson(json);
-              state = STATE_PARSE_AND_WRITE_INITIAL;
+              currentState = STATE_PARSE_AND_WRITE_INITIAL;
             }
           }
         }
@@ -237,16 +239,14 @@ void TaskAutoBatteryManager(void* pvParameters) {
         writeNewUsageLog(currentSessionId, "0000000000", 0, 0.0f, lockedReader);
         Serial.println("[AUTO] Initial placeholder written.");
         wasEnabledLocal = currentlyEnabled;
-        state = STATE_WAIT_FOR_DATA;
+        currentState = STATE_WAIT_FOR_DATA;
         break;
       }
 
       case STATE_WAIT_FOR_DATA: {
-        // Only transition when robot goes from enabled to disabled
         if (wasEnabledLocal && !currentlyEnabled) {
-          state = STATE_WRITE_FINAL;
+          currentState = STATE_WRITE_FINAL;
         }
-
         wasEnabledLocal = currentlyEnabled;
         break;
       }
@@ -254,7 +254,6 @@ void TaskAutoBatteryManager(void* pvParameters) {
       case STATE_WRITE_FINAL: {
         char timeStr[11];
         if (year > 20) {
-          
           snprintf(timeStr, sizeof(timeStr), "%02d%02d%02d%02d%02d",
                    year, month, day, hour, minute);
           writeNewUsageLog(currentSessionId, String(timeStr), energy, lowestVoltage, lockedReader);
@@ -264,8 +263,7 @@ void TaskAutoBatteryManager(void* pvParameters) {
           Serial.println("[AUTO] Final write skipped (invalid time).");
         }
 
-        // Stay in WAIT_FOR_DATA but don’t re-write unless robot enables again
-        state = STATE_WAIT_FOR_DATA;
+        currentState = STATE_WAIT_FOR_DATA;
         lowestVoltage = 0.0f;
         break;
       }
@@ -278,7 +276,7 @@ void TaskAutoBatteryManager(void* pvParameters) {
 void TaskCANRxPD(void* pvParameters) {
 
 
-  PDType pdType = NO_PD;
+  pdType = NO_PD;
   uint8_t dev_type = 0, manuf = 0, dev_num = 0;
   
   twai_message_t msg;
@@ -353,8 +351,30 @@ void TaskCANRx(void* pvParameters) {
   bool firstRead = true;
   bool lastHeartbeatOk = false;  // Track previous heartbeat status
   const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
+  const char* pdTypeStr = "";
+  const char* stateStr = "";
+
+  
+
 
   for (;;) {
+
+  switch (pdType) {
+    case NO_PD:     pdTypeStr = "NO_PD"; break;
+    case CTRE_PDP:  pdTypeStr = "CTRE_PDP"; break;
+    case REV_PDH:   pdTypeStr = "REV_PDH"; break;
+    default:        pdTypeStr = "UNKNOWN_PD"; break;
+  }
+
+  // Convert State to string
+  switch (currentState) {
+    case STATE_WAIT_FOR_TAG:            stateStr = "WAIT_FOR_TAG"; break;
+    case STATE_PARSE_AND_WRITE_INITIAL:stateStr = "PARSE_AND_WRITE_INITIAL"; break;
+    case STATE_WAIT_FOR_DATA:          stateStr = "WAIT_FOR_DATA"; break;
+    case STATE_WRITE_FINAL:            stateStr = "WRITE_FINAL"; break;
+    default:                           stateStr = "UNKNOWN_STATE"; break;
+  }
+
     if (!canAvailable) {
       vTaskDelay(10);
       continue;
@@ -372,13 +392,16 @@ void TaskCANRx(void* pvParameters) {
 
         if (firstRead || currentlyEnabled != wasEnabled) {
           Serial.printf(
-            "[CAN] Robot %s | Voltage: %.1fV | Energy: %d | Lowest: %.2fV | Date: 20%02d-%02d-%02d %02d:%02d:%02d\n",
-            currentlyEnabled ? "ENABLED" : "DISABLED",
-            voltage,
-            energy,
-            lowestVoltage,
-            year, month, day, hour, minute, second
-          );
+  "[CAN] Robot %s | Voltage: %.1fV | Energy: %d | Lowest: %.2fV | Date: 20%02d-%02d-%02d %02d:%02d:%02d | PD: %s | State: %s\n",
+  currentlyEnabled ? "ENABLED" : "DISABLED",
+  voltage,
+  energy,
+  lowestVoltage,
+  year, month, day, hour, minute, second,
+  pdTypeStr,
+  stateStr
+);
+
           firstRead = false;
           wasEnabled = currentlyEnabled;
         }
