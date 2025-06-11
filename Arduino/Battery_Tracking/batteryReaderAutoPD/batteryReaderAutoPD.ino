@@ -270,7 +270,7 @@ void TaskAutoBatteryManager(void* pvParameters) {
         }
 
         currentState = STATE_WAIT_FOR_DATA;
-        lowestVoltage = 0.0f;
+        //lowestVoltage = 0.0f; Do Not Reset lowest voltage across disable
         break;
       }
     }
@@ -423,7 +423,6 @@ void TaskCANRxrioHeartbeat(void* pvParameters) {
   }
 }
 
-
 void TaskCANRxJava(void* pvParameters) {
   for (;;) {
     if (!canAvailable) {
@@ -436,19 +435,18 @@ void TaskCANRxJava(void* pvParameters) {
       uint16_t apiId = (msg.identifier >> 6) & 0x3FF;
 
       if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
-        float rawVoltage = msg.data[6] / 10.0f;
+        float fallbackVoltage = msg.data[6] / 10.0f;
 
         if (pdType != NO_PD && PDvoltage > 5.0f) {
           voltage = PDvoltage;
           PDvoltage = 0.0f;
         } else {
-          voltage = rawVoltage;
+          voltage = fallbackVoltage;
         }
 
         if (voltage >= 5.0f && (lowestVoltage == 0.0f || voltage < lowestVoltage)) {
           lowestVoltage = voltage;
         }
-
       } else if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
         energy = (msg.data[0] << 8) | msg.data[1];
       }
@@ -457,7 +455,6 @@ void TaskCANRxJava(void* pvParameters) {
     vTaskDelay(10);
   }
 }
-
 
 void TaskCANTx(void* pvParameters) {
   const uint32_t rfidMeta1 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_1, DEVICE_NUMBER);
