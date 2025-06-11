@@ -63,15 +63,19 @@ MFRC522 mfrc2{driver2};
 MFRC522::MIFARE_Key keyA;
 
 // === Task Declarations ===
-void TaskCANRx(void* pvParameters);
+void TaskCANRxJava(void* pvParameters);
+void TaskCANRxrioHeartbeat(void* pvParameters);
+void TaskCANRxPD(void* pvParameters);
 void TaskCANTx(void* pvParameters);
 void TaskAutoBatteryManager(void* pvParameters);
-void TaskSerialPrint(void* pvParameters);
+
+
 // === CAN & System State ===
 volatile bool canAvailable = false;
 volatile bool lastEnabled = false;
 
-volatile uint8_t year = 0, month = 0, day = 0;
+volatile int year = 0, month = 0, day = 0;
+
 volatile uint8_t hour = 0, minute = 0, second = 0;
 volatile float voltage = 0.0, lowestVoltage = 0.0;
 volatile float PDvoltage = 0, PDcurrent = 0;
@@ -169,10 +173,12 @@ void setup() {
   Serial.println(F("System ready. Present tag to one reader or send a command."));
 
 //xTaskCreatePinnedToCore(TaskSerial, "SerialPrint Task", 4096, NULL, 1, NULL, 0);
-xTaskCreatePinnedToCore(TaskAutoBatteryManager, "Serial Task", 4096, NULL, 1, NULL, 1);
-xTaskCreatePinnedToCore(TaskCANRx, "CAN RX", 4096, NULL, 1, NULL, 0);
-xTaskCreatePinnedToCore(TaskCANTx, "CAN TX", 4096, NULL, 1, NULL, 0);
-xTaskCreatePinnedToCore(TaskCANRxPD, "CAN RX PD", 4096, NULL, 1, NULL, 0);
+xTaskCreatePinnedToCore(TaskAutoBatteryManager, "Battery Manager", 4096, NULL, 1, NULL, 1);
+xTaskCreatePinnedToCore(TaskCANTx,              "CAN TX",          4096, NULL, 1, NULL, 0);
+xTaskCreatePinnedToCore(TaskCANRxPD,            "CAN RX PD",       4096, NULL, 1, NULL, 0);
+xTaskCreatePinnedToCore(TaskCANRxJava,          "CAN RX Java",     4096, NULL, 1, NULL, 0);
+xTaskCreatePinnedToCore(TaskCANRxrioHeartbeat,  "CAN RX Heartbeat",4096, NULL, 1, NULL, 0);
+
 }
 
 
@@ -252,10 +258,10 @@ void TaskAutoBatteryManager(void* pvParameters) {
       }
 
       case STATE_WRITE_FINAL: {
-        char timeStr[11];
+        char timeStr[11] = {0};  
         if (year > 20) {
           snprintf(timeStr, sizeof(timeStr), "%02d%02d%02d%02d%02d",
-                   year, month, day, hour, minute);
+         year % 100, month, day, hour, minute);
           writeNewUsageLog(currentSessionId, String(timeStr), energy, lowestVoltage, lockedReader);
           Serial.println("[AUTO] Final usage log updated.");
         } else {
@@ -344,82 +350,92 @@ void TaskCANRxPD(void* pvParameters) {
   }
 }
 
-
-
-void TaskCANRx(void* pvParameters) {
+void TaskCANRxrioHeartbeat(void* pvParameters) {
+  const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
   bool firstRead = true;
   bool lastHeartbeatOk = false;
-  const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
-  const char* pdTypeStr = "";
-  const char* stateStr = "";
 
   for (;;) {
-    // Update PD type string
-    switch (pdType) {
-      case NO_PD:     pdTypeStr = "NO_PD"; break;
-      case CTRE_PDP:  pdTypeStr = "CTRE_PDP"; break;
-      case REV_PDH:   pdTypeStr = "REV_PDH"; break;
-      default:        pdTypeStr = "UNKNOWN_PD"; break;
-    }
-
-    // Update state string
-    switch (currentState) {
-      case STATE_WAIT_FOR_TAG:            stateStr = "WAIT_FOR_TAG"; break;
-      case STATE_PARSE_AND_WRITE_INITIAL: stateStr = "PARSE_AND_WRITE_INITIAL"; break;
-      case STATE_WAIT_FOR_DATA:           stateStr = "WAIT_FOR_DATA"; break;
-      case STATE_WRITE_FINAL:             stateStr = "WRITE_FINAL"; break;
-      default:                            stateStr = "UNKNOWN_STATE"; break;
-    }
-
     if (!canAvailable) {
       vTaskDelay(10);
       continue;
     }
 
-    // --- Apply PD voltage fallback if available ---
-    if (pdType != NO_PD && PDvoltage > 5.0f) {
-      voltage = PDvoltage;
-      if (lowestVoltage == 0.0f || voltage < lowestVoltage) {
-        lowestVoltage = voltage;
+    twai_message_t msg;
+    if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK &&
+        msg.extd && msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
+
+      uint64_t bits = 0;
+      for (int i = 0; i < 8; ++i) {
+        bits = (bits << 8) | msg.data[i];
       }
-      PDvoltage = 0.0f;
+
+      auto get_bits = [](uint64_t value, int start, int length) -> int {
+        return (value >> (64 - start - length)) & ((1ULL << length) - 1);
+      };
+
+      currentlyEnabled = get_bits(bits, 38, 1);
+      heartbeatOk = true;
+      lastHeartbeatMs = millis();
+
+      year = get_bits(bits, 26, 6) + 2000 - 36;
+
+      month  = get_bits(bits, 22, 4) + 1;
+      day    = get_bits(bits, 17, 5);
+      hour   = get_bits(bits, 0, 5);
+      minute = get_bits(bits, 5, 6);
+      second = std::min(get_bits(bits, 11, 6), 59);
+
+      if (firstRead || currentlyEnabled != wasEnabled) {
+        firstRead = false;
+        wasEnabled = currentlyEnabled;
+
+        const char* pdTypeStr = pdType == CTRE_PDP ? "CTRE_PDP" :
+                                pdType == REV_PDH  ? "REV_PDH"  : "NO_PD";
+
+        const char* stateStr = currentState == STATE_WAIT_FOR_TAG ? "WAIT_FOR_TAG" :
+                               currentState == STATE_PARSE_AND_WRITE_INITIAL ? "PARSE_AND_WRITE_INITIAL" :
+                               currentState == STATE_WAIT_FOR_DATA ? "WAIT_FOR_DATA" :
+                               currentState == STATE_WRITE_FINAL ? "WRITE_FINAL" : "UNKNOWN";
+
+        Serial.printf(
+          "[Heartbeat] %s | Voltage: %.1fV | Energy: %d | Lowest: %.2fV | Date: %04d-%02d-%02d %02d:%02d:%02d | PD: %s | State: %s\n",
+          currentlyEnabled ? "ENABLED" : "DISABLED",
+          voltage,
+          energy,
+          lowestVoltage,
+          year, month, day, hour, minute, second,
+          pdTypeStr,
+          stateStr
+        );
+      }
+    }
+
+    // Heartbeat timeout
+    bool heartbeatCurrentlyOk = (millis() - lastHeartbeatMs) <= HEARTBEAT_TIMEOUT_MS;
+    if (!heartbeatCurrentlyOk && lastHeartbeatOk) {
+      heartbeatOk = false;
+      currentlyEnabled = false;
+    }
+    lastHeartbeatOk = heartbeatCurrentlyOk;
+
+    vTaskDelay(10);
+  }
+}
+
+
+void TaskCANRxJava(void* pvParameters) {
+  for (;;) {
+    if (!canAvailable) {
+      vTaskDelay(10);
+      continue;
     }
 
     twai_message_t msg;
     if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK && msg.extd) {
-      uint32_t apiId = (msg.identifier >> 6) & 0x3FF;
+      uint16_t apiId = (msg.identifier >> 6) & 0x3FF;
 
-      // --- Handle heartbeat ---
-      if (msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
-        lastHeartbeatMs = millis();
-        heartbeatOk = true;
-        currentlyEnabled = msg.data[4] & (1 << 4);
-
-        if (firstRead || currentlyEnabled != wasEnabled) {
-          Serial.printf(
-            "[CAN] Robot %s | Voltage: %.1fV | Energy: %d | Lowest: %.2fV | Date: 20%02d-%02d-%02d %02d:%02d:%02d | PD: %s | State: %s\n",
-            currentlyEnabled ? "ENABLED" : "DISABLED",
-            voltage,
-            energy,
-            lowestVoltage,
-            year, month, day, hour, minute, second,
-            pdTypeStr,
-            stateStr
-          );
-          firstRead = false;
-          wasEnabled = currentlyEnabled;
-        }
-      }
-
-      // --- Handle battery status part 1 (datetime + voltage) ---
-      else if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
-        year = msg.data[0];
-        month = msg.data[1];
-        day = msg.data[2];
-        hour = msg.data[3];
-        minute = msg.data[4];
-        second = msg.data[5];
-
+      if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
         float rawVoltage = msg.data[6] / 10.0f;
 
         if (pdType != NO_PD && PDvoltage > 5.0f) {
@@ -432,23 +448,12 @@ void TaskCANRx(void* pvParameters) {
         if (voltage >= 5.0f && (lowestVoltage == 0.0f || voltage < lowestVoltage)) {
           lowestVoltage = voltage;
         }
-      }
 
-      // --- Handle battery status part 2 (energy) ---
-      else if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
+      } else if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
         energy = (msg.data[0] << 8) | msg.data[1];
       }
     }
 
-    // --- Heartbeat timeout detection ---
-    bool heartbeatCurrentlyOk = (millis() - lastHeartbeatMs) <= HEARTBEAT_TIMEOUT_MS;
-
-    if (!heartbeatCurrentlyOk && lastHeartbeatOk) {
-      heartbeatOk = false;
-      currentlyEnabled = false;
-    }
-
-    lastHeartbeatOk = heartbeatCurrentlyOk;
     vTaskDelay(10);
   }
 }
@@ -512,7 +517,7 @@ void TaskCANTx(void* pvParameters) {
   }
 }
 
-
+//=======READER Handing function DO NOT CHANGE========
 
 
 String handleReader(MFRC522& reader, int readerNum) {
@@ -602,12 +607,7 @@ String handleReader(MFRC522& reader, int readerNum) {
   bool hasSn = cleanJson.indexOf("\"sn\"") > 0;
   bool hasCc = cleanJson.indexOf("\"cc\"") > 0;
   bool hasU = cleanJson.indexOf("\"u\"") > 0;
-/*
-  Serial.printf("[DEBUG] Starts with '{': %s\n", validStart ? "YES" : "NO");
-  Serial.printf("[DEBUG] Ends with '}': %s\n", validEnd ? "YES" : "NO");
-  Serial.printf("[DEBUG] Contains 'sn': %s\n", hasSn ? "YES" : "NO");
-  Serial.printf("[DEBUG] Contains 'cc': %s\n", hasCc ? "YES" : "NO");
-  Serial.printf("[DEBUG] Contains 'u': %s\n", hasU ? "YES" : "NO");*/
+
 
   reader.PICC_HaltA();
   reader.PCD_StopCrypto1();
@@ -619,12 +619,6 @@ String handleReader(MFRC522& reader, int readerNum) {
     return "";  // Invalid or corrupted
   }
 }
-
-
-
-// Reuse your existing JSON parsing code...
-// (omitted for brevity but you can paste your `printParsedBatteryJson`, `extractInt`, and `extractString` here)
-
 
 void printParsedBatteryJson(const String& json) {
   Serial.println(F("======= Battery Info ======="));
@@ -639,10 +633,10 @@ void printParsedBatteryJson(const String& json) {
   int fuIndex = json.indexOf("\"fu\":\"");
   if (fuIndex != -1) {
     String fu = json.substring(fuIndex + 6, json.indexOf("\"", fuIndex + 6));
-if (fu.length() >= 10) {
-  strncpy(batteryFirstUseFull, fu.c_str(), sizeof(batteryFirstUseFull));
-  batteryFirstUseFull[10] = '\0';  // Ensure null termination
-}
+  if (fu.length() >= 10) {
+    strncpy(batteryFirstUseFull, fu.c_str(), sizeof(batteryFirstUseFull));
+    batteryFirstUseFull[10] = '\0';  // Ensure null termination
+  }
 
     Serial.print(F("First Use: ")); Serial.println(fu);
   }
@@ -689,7 +683,6 @@ String extractString(const String& src, const char* key) {
   return src.substring(start, end);
 }
 
-
 String extractJsonFromNdefText(const String& raw) {
   String cleaned = "";
 
@@ -719,7 +712,6 @@ String extractJsonFromNdefText(const String& raw) {
   //Serial.println("[NDEF] JSON braces not balanced");
   return "";
 }
-
 
 void writeNewUsageLog(int eventId, const String& timeStr, int energy, float voltage, int readerId) {
   const int MAX_BLOCKS = 64;
