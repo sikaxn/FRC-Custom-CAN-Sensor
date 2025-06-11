@@ -172,15 +172,13 @@ void setup() {
 
   Serial.println(F("System ready. Present tag to one reader or send a command."));
 
-//xTaskCreatePinnedToCore(TaskSerial, "SerialPrint Task", 4096, NULL, 1, NULL, 0);
+
 xTaskCreatePinnedToCore(TaskAutoBatteryManager, "Battery Manager", 4096, NULL, 1, NULL, 1);
 xTaskCreatePinnedToCore(TaskCANTx,              "CAN TX",          4096, NULL, 1, NULL, 0);
 xTaskCreatePinnedToCore(TaskCANRxPD,            "CAN RX PD",       4096, NULL, 1, NULL, 0);
 xTaskCreatePinnedToCore(TaskCANRxJava,          "CAN RX Java",     4096, NULL, 1, NULL, 0);
 xTaskCreatePinnedToCore(TaskCANRxrioHeartbeat,  "CAN RX Heartbeat",4096, NULL, 1, NULL, 0);
-xTaskCreatePinnedToCore(TaskEnergyCalc, "Energy Calc", 4096, NULL, 1, NULL, 1);
-
-
+xTaskCreatePinnedToCore(TaskEnergyCalc,         "Energy Calc",     4096, NULL, 1, NULL, 1);
 }
 
 
@@ -442,6 +440,7 @@ void TaskCANRxJava(void* pvParameters) {
         rioVoltage = msg.data[6] / 10.0f;
       } else if (apiId == BATTERY_STATUS_API_ID_2 && msg.data_length_code >= 2) {
         //energy = (msg.data[0] << 8) | msg.data[1];
+        //No longer read energy from roborio
       }
     }
 
@@ -531,7 +530,7 @@ void TaskEnergyCalc(void* pvParameters) {
       localEnergyJ += voltage * PDcurrent * dt;
     }
 
-    if (millis() - lastPrint >= 1000) {
+    if (millis() - lastPrint >= 1000) { //print interval
       lastPrint = millis();
 
       int currentKJ = (int)((localEnergyJ / 1000.0f) + 0.5f);  // Round to nearest kJ
@@ -692,7 +691,7 @@ void printParsedBatteryJson(const String& json) {
 
   int nIndex = json.indexOf("\"n\":");
   if (nIndex != -1) {
-    batteryNote = json.substring(nIndex + 4, json.indexOf(",", nIndex)).toInt();  // ⬅️ Store to global
+    batteryNote = json.substring(nIndex + 4, json.indexOf(",", nIndex)).toInt();  //  Store to global
     Serial.print(F("Note Type: "));
     switch (batteryNote) {
       case 0: Serial.println(F("Normal")); break;
@@ -703,7 +702,7 @@ void printParsedBatteryJson(const String& json) {
     }
   }
 
-  // You don't need to store usage logs in global for now.
+  
   Serial.println(F("============================\n"));
 }
 
