@@ -14,8 +14,8 @@ https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/main/roboRIO/batteryReader
 
 ## To be done
 
-1. Reading date and time from roboRIO Heartbeat
-2. Auto discovery of CTRE PDP or REV PDH so no more requirement of having roboRIO Driver sending voltage and energy (unless using PDP 2.0)
+1. DONE Reading date and time from roboRIO Heartbeat 
+2. DONE Auto discovery of CTRE PDP or REV PDH so no more requirement of having roboRIO Driver sending voltage and energy (unless using PDP 2.0)
 
 ## Arduino IDE Setup
 
