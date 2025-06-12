@@ -6,9 +6,14 @@ Video demo: https://www.youtube.com/watch?v=rKZOKIWVOAg
 
 ![](../../img/batterytrax.JPG)
 
+Developed with wpilib 2025 and the latest firmware avaliable at the time for REV PDH and CTRE PDP.
+
 ## Android Companion APP and roboRIO Driver
 
+
 https://github.com/sikaxn/FRC-RFID-Battery-Reader/
+
+roboRIO Driver is only needed if you want to read battery data, or if your Power Distro device can not be connected to CAN (PDP 2.0). Energy usage monitoring is only supported with PDP 1.0 or PDH as roboRIO can not provide total current data.
 
 https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/main/roboRIO/batteryReader
 
@@ -16,6 +21,7 @@ https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/main/roboRIO/batteryReader
 
 1. DONE Reading date and time from roboRIO Heartbeat 
 2. DONE Auto discovery of CTRE PDP or REV PDH so no more requirement of having roboRIO Driver sending voltage and energy (unless using PDP 2.0)
+
 
 ## Arduino IDE Setup
 
