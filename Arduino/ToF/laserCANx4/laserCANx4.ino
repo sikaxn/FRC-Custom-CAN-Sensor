@@ -50,7 +50,7 @@ void TaskSensorRead(void* pvParams) {
 
     }
     xSemaphoreGive(sensorMutex);
-    vTaskDelay(pdMS_TO_TICKS(5));  
+    vTaskDelay(pdMS_TO_TICKS(3));  
   }
 }
 
@@ -91,7 +91,7 @@ void TaskCANTx(void* pvParams) {
       twai_transmit(&msg, pdMS_TO_TICKS(1));
     }
     xSemaphoreGive(sensorMutex);
-    vTaskDelay(pdMS_TO_TICKS(5)); 
+    vTaskDelay(pdMS_TO_TICKS(3)); 
   }
 }
 
