@@ -43,8 +43,11 @@ void TaskSensorRead(void* pvParams) {
     xSemaphoreTake(sensorMutex, portMAX_DELAY);
     for (int i = 0; i < NUM_SENSORS; i++) {
       int dist = sensors[i].read();
-      if (sensors[i].timeoutOccurred()) dist = 0;
+      if (sensors[i].timeoutOccurred() || dist <= 0 || dist > 4000) {
+          dist = 0;
+          }
       sensorDistances[i] = dist;
+
     }
     xSemaphoreGive(sensorMutex);
     vTaskDelay(pdMS_TO_TICKS(50));  // 20Hz
@@ -60,7 +63,7 @@ void TaskSensorPrint(void* pvParams) {
     }
     Serial.println();
     xSemaphoreGive(sensorMutex);
-    vTaskDelay(pdMS_TO_TICKS(50));
+    vTaskDelay(pdMS_TO_TICKS(2000));
   }
 }
 
