@@ -50,7 +50,7 @@ void TaskSensorRead(void* pvParams) {
 
     }
     xSemaphoreGive(sensorMutex);
-    vTaskDelay(pdMS_TO_TICKS(50));  // 20Hz
+    vTaskDelay(pdMS_TO_TICKS(5));  
   }
 }
 
@@ -88,10 +88,10 @@ void TaskCANTx(void* pvParams) {
       msg.data[6] = tb;
       msg.data[7] = sensors[i].getROICenter();   // ROI center
 
-      twai_transmit(&msg, pdMS_TO_TICKS(10));
+      twai_transmit(&msg, pdMS_TO_TICKS(1));
     }
     xSemaphoreGive(sensorMutex);
-    vTaskDelay(pdMS_TO_TICKS(100)); // 10 Hz
+    vTaskDelay(pdMS_TO_TICKS(5)); 
   }
 }
 
