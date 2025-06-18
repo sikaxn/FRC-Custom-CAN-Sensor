@@ -26,13 +26,13 @@ This project use **AI generated content**.
 ---
 # Demos:
 
-1. Digital Analog bi-directional ([Docs](Arduino/readme.md) / [Arduino Firmware](Arduino/Digital_Analog/) / [roboRIO](roboRIO/can-test/) / [RIO Simulator](scripts/ADrioSIm.py))
-2. REV Colour sensor  ([Docs](Arduino/readme.md) / [Arduino Firmware](Arduino/REVColourSensorV3/) / [roboRIO](roboRIO/can-test/)) (this share the same roboRIO code with the first one)
-3. LCD Screen  ([Arduino Firmware](Arduino/LCD/) / [roboRIO](roboRIO/can-LCD/) / [RIO Simulator](scripts/LCDSendRIOSIM.py))
-4. Robomaster motor gateway (dual CAN on ESP32)  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/djimotor/))
+1. [Arduino Mega] Digital Analog bi-directional ([Docs](Arduino/readme.md) / [Arduino Firmware](Arduino/Digital_Analog/) / [roboRIO](roboRIO/can-test/) / [RIO Simulator](scripts/ADrioSIm.py))
+2. [Arduino Mega] REV Colour sensor  ([Docs](Arduino/readme.md) / [Arduino Firmware](Arduino/REVColourSensorV3/) / [roboRIO](roboRIO/can-test/)) (this share the same roboRIO code with the first one)
+3. [Arduino Mega] LCD Screen  ([Arduino Firmware](Arduino/LCD/) / [roboRIO](roboRIO/can-LCD/) / [RIO Simulator](scripts/LCDSendRIOSIM.py))
+4. [ESP32] Robomaster motor gateway (dual CAN on ESP32)  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/djimotor/))
 5. Robomaster DT7 Remote on CAN  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/dt7/))
-6. Battery Tracking System ([Arduino Firmware](Arduino/Battery_Tracking/batteryReaderAutoPD/) / [roboRIO](roboRIO/batteryReader/) / [Android APP](https://github.com/sikaxn/FRC-RFID-Battery-Reader) / [Docs](Arduino/Battery_Tracking/readme.md))
-7. ToF using 4 VL53L1X ([Docs](Arduino/ToF/readme.md) / [Arduino Firmware](Arduino/ToF/laserCANx4/) / [roboRIO](roboRIO/ToF/) / [UITOol](scripts/ToFReaderROI.py) / [ROI Calculator Tool](scripts/TofRIOCalc.py))
+6. [ESP32] Battery Tracking System ([Arduino Firmware](Arduino/Battery_Tracking/batteryReaderAutoPD/) / [roboRIO](roboRIO/batteryReader/) / [Android APP](https://github.com/sikaxn/FRC-RFID-Battery-Reader) / [Docs](Arduino/Battery_Tracking/readme.md))
+7. [ESP32] ToF using 4 VL53L1X ([Docs](Arduino/ToF/readme.md) / [Arduino Firmware](Arduino/ToF/laserCANx4/) / [roboRIO](roboRIO/ToF/) / [UITool](scripts/ToFReaderROI.py) / [ROI Calculator Tool](scripts/TofRIOCalc.py))
 
 
 ---
