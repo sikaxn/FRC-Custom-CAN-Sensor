@@ -1,6 +1,5 @@
 # ToF Sensor VL53L1X
 
-
 ## 🔌 **1. I2C Wiring (VL53L1X)**
 
 * **ESP32 I2C Pins**:
@@ -46,9 +45,9 @@ ESP32 TWAI uses dedicated GPIOs for CAN TX/RX.
 
 ---
 
-## CAN Protocol
+## 📡 CAN Protocol
 
-### 📤 **Sensor → roboRIO** (ESP32 sends)
+### 📤 **Sensor → roboRIO** (ESP32 sends sensor status)
 
 #### API ID Range: `0x0301` to `0x0304` (`SENSOR_BASE_API_ID + i`)
 
@@ -66,13 +65,17 @@ ESP32 TWAI uses dedicated GPIOs for CAN TX/RX.
 ```
 Byte 0–1: Distance (uint16_t, mm)
 Byte 2:   Ranging mode (0 = Short, 1 = Medium, 2 = Long)
-Byte 3–6: Measurement timing budget (uint32_t, µs)
-Byte 7:   ROI center (uint8_t)
+Byte 3:   ROI center (uint8_t)
+Byte 4:   ROI size X (width)
+Byte 5:   ROI size Y (height)
+Byte 6–7: Measurement timing budget (uint16_t, µs / 1e3 resolution)
 ```
+
+> Note: Timing budget is truncated to 16 bits (up to \~65ms).
 
 ---
 
-### 📥 **roboRIO → Sensor** (ESP32 receives)
+### 📥 **roboRIO → Sensor** (ESP32 receives sensor config)
 
 #### API ID Range: `0x0305` to `0x0308` (`SENSOR_CONFIG_API_ID + i`)
 
@@ -85,9 +88,15 @@ Byte 7:   ROI center (uint8_t)
   * Sensor 2: `0x0307`
   * Sensor 3: `0x0308`
 
-* **Payload (2 bytes)**:
+* **Payload (4 bytes)**:
 
 ```
 Byte 0: Ranging mode (0 = Short, 1 = Medium, 2 = Long)
 Byte 1: ROI center (uint8_t)
+Byte 2: ROI size X (4–16, must be even)
+Byte 3: ROI size Y (4–16, must be even)
 ```
+
+> Only one config frame should be sent per 200 ms per sensor to allow safe I2C update delay.
+
+---
