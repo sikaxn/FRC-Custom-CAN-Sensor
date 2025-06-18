@@ -97,6 +97,6 @@ Byte 2: ROI size X (4–16, must be even)
 Byte 3: ROI size Y (4–16, must be even)
 ```
 
-> Only one config frame should be sent per 200 ms per sensor to allow safe I2C update delay.
+Only one config frame should be sent per 200 ms per sensor to allow safe I2C update delay.
 
 ---
