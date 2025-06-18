@@ -19,6 +19,8 @@ VL53L1X sensors[NUM_SENSORS];
 int sensorDistances[NUM_SENSORS];
 
 const uint8_t xshutPins[NUM_SENSORS] = {16, 17, 18, 19};
+const uint8_t roiX[NUM_SENSORS] = {8, 8, 8, 8};  // ROI width for each sensor
+const uint8_t roiY[NUM_SENSORS] = {8, 8, 8, 8};  // ROI height for each sensor
 const uint8_t sensorAddresses[NUM_SENSORS] = {0x30, 0x31, 0x32, 0x33};
 const uint8_t roiCenters[NUM_SENSORS] = {199, 199, 199, 199};
 const uint32_t timingBudgets[NUM_SENSORS] = {50000, 50000, 50000, 50000};
@@ -58,7 +60,20 @@ void TaskSensorPrint(void* pvParams) {
   for (;;) {
     xSemaphoreTake(sensorMutex, portMAX_DELAY);
     for (int i = 0; i < NUM_SENSORS; i++) {
-      Serial.print(sensorDistances[i]);
+      int dist = sensorDistances[i];
+      bool timeout = sensors[i].timeoutOccurred();
+      uint8_t status = sensors[i].ranging_data.range_status;
+
+      Serial.printf("Sensor %d: %d mm", i, dist);
+
+      if (timeout || dist <= 0 || dist > 4000 || status != 0) {
+        Serial.print(" [Error: ");
+        if (timeout) Serial.print("Timeout ");
+        if (dist <= 0 || dist > 4000) Serial.print("InvalidDist ");
+        if (status != 0) Serial.printf("Status=%d ", status);
+        Serial.print("]");
+      }
+
       if (i < NUM_SENSORS - 1) Serial.print('\t');
     }
     Serial.println();
@@ -67,6 +82,7 @@ void TaskSensorPrint(void* pvParams) {
   }
 }
 
+
 void TaskCANTx(void* pvParams) {
   for (;;) {
     xSemaphoreTake(sensorMutex, portMAX_DELAY);
@@ -74,26 +90,30 @@ void TaskCANTx(void* pvParams) {
       int dist = sensorDistances[i];
       uint32_t tb = sensors[i].getMeasurementTimingBudget();
 
+      uint8_t roiX = 0, roiY = 0;
+      sensors[i].getROISize(&roiX, &roiY);
+
       twai_message_t msg = {};
       msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, SENSOR_BASE_API_ID + i, DEVICE_NUMBER);
       msg.extd = 1;
       msg.data_length_code = 8;
 
-      msg.data[0] = (dist >> 8) & 0xFF;         // Distance high byte
-      msg.data[1] = dist & 0xFF;                // Distance low byte
-      msg.data[2] = sensors[i].getDistanceMode(); // Ranging mode
-      msg.data[3] = tb >> 24;
-      msg.data[4] = tb >> 16;
-      msg.data[5] = tb >> 8;
-      msg.data[6] = tb;
-      msg.data[7] = sensors[i].getROICenter();   // ROI center
+      msg.data[0] = (dist >> 8) & 0xFF;             // Distance high byte
+      msg.data[1] = dist & 0xFF;                    // Distance low byte
+      msg.data[2] = sensors[i].getDistanceMode();   // Ranging mode
+      msg.data[3] = sensors[i].getROICenter();      // ROI center
+      msg.data[4] = roiX;                           // ROI width
+      msg.data[5] = roiY;                           // ROI height
+      msg.data[6] = (tb >> 8) & 0xFF;               // Timing budget high byte
+      msg.data[7] = tb & 0xFF;                      // Timing budget low byte
 
       twai_transmit(&msg, pdMS_TO_TICKS(1));
     }
     xSemaphoreGive(sensorMutex);
-    vTaskDelay(pdMS_TO_TICKS(3)); 
+    vTaskDelay(pdMS_TO_TICKS(3));
   }
 }
+
 
 void TaskCANRx(void* pvParams) {
   for (;;) {
@@ -108,25 +128,30 @@ void TaskCANRx(void* pvParams) {
 
     for (int i = 0; i < NUM_SENSORS; i++) {
       if (apiId == SENSOR_CONFIG_API_ID + i) {
-        uint8_t newMode = msg.data[0];
-        uint8_t newRoi  = msg.data[1];
+        uint8_t newMode   = msg.data[0];
+        uint8_t newCenter = msg.data[1];
+        uint8_t newRoiX   = (msg.data_length_code >= 4) ? msg.data[2] : 0;
+        uint8_t newRoiY   = (msg.data_length_code >= 4) ? msg.data[3] : 0;
 
         if (newMode > 2) {
           Serial.printf("[CAN RX] Invalid mode (%d) for sensor %d, ignoring.\n", newMode, i);
           break;
         }
 
-        if (newRoi > 255) {
-          Serial.printf("[CAN RX] Invalid ROI center (%d) for sensor %d, ignoring.\n", newRoi, i);
+        if (newCenter > 255 || (newRoiX && (newRoiX < 4 || newRoiX > 16)) || (newRoiY && (newRoiY < 4 || newRoiY > 16))) {
+          Serial.printf("[CAN RX] Invalid ROI values (center=%d, x=%d, y=%d) for sensor %d\n", newCenter, newRoiX, newRoiY, i);
           break;
         }
 
         xSemaphoreTake(sensorMutex, portMAX_DELAY);
         sensors[i].setDistanceMode((VL53L1X::DistanceMode)newMode);
-        sensors[i].setROICenter(newRoi);
+        
+        if (newRoiX && newRoiY) {
+          sensors[i].setROISize(newRoiX, newRoiY);
+        }
         xSemaphoreGive(sensorMutex);
-
-        Serial.printf("[CAN RX] Sensor %d updated: mode=%d, roiCenter=%d\n", i, newMode, newRoi);
+        sensors[i].setROICenter(newCenter);
+        Serial.printf("[CAN RX] Sensor %d updated: mode=%d, center=%d, ROI=%dx%d\n", i, newMode, newCenter, newRoiX, newRoiY);
         break;
       }
     }
@@ -163,9 +188,12 @@ void setup() {
     }
 
     sensors[i].setAddress(sensorAddresses[i]);
+    sensors[i].setROISize(roiX[i], roiY[i]); 
     sensors[i].setROICenter(roiCenters[i]);
     sensors[i].setDistanceMode(rangingModes[i]);
     sensors[i].setMeasurementTimingBudget(timingBudgets[i]);
+    delay(5);
+
     sensors[i].startContinuous(50);
   }
 
