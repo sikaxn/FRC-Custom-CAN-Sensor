@@ -33,6 +33,8 @@
 
 ### Field Mapping:
 
+(All time is in UTC)
+
 * `"sn"` → Serial Number
 * `"fu"` → First Use (YYMMDDHHMM)
 * `"cc"` → Cycle Count
