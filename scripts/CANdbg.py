@@ -5,6 +5,9 @@ import time
 import can
 from can.notifier import Notifier, Listener
 
+#import usb # needed for Canable
+
+
 # --- Global Data ---
 can_messages = {}
 last_updated = {}
@@ -241,7 +244,9 @@ tree.bind("<Control-c>", copy_selection)
 # --- Start CAN Listener ---
 def start_can():
     try:
-        bus = can.Bus(interface='canalystii', channel=0, device=0, bitrate=1000000)
+        bus = can.Bus(interface='canalystii', channel=0, device=0, bitrate=1000000) #setting if using canalystii
+        #bus = can.Bus(interface='gs_usb', channel=0, bitrate=1000000) # setting if using Canable
+
         Notifier(bus, [CANMessageListener()], timeout=1)
         print("CAN interface ready.")
     except Exception as e:

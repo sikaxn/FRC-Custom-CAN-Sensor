@@ -82,4 +82,13 @@ A minimal Tkinter application for converting between FRC 29-bit CAN IDs and thei
 
 ![image](/img/gen.JPG)
 
+## **CANDbg Message Viewer tool**
+
+A minimal Tkinter application viewing CAN messages using python-can.
+
+Support Ctrl + C to copy message and roboRIO heartbeat decoding.
+
+![image](/img/candbg.png)
+
+
 ---
