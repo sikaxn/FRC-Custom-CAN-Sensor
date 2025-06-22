@@ -57,10 +57,20 @@ void runCurrentMode() {
     }
 
     case 255: {
-      // Draw custom pixel (once)
-      FastLED.show();
+      if (modeRefresh) {
+        fill_solid(leds, NUM_LEDS, CRGB::Black);
+        FastLED.show();
+        modeRefresh = false;
+      }
+
+      if (customSeen && customPix < NUM_LEDS) {
+        leds[customPix] = CRGB{cR, cG, cB};
+        FastLED.show();
+        customSeen = false;
+      }
       break;
     }
+
 
     default:
       fill_solid(leds, NUM_LEDS, CRGB::Black);
