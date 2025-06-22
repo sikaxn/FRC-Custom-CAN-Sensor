@@ -1,24 +1,23 @@
 #include "pattern.h"
 
-
-// Lights each LED in turn, then clears
-void colorWipe(const CRGB& color, uint16_t wait) {
-  for (uint16_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = color;
+uint16_t colorWipeStep(const CRGB& color, uint8_t delayMs, uint16_t index) {
+  if (index < NUM_LEDS) {
+    leds[index] = color;
     FastLED.show();
-    delay(wait);
+    delay(delayMs);
+    return index + 1;
+  } else {
+    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    FastLED.show();
+    return 0;
   }
-  fill_solid(leds, NUM_LEDS, CRGB::Black);
-  FastLED.show();
 }
 
-// Runs a continuously shifting rainbow
-void rainbowCycle(uint8_t wait) {
-  static uint16_t j = 0;
+uint16_t rainbowStep(uint8_t delayMs, uint16_t j) {
   for (uint16_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CHSV((i * 256 / NUM_LEDS + j) & 255, 255, 255);
+    leds[i] = CHSV((i * 256 / NUM_LEDS + j) & 255, 255, canBrig);
   }
   FastLED.show();
-  delay(wait);
-  j++;
+  delay(delayMs);
+  return j + 1;
 }

@@ -4,12 +4,15 @@
 #include <Arduino.h>    // for delay(), uint8_t, uint16_t
 #include <FastLED.h>    // for CRGB, fill_solid(), CHSV, FastLED.show()
 
-// These live in .ino:
 extern const uint16_t NUM_LEDS;
 extern       CRGB   leds[];
 
+// Share brightness variable
+extern volatile uint8_t canBrig;
+
+
 // Animation prototypes
-void colorWipe(const CRGB& color, uint16_t wait);
-void rainbowCycle(uint8_t wait);
+uint16_t colorWipeStep(const CRGB& color, uint8_t delayMs, uint16_t index);
+uint16_t rainbowStep(uint8_t delayMs, uint16_t j);
 
 #endif // PATTERN_H

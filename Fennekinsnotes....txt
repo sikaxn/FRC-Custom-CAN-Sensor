@@ -24,3 +24,33 @@ target: 0x8051901
 Type ID: 0x08
 Manufacture ID: 0x05
 API ID: 0x064
+
+
+(general) 0x350
+xx   xx   xx   xx   xx   xx    xx     xx
+Mode R    G    B    W    Brig  on/off setting
+
+
+mode - description - setting bit
+0   - off    - unused
+1   - colorWipe  - unused
+2   - rainbowCycle   - speed
+...
+255 - custom (listen to0x351 - 358) - unused
+
+(custom) 
+xx   xx   xx   xx   xx   xx    xx     xx
+Pixel#    R    G    B    w     Brig   resv
+
+(setting) 0x351 - 358
+xx   xx   xx   xx   xx   xx    xx     xx
+type Pixcount  resv
+
+
+max supported led# 65535 (2 byte int)
+
+
+(ESP feedback) 0x359
+
+xx   xx   xx   xx   xx   xx    xx     xx
+Pixcount  Mode resv
