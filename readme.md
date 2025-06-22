@@ -36,6 +36,12 @@ This project use **AI generated content**.
 
 
 ---
+
+# Important reminder of ESP32 radio:
+
+Per FRC Game Manual (2025) R707 and E301, Wi-Fi radio should not be used within competition area and Bluetooth radio should not be used if robot is competing on the field. As for now, none of the code utilizing ESP32 have any wireless capability. However, if further update enabled this capability, the use of such device and software should be carefully planned and coordinated to stay in compliance with the game manual. 
+
+---
 ## How FRC CAN bus works
 
 The 'CAN ID' we talked about when setting up motor controllers (Spark, Kraken, PDP, etc) is a number from 0-63. This is not the CAN identifier (message ID) used in CAN data layer. FRC Use a very specific scheme outlined in FRC CAN specification to convert certain information to CAN identifier. All device connected to roboRIO must follow this scheme when determine what ID to send data to and read form.
