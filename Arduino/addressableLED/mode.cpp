@@ -63,16 +63,25 @@ void runCurrentMode() {
       break;
     }
 
-case 7: {
-  if (modeRefresh) {
-    modeFrame = 0;
-    modeRefresh = false;
-  }
-  modeFrame = yourNewPatternStep(CRGB{canR, canG, canB}, canParam0, modeFrame);
-  break;
-}
+    case 7: { //sample yourNewPatternStep
+      if (modeRefresh) { //if you want a complete reset when switch to this mode or received a new setting, add these.
+        modeFrame = 0;
+        modeRefresh = false;
+      }
+      modeFrame = fastBlinking(CRGB{canR, canG, canB}, canParam0, modeFrame);
+      break;
+    }
 
-  //ADD Your Own Mode Here
+    //ADD Your Own Mode Here
+    //case N:{
+      //if (modeRefresh) { //if you want a complete reset when switch to this mode or received a new setting, add these.
+      //  modeFrame = 0;
+      //  modeRefresh = false;
+      //}
+    //  Your code goes here
+    //}
+    //
+
 
     case 255: { // custom pixel mode
       if (modeRefresh) {

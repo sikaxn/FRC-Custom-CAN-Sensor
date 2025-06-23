@@ -40,10 +40,16 @@ uint16_t breatheStep(const CRGB& color, uint8_t brightness, uint8_t speed, uint1
   return frame + 1;
 }
 
-uint16_t yourNewPatternStep(const CRGB& color, uint8_t speed, uint16_t frame) {
-  // Example: simple flash every 10 frames
+uint16_t fastBlinking(const CRGB& color, uint8_t speed, uint16_t frame) { 
   bool on = (frame / speed + 1) % 2 == 0;
   fill_solid(leds, NUM_LEDS, on ? color : CRGB::Black);
   FastLED.show();
   return frame + 1;
 }
+
+//uint16_t customPattern(const CRGB& color, uint8_t canParam0_IN,  uint8_t canParam1_IN, uint16_t frame) { //yourNewPatternStep
+//  Your code goes here
+//
+//
+//  FastLED.show(); //Update FastLED buffer
+//}

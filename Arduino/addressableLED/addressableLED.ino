@@ -9,23 +9,31 @@
 const uint16_t NUM_LEDS = 60;
 CRGB          leds[NUM_LEDS];
 #define DATA_PIN    16
-#define BRIGHTNESS  128
+#define BRIGHTNESS  128 //Max brightness limiter. This can't be overwritten on CAN. 
 #define LED_TYPE    WS2812B
 #define COLOR_ORDER GRB
 
 // —— Default Startup Settings ——
-#define DEFAULT_MODE       1
-#define DEFAULT_R        255
+#define DEFAULT_MODE       1 //This mode and presetwill run on startup until an update is received on CAN
+#define DEFAULT_R        255 
 #define DEFAULT_G        255
 #define DEFAULT_B        255
 #define DEFAULT_W          0
 #define DEFAULT_BRIGHTNESS 128
 #define DEFAULT_ONOFF      1
 
+// Add to shared state
+volatile uint8_t  canParam0 = 20; //default canParam on startup
+volatile uint8_t  canParam1 = 20; //default canParam on startup
+
+// Button Settings
+const uint8_t buttonModes[] = {0, 1, 2, 3, 4, 5, 6, 7, 255}; //What mode IO0 button cycle through (for debugging).
+//const uint8_t buttonModes[] = {0}; //use this if you wnat button to turn off all LED. This can be used during competition if you don't want to be annoyed by LEDs.
+
 // —— FRC CAN Constants ——
-#define DEVICE_ID           0x0A
-#define MANUFACTURER_ID     0x08
-#define DEVICE_NUMBER       33
+#define DEVICE_ID           0x0A //DO NOT change these
+#define MANUFACTURER_ID     0x08 //DO NOT change these
+#define DEVICE_NUMBER       33 //change this if you have multiple custom CAN LED Controller
 #define GENERAL_API         0x350
 #define CUSTOM_PATTERN_API  0x351  // through 0x358
 #define ESP_FEEDBACK_API    0x359
@@ -54,17 +62,14 @@ volatile uint16_t customPix  = 0;
 volatile uint8_t  cR = 0, cG = 0, cB = 0, cW = 0, cBrig = 0;
 
 // Fallback auto-swap every 10 s
-const uint32_t FALLBACK_INTERVAL = 10000;
+//const uint32_t FALLBACK_INTERVAL = 10000;
 uint32_t       lastSwap         = 0;
 
 // Handle for our LED-task so we can restart it
 TaskHandle_t   xHandleLED       = NULL;
 
-// Add to shared state
-volatile uint8_t  canParam0 = 20;
-volatile uint8_t  canParam1 = 20;
 
-const uint8_t buttonModes[] = {0, 1, 2, 3, 4, 5, 6, 7, 255};
+
 const size_t numButtonModes = sizeof(buttonModes) / sizeof(buttonModes[0]);
 size_t currentModeIndex = 0;
 
