@@ -9,6 +9,10 @@ Tested with WS2812-compatible LED. If your LED support [FastLED](https://github.
 
 ### **ESP32 Connections**
 
+WLED documentation have great resource about how to wire LED to ESP32. It is strongly recommended that you check it out even this code had nothing to do with WLED.
+https://kno.wled.ge/basics/getting-started/
+
+
 | Pin       | Function                                                 |
 | --------- | -------------------------------------------------------- |
 | GPIO 4    | CAN TX (to CAN transceiver TXD)                          |
