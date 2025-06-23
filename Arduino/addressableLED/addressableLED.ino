@@ -219,7 +219,7 @@ void TaskCANRx(void* pv) {
                 canMode     = newMode;
                 modeRefresh = true;
 
-                Serial.printf("CAN set or updated mode %u, animation restarted\n", newMode);
+                //Serial.printf("CAN set or updated mode %u, animation restarted\n", newMode);
               } else {
                 Serial.printf("Ignored invalid CAN mode %u\n", newMode);
               }
