@@ -109,30 +109,40 @@
               "_showGlyph": false
             }
           },
-          "6,0": {
+          "0,2": {
             "size": [
-              1,
+              4,
               1
             ],
             "content": {
-              "_type": "Text View",
+              "_type": "Number Slider",
               "_source0": "network_table:///SmartDashboard/LED Param0",
               "_title": "LED Param0",
               "_glyph": 148,
-              "_showGlyph": false
+              "_showGlyph": false,
+              "Slider Settings/Min": 0.0,
+              "Slider Settings/Max": 255.0,
+              "Slider Settings/Block increment": 1.0,
+              "Visuals/Display value": true,
+              "Visuals/Orientation": "HORIZONTAL"
             }
           },
-          "7,0": {
+          "0,3": {
             "size": [
-              1,
+              4,
               1
             ],
             "content": {
-              "_type": "Text View",
+              "_type": "Number Slider",
               "_source0": "network_table:///SmartDashboard/LED Param1",
               "_title": "LED Param1",
               "_glyph": 148,
-              "_showGlyph": false
+              "_showGlyph": false,
+              "Slider Settings/Min": 0.0,
+              "Slider Settings/Max": 255.0,
+              "Slider Settings/Block increment": 1.0,
+              "Visuals/Display value": true,
+              "Visuals/Orientation": "HORIZONTAL"
             }
           },
           "10,0": {
@@ -231,9 +241,9 @@
     }
   ],
   "windowGeometry": {
-    "x": -8.0,
-    "y": -8.0,
-    "width": 1936.0,
-    "height": 1048.0
+    "x": 2268.0,
+    "y": 271.0,
+    "width": 1918.0,
+    "height": 1030.0
   }
 }
