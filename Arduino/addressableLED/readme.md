@@ -1,5 +1,7 @@
 # 🧾 Addressable LED CAN
 
+Video: https://www.youtube.com/watch?v=yBTm1w7MFy0
+
 Addressable LED controller using an ESP32 connected to the FRC CAN bus.
 Tested with WS2812-compatible LED. If your LED support [FastLED](https://github.com/FastLED/FastLED/wiki/Chipset-reference), it should work. 
 
