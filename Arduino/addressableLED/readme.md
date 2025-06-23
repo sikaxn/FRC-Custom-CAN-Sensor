@@ -180,7 +180,7 @@ In `pattern.cpp`, define the function:
 ```cpp
 uint16_t yourNewPatternStep(const CRGB& color, uint8_t speed, uint16_t frame) {
   // Example: simple flash every 10 frames
-  bool on = (frame / 10) % 2 == 0;
+  bool on = (frame / speed + 1) % 2 == 0;
   fill_solid(leds, NUM_LEDS, on ? color : CRGB::Black);
   FastLED.show();
   return frame + 1;

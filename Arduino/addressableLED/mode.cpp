@@ -63,7 +63,14 @@ void runCurrentMode() {
       break;
     }
 
-
+case 7: {
+  if (modeRefresh) {
+    modeFrame = 0;
+    modeRefresh = false;
+  }
+  modeFrame = yourNewPatternStep(CRGB{canR, canG, canB}, canParam0, modeFrame);
+  break;
+}
 
   //ADD Your Own Mode Here
 
