@@ -189,7 +189,6 @@ uint16_t yourNewPatternStep(const CRGB& color, uint8_t speed, uint16_t frame);
 
 ## ✅ Tips
 
-* **Don't reset task** on every CAN update; use `modeRefresh` to trigger animation resets inside the same task.
 * Use `canParam0` as effect speed — small = slow, large = fast.
 * Use `FastLED.show()` only when needed to avoid flickering.
 * If adding effects with more logic, ensure **non-blocking code** (use `frame`-based progress).
