@@ -36,3 +36,20 @@ void breathePattern(const CRGB& color, uint8_t speed, uint32_t& frame) {
 
   frame += speed;  // speed controls how fast it breathes
 }
+
+uint16_t breatheStep(const CRGB& color, uint8_t brightness, uint8_t speed, uint16_t frame) {
+  float minSpeed = 0.05f;
+  float maxSpeed = 5.0f;
+  float scale = minSpeed + ((maxSpeed - minSpeed) * (speed / 255.0f));
+
+  float t = frame * scale * 0.01f;
+  float breath = 0.5f * (1 + sinf(t * 2 * PI));  // 0.0–1.0
+
+  CRGB c = color;
+  c.nscale8_video((uint8_t)(brightness * breath));
+  fill_solid(leds, NUM_LEDS, c);
+  FastLED.show();
+
+  return frame + 1;
+}
+

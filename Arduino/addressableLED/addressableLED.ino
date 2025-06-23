@@ -64,7 +64,7 @@ TaskHandle_t   xHandleLED       = NULL;
 volatile uint8_t  canParam0 = 20;
 volatile uint8_t  canParam1 = 20;
 
-const uint8_t buttonModes[] = {0, 1, 2, 3, 4, 24, 255};
+const uint8_t buttonModes[] = {0, 1, 2, 3, 4, 5, 6, 7, 255};
 const size_t numButtonModes = sizeof(buttonModes) / sizeof(buttonModes[0]);
 size_t currentModeIndex = 0;
 

@@ -15,6 +15,9 @@ extern volatile uint8_t canBrig;
 uint16_t colorWipeStep(const CRGB& color, uint8_t delayMs, uint16_t index);
 uint16_t rainbowStep(uint8_t delayMs, uint16_t j);
 void breathePattern(const CRGB& color, uint8_t speed, uint32_t& frame);
+uint16_t breatheStep(const CRGB& color, uint8_t maxBrightness, uint8_t speed, uint16_t frame);
+
+
 
 
 #endif // PATTERN_H

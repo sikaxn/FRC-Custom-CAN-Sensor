@@ -52,35 +52,22 @@ void runCurrentMode() {
       modeFrame = rainbowStep(canParam0, modeFrame);
       break;
 
-    case 5: {  // Breathe with reset on CAN change
+      
+    case 5: {  // Breathe with reset
       if (modeRefresh) {
         modeFrame = 0;
         modeRefresh = false;
       }
-      uint8_t brightness = (sin8(modeFrame) * canBrig) / 255;
-      CRGB color = CRGB{canR, canG, canB};
-      color.nscale8_video(brightness);
-      fill_solid(leds, NUM_LEDS, color);
-      FastLED.show();
-
-      // Speed control (min 1, max 20)
-      uint8_t speed = canParam0 > 0 ? canParam0 : 5;
-      modeFrame += speed;
+      modeFrame = breatheStep(CRGB{canR, canG, canB}, canBrig, canParam0, modeFrame);
       break;
     }
 
-    case 6: {  // Breathe without reset
-      uint8_t brightness = (sin8(modeFrame) * canBrig) / 255;
-      CRGB color = CRGB{canR, canG, canB};
-      color.nscale8_video(brightness);
-      fill_solid(leds, NUM_LEDS, color);
-      FastLED.show();
-
-      // Speed control (min 1, max 20)
-      uint8_t speed = canParam0 > 0 ? canParam0 : 5;
-      modeFrame += speed;
+    case 6: {  // Breathe no reset
+      modeFrame = breatheStep(CRGB{canR, canG, canB}, canBrig, canParam0, modeFrame);
       break;
     }
+
+
 
   //ADD Your Own Mode Here
 
