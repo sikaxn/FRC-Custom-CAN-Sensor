@@ -45,10 +45,6 @@ void runCurrentMode() {
 
 
     case 4:
-      if (modeRefresh) {
-        modeFrame = 0;
-        modeRefresh = false;
-      }
       modeFrame = rainbowStep(canParam0, modeFrame);
       break;
 
