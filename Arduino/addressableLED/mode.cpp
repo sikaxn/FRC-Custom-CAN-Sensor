@@ -8,9 +8,7 @@ extern volatile bool modeRefresh;
 extern CRGB leds[];
 extern const uint16_t NUM_LEDS;
 
-// Frame index for animations
-static uint16_t wipe_index = 0;
-static uint16_t rainbow_index = 0;
+static uint16_t modeFrame = 0;
 
 void runCurrentMode() {
   switch (canMode) {
@@ -30,33 +28,63 @@ void runCurrentMode() {
       FastLED.show();
       break;
 
-    case 2: {  // Color wipe (non-blocking)
-      static uint16_t wipe_index = 0;
+    case 2:
+      modeFrame = colorWipeStep(CRGB{canR, canG, canB}, canParam0, modeFrame);
+      break;
+
+
+    case 3:
       if (modeRefresh) {
-        fill_solid(leds, NUM_LEDS, CRGB::Black);  // clear first
+        fill_solid(leds, NUM_LEDS, CRGB::Black);
         FastLED.show();
-        wipe_index = 0;
+        modeFrame = 0;
         modeRefresh = false;
       }
-      wipe_index = colorWipeStep(CRGB{canR, canG, canB}, canParam0, wipe_index);
+      modeFrame = colorWipeStep(CRGB{canR, canG, canB}, canParam0, modeFrame);
       break;
-    }
-    
-    //case N:
-    //Your own mode goes here
 
 
-
-    case 3: {  // Rainbow
+    case 4:
       if (modeRefresh) {
-        rainbow_index = 0;
+        modeFrame = 0;
         modeRefresh = false;
       }
-      rainbow_index = rainbowStep(canParam0, rainbow_index);
+      modeFrame = rainbowStep(canParam0, modeFrame);
+      break;
+
+    case 5: {  // Breathe with reset on CAN change
+      if (modeRefresh) {
+        modeFrame = 0;
+        modeRefresh = false;
+      }
+      uint8_t brightness = (sin8(modeFrame) * canBrig) / 255;
+      CRGB color = CRGB{canR, canG, canB};
+      color.nscale8_video(brightness);
+      fill_solid(leds, NUM_LEDS, color);
+      FastLED.show();
+
+      // Speed control (min 1, max 20)
+      uint8_t speed = canParam0 > 0 ? canParam0 : 5;
+      modeFrame += speed;
       break;
     }
 
-    case 255: {
+    case 6: {  // Breathe without reset
+      uint8_t brightness = (sin8(modeFrame) * canBrig) / 255;
+      CRGB color = CRGB{canR, canG, canB};
+      color.nscale8_video(brightness);
+      fill_solid(leds, NUM_LEDS, color);
+      FastLED.show();
+
+      // Speed control (min 1, max 20)
+      uint8_t speed = canParam0 > 0 ? canParam0 : 5;
+      modeFrame += speed;
+      break;
+    }
+
+  //ADD Your Own Mode Here
+
+    case 255: { // custom pixel mode
       if (modeRefresh) {
         fill_solid(leds, NUM_LEDS, CRGB::Black);
         FastLED.show();
@@ -72,7 +100,7 @@ void runCurrentMode() {
     }
 
 
-    default:
+    default: //invalid case
       fill_solid(leds, NUM_LEDS, CRGB::Black);
       FastLED.show();
       break;
