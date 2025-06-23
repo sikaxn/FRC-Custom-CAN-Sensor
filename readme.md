@@ -33,7 +33,7 @@ This project use **AI generated content**.
 5. Robomaster DT7 Remote on CAN  ([Arduino Firmware](Arduino/RM_stuff/) / [roboRIO](roboRIO/dt7/))
 6. [ESP32] Battery Tracking System ([Arduino Firmware](Arduino/Battery_Tracking/batteryReaderAutoPD/) / [roboRIO](roboRIO/batteryReader/) / [Android APP](https://github.com/sikaxn/FRC-RFID-Battery-Reader) / [Docs](Arduino/Battery_Tracking/readme.md))
 7. [ESP32] ToF using 4 VL53L1X ([Docs](Arduino/ToF/readme.md) / [Arduino Firmware](Arduino/ToF/laserCANx4/) / [roboRIO](roboRIO/ToF/) / [UITool](scripts/ToFReaderROI.py) / [ROI Calculator Tool](scripts/TofRIOCalc.py))
-
+8. [ESP32] Addressable LED Controller ([Arduino Firmware](Arduino/addressableLED/) / [roboRIO](roboRIO/addressableLED/))
 
 ---
 
