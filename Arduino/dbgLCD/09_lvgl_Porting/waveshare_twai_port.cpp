@@ -12,7 +12,6 @@ int64_t last_hb_us = 0;
 
 
 
-
 void extractCANFields(uint32_t id, uint8_t &dev_type, uint8_t &mfr_id, uint8_t &dev_num) {
     dev_type = (id >> 24) & 0x1F;
     mfr_id   = (id >> 16) & 0xFF;
@@ -60,13 +59,13 @@ static void handle_rx_message(twai_message_t &msg) {
         const char * dev_type_name = dev_type < 32 ? DEVICE_TYPE_MAP[dev_type] : "Unknown";
         const char * mfr_name      = mfr_id   < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
 
-        Serial.printf(
-          "  → FRC: DevType=%u(%s) Mfr=%u(%s) API=%u Dev#=%u\n",
-          dev_type, dev_type_name,
-          mfr_id,   mfr_name,
-          api_id,
-          dev_num
-        );
+        //Serial.printf(
+        //  "  → FRC: DevType=%u(%s) Mfr=%u(%s) API=%u Dev#=%u\n",
+        //  dev_type, dev_type_name,
+        //  mfr_id,   mfr_name,
+        //  api_id,
+        //  dev_num
+        //);
     }
 }
 
@@ -168,6 +167,7 @@ void checkHeartbeatTimeout(lv_timer_t*) {
             lvgl_port_unlock();
         }
     }
+    
 }
 
 

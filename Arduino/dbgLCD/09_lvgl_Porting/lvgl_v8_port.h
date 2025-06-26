@@ -74,7 +74,7 @@
 #define LVGL_PORT_AVOID_TEARING_MODE            (CONFIG_LVGL_PORT_AVOID_TEARING_MODE)
                                                         // Valid if using ESP-IDF
 #else
-#define LVGL_PORT_AVOID_TEARING_MODE            (0)     // Valid if using Arduino
+#define LVGL_PORT_AVOID_TEARING_MODE            (3)     // Valid if using Arduino
 #endif
 
 #if LVGL_PORT_AVOID_TEARING_MODE != 0

@@ -296,7 +296,7 @@
  *
  * Set to `1` to enable IO expander support, `0` to disable
  */
-#define ESP_PANEL_BOARD_USE_EXPANDER            (0)
+#define ESP_PANEL_BOARD_USE_EXPANDER            (1)
 
 #if ESP_PANEL_BOARD_USE_EXPANDER
 /**
