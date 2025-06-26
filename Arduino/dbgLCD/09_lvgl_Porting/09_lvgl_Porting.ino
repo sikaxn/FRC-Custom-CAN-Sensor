@@ -17,6 +17,10 @@ static bool driver_installed = false;
 
 extern std::set<std::tuple<uint8_t, uint8_t, uint8_t>> uniqueDevices;
 static std::set<std::tuple<uint8_t, uint8_t, uint8_t>> uiDeviceCache;
+extern std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
+//DeviceKey key = std::make_tuple(dev_type, mfr_id, dev_num)
+
+//std::vector<lv_obj_t*> all_device_buttons;
 
 
 
@@ -29,7 +33,11 @@ lv_obj_t* device_list;
 lv_obj_t* clear_btn;
 lv_obj_t* hb_box;
 lv_obj_t* hb_label;
+lv_obj_t* device_list_container = nullptr;
 
+
+
+DeviceKey* selectedDeviceKey = nullptr;
 
 
 
@@ -128,38 +136,50 @@ void setup()
     );
     lv_timer_create(checkHeartbeatTimeout, 500, nullptr);
     lv_timer_create(refresh_device_list_cb, 1000, NULL); // refresh every 1 sec
-    
+    lv_timer_create(refresh_selected_device_cb, 500, nullptr); 
+
 
     lvgl_port_unlock();
 }
 
-void on_clear_btn_pressed(lv_event_t * e) {
-    Serial.println("CLEAR pressed!");
-
-    // Lock before modifying UI
+void on_clear_btn_pressed(lv_event_t* e) {
     if (!lvgl_port_lock(-1)) return;
 
-    // Clear internal sets
+    // Delete all buttons and free associated DeviceInfo memory
+    for (lv_obj_t* btn : all_device_buttons) {
+        DeviceInfo* info = (DeviceInfo*)lv_obj_get_user_data(btn);
+        if (info) lv_mem_free(info);
+        lv_obj_del(btn);
+    }
+    all_device_buttons.clear();
+
+    // Clear device list UI and add back the header text
+    if (device_list) {
+        lv_obj_clean(device_list);
+        lv_list_add_text(device_list, "CAN Devices:");
+    }
+
+    // Clear internal state
     uniqueDevices.clear();
+    deviceMessages.clear();
     uiDeviceCache.clear();
 
-    // Remove old device_list and recreate
-    lv_obj_del(device_list);
-    device_list = lv_list_create(lv_scr_act());
-    lv_obj_set_size(device_list, 200, 400);
-    lv_obj_align(device_list, LV_ALIGN_TOP_LEFT, 10, 10);
-    lv_list_add_text(device_list, "CAN Devices:");
+    // Free selected key
+    if (selectedDeviceKey) {
+        delete selectedDeviceKey;
+        selectedDeviceKey = nullptr;
+    }
 
-    // Move clear button back under new list
-    lv_obj_align_to(clear_btn, device_list, LV_ALIGN_OUT_BOTTOM_MID, 0, 10);
-
-    // Reset main label
+    // Reset the display label
     if (ctrl_label) {
         lv_label_set_text(ctrl_label, "Hi HPP, please select a device from the left.");
     }
 
     lvgl_port_unlock();
+
+    Serial.println("[Clear] System reset complete.");
 }
+
 
 void refresh_device_list_cb(lv_timer_t * timer) {
     if (!device_list) return;
@@ -191,8 +211,9 @@ void refresh_device_list_cb(lv_timer_t * timer) {
 
 
         // Allocate memory for the device info
-        auto* devInfo = new std::tuple<uint8_t, uint8_t, uint8_t>(dev_type, mfr_id, dev_num);
-        lv_obj_set_user_data(btn, devInfo);  // C++ wrapper
+        DeviceInfo* devInfo = new DeviceInfo{dev_type, mfr_id, dev_num};
+        lv_obj_set_user_data(btn, devInfo);
+
 
         // Add event callback
         lv_obj_add_event_cb(btn, on_device_btn_clicked, LV_EVENT_CLICKED, ctrl_label);
@@ -206,26 +227,20 @@ void refresh_device_list_cb(lv_timer_t * timer) {
     lvgl_port_unlock();
 }
 
-static void on_device_btn_clicked(lv_event_t * e) {
+void on_device_btn_clicked(lv_event_t* e) {
     lv_obj_t* btn = lv_event_get_target(e);
-    lv_obj_t* label = static_cast<lv_obj_t*>(lv_event_get_user_data(e));
+    DeviceInfo* info = static_cast<DeviceInfo*>(lv_obj_get_user_data(btn));
+    if (!info) return;
 
-    auto* devInfo = static_cast<std::tuple<uint8_t, uint8_t, uint8_t>*>(lv_obj_get_user_data(btn));
-    if (!devInfo) return;
+    // Free previous key and set new one
+    if (selectedDeviceKey) delete selectedDeviceKey;
+    selectedDeviceKey = new DeviceKey(info->dev_type, info->mfr_id, info->dev_num);
 
-    uint8_t dev_type, mfr_id, dev_num;
-    std::tie(dev_type, mfr_id, dev_num) = *devInfo;
-
-    const char * dev_type_name = dev_type < 32 ? DEVICE_TYPE_MAP[dev_type] : "Unknown";
-    const char * mfr_name = mfr_id < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
-
-    char detail[128];
-    snprintf(detail, sizeof(detail),
-             "Device #%u\nType: %s\nMfr: %s\nDevID: %u",
-             dev_num, dev_type_name, mfr_name, dev_num);
-
-    lv_label_set_text(label, detail);
+    // Immediately trigger a UI refresh once
+    refresh_selected_device_cb(nullptr);
 }
+
+
 
 
 void loop()
@@ -233,3 +248,55 @@ void loop()
     //Serial.println("IDLE loop");
     waveshare_twai_receive();
 }
+
+void refresh_selected_device_cb(lv_timer_t*) {
+    if (!selectedDeviceKey) return;
+    if (!lvgl_port_lock(-1)) return;
+
+    auto it = deviceMessages.find(*selectedDeviceKey);
+    if (it == deviceMessages.end()) {
+        lv_label_set_text(ctrl_label, "No messages found for selected device.");
+        lvgl_port_unlock();
+        return;
+    }
+
+    // Keep only latest entry per API ID
+    auto& messages = it->second;
+    std::map<uint16_t, std::vector<uint8_t>> latest;
+    for (const auto& entry : messages) {
+        latest[entry.api_id] = entry.data;
+    }
+
+    messages.clear();
+    for (const auto& [api_id, data] : latest) {
+        messages.push_back({api_id, data});
+    }
+
+    // Build string to display
+    const auto& [dev_type, mfr_id, dev_num] = *selectedDeviceKey;
+    const char* dev_type_name = dev_type < 32 ? DEVICE_TYPE_MAP[dev_type] : "Unknown";
+    const char* mfr_name = mfr_id < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
+
+    std::string text;
+    char header[128];
+    snprintf(header, sizeof(header), "#%d [%s] %s\n", dev_num, mfr_name, dev_type_name);
+    text += header;
+
+    for (const auto& entry : messages) {
+        char line[128];
+        snprintf(line, sizeof(line), "API 0x%03X:", entry.api_id);
+        text += line;
+
+        for (uint8_t b : entry.data) {
+            char byteStr[8];
+            snprintf(byteStr, sizeof(byteStr), " %02X", b);
+            text += byteStr;
+        }
+
+        text += "\n";
+    }
+
+    lv_label_set_text(ctrl_label, text.c_str());
+    lvgl_port_unlock();
+}
+

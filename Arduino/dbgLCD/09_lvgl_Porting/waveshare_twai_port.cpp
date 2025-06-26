@@ -1,17 +1,22 @@
 #include "waveshare_twai_port.h"
-#include <set>
-#include <tuple>
 #include "lvgl_v8_port.h"
 #include <lvgl.h>
-
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "driver/twai.h"
 
-std::set<std::tuple<uint8_t, uint8_t, uint8_t>> uniqueDevices;
+
+// Implement globals
+std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
+std::set<DeviceKey> uniqueDevices;
+std::vector<lv_obj_t*> all_device_buttons;
+int64_t last_hb_us = 0;
+
+// External UI elements (defined elsewhere)
 extern lv_obj_t* hb_label;
 extern lv_obj_t* hb_box;
-int64_t last_hb_us = 0;
+extern lv_obj_t* device_list_container;
 #define HEARTBEAT_ID 0x01011840
 
 
@@ -63,6 +68,27 @@ static void handle_rx_message(twai_message_t &msg) {
         const char * dev_type_name = dev_type < 32 ? DEVICE_TYPE_MAP[dev_type] : "Unknown";
         const char * mfr_name      = mfr_id   < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
 
+        auto key = std::make_tuple(dev_type, mfr_id, dev_num);
+        MessageEntry entry;
+        entry.api_id = api_id;
+        entry.data.assign(msg.data, msg.data + msg.data_length_code);
+        auto& vec = deviceMessages[key];
+        bool found = false;
+        for (auto& e : vec) {
+            if (e.api_id == entry.api_id) {
+                e.data = entry.data;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            vec.push_back(entry);
+        }
+
+        if (vec.size() > 64) {
+            vec.erase(vec.begin());  // remove oldest
+        }
+
         //Serial.printf(
         //  "  → FRC: DevType=%u(%s) Mfr=%u(%s) API=%u Dev#=%u\n",
         //  dev_type, dev_type_name,
@@ -113,46 +139,76 @@ void waveshare_twai_receive() {
 void TaskCANRx(void *pvParams) {
     twai_message_t msg;
     Serial.println("[TaskCANRx] started");
-    
+
     for (;;) {
-        //Serial.println("[TaskCANRx] loop");
         if (twai_receive(&msg, portMAX_DELAY) == ESP_OK && msg.extd) {
             uint8_t dev_type, mfr_id, dev_num;
             extractCANFields(msg.identifier, dev_type, mfr_id, dev_num);
-            auto key = std::make_tuple(dev_type, mfr_id, dev_num);
+            DeviceKey key = std::make_tuple(dev_type, mfr_id, dev_num);
+            uint16_t api_id = (msg.identifier >> 6) & 0x3FF;
 
+            // Store or replace the latest message for this API ID
+            MessageEntry entry;
+            entry.api_id = api_id;
+            entry.data.assign(msg.data, msg.data + msg.data_length_code);
+
+            auto& vec = deviceMessages[key];
+            bool found = false;
+            for (auto& e : vec) {
+                if (e.api_id == api_id) {
+                    e.data = entry.data;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                vec.push_back(entry);
+            }
+
+            // Limit growth
+            if (vec.size() > 64) {
+                vec.erase(vec.begin());
+            }
+
+            // First time seeing this device — create UI button
             if (uniqueDevices.insert(key).second) {
-                const char * dev_type_name = dev_type < 32 ? DEVICE_TYPE_MAP[dev_type] : "Unknown";
-                const char * mfr_name = mfr_id < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
+                const char* dev_type_name = dev_type < 32 ? DEVICE_TYPE_MAP[dev_type] : "Unknown";
+                const char* mfr_name      = mfr_id   < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
 
                 Serial.printf("[New CAN Device] DevType=%u (%s), Mfr=%u (%s), Dev#=%u\n",
-                              dev_type, dev_type_name,
-                              mfr_id, mfr_name,
-                              dev_num);
-            }
-            if (msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
-                char buf[128];
-                bool enabled = decodeFRCHeartbeat(msg.data, buf, sizeof(buf));
-                last_hb_us = esp_timer_get_time();
-
-                //Serial.println(">> Heartbeat detected");
+                              dev_type, dev_type_name, mfr_id, mfr_name, dev_num);
 
                 if (lvgl_port_lock(-1)) {
-                    if (hb_label) {
-                        lv_label_set_text(hb_label, buf);
-                    }
+                    lv_obj_t* btn = lv_btn_create(device_list_container);
+                    lv_obj_t* label = lv_label_create(btn);
+                    lv_label_set_text_fmt(label, "%s #%d", dev_type_name, dev_num);
 
-                    if (hb_box) {
-                        lv_color_t bg = enabled ? lv_color_hex(0x43A047) : lv_color_hex(0xE53935);
-                        lv_obj_set_style_bg_color(hb_box, bg, 0);
-                    }
+                    DeviceInfo* info = (DeviceInfo*)lv_mem_alloc(sizeof(DeviceInfo));
+                    *info = DeviceInfo{dev_type, mfr_id, dev_num};
+                    lv_obj_set_user_data(btn, info);
+
+                    lv_obj_add_event_cb(btn, on_device_btn_clicked, LV_EVENT_CLICKED, hb_label);
+                    all_device_buttons.push_back(btn);
 
                     lvgl_port_unlock();
                 }
             }
 
+            // Heartbeat
+            if (msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
+                char buf[128];
+                bool enabled = decodeFRCHeartbeat(msg.data, buf, sizeof(buf));
+                last_hb_us = esp_timer_get_time();
 
-
+                if (lvgl_port_lock(-1)) {
+                    if (hb_label) lv_label_set_text(hb_label, buf);
+                    if (hb_box) {
+                        lv_color_t bg = enabled ? lv_color_hex(0x43A047) : lv_color_hex(0xE53935);
+                        lv_obj_set_style_bg_color(hb_box, bg, 0);
+                    }
+                    lvgl_port_unlock();
+                }
+            }
         }
     }
 }
