@@ -183,7 +183,12 @@ void TaskCANRx(void *pvParams) {
                     lv_obj_t* label = lv_label_create(btn);
                     lv_label_set_text_fmt(label, "%s #%d", dev_type_name, dev_num);
 
-                    DeviceInfo* info = new DeviceInfo{dev_type, mfr_id, dev_num};
+                    DeviceInfo* info = (DeviceInfo*)lv_mem_alloc(sizeof(DeviceInfo));
+                    if (info) {
+                        *info = {dev_type, mfr_id, dev_num};
+                        lv_obj_set_user_data(btn, info);
+                    }
+
                     //*info = DeviceInfo{dev_type, mfr_id, dev_num};
                     lv_obj_set_user_data(btn, info);
 

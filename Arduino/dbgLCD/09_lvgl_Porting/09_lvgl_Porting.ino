@@ -9,6 +9,9 @@
 #include <set>
 #include <tuple>
 
+#include "esp_heap_caps.h"
+extern std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
+
 
 using namespace esp_panel::drivers;
 using namespace esp_panel::board;
@@ -134,9 +137,20 @@ void setup()
     nullptr,        // handle
     0               // run on core 0
     );
+
+    xTaskCreatePinnedToCore(
+    TaskMemoryGC,
+    "MemGC",
+    4096,
+    nullptr,
+    1,
+    nullptr,
+    1  // run on core 1 (if you want separation from CAN)
+);
+
     lv_timer_create(checkHeartbeatTimeout, 500, nullptr);
     lv_timer_create(refresh_device_list_cb, 1000, NULL); // refresh every 1 sec
-    lv_timer_create(refresh_selected_device_cb, 500, nullptr); 
+    lv_timer_create(refresh_selected_device_cb, 200, nullptr); 
 
 
     lvgl_port_unlock();
@@ -303,3 +317,33 @@ void refresh_selected_device_cb(lv_timer_t*) {
 
     lvgl_port_unlock();
 }
+
+void TaskMemoryGC(void *pvParams) {
+    const TickType_t delayTicks = pdMS_TO_TICKS(3000);
+
+    for (;;) {
+        // Optional: Compact MessageEntry vector per device
+        for (auto& [key, vec] : deviceMessages) {
+            std::map<uint16_t, std::vector<uint8_t>> latest;
+            for (const auto& entry : vec) {
+                latest[entry.api_id] = entry.data;
+            }
+
+            vec.clear();
+            for (const auto& [api, data] : latest) {
+                vec.push_back({api, data});
+            }
+        }
+
+        // Print heap info
+        size_t freeHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+        size_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+        size_t minEver = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
+
+        Serial.printf("[GC] Compact done | Free Heap: %u bytes | Largest Block: %u bytes | Min Ever: %u bytes\n",
+                      freeHeap, largestBlock, minEver);
+
+        vTaskDelay(delayTicks);
+    }
+}
+
