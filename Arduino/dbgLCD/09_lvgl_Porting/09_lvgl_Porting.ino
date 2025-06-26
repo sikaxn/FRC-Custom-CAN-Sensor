@@ -10,7 +10,7 @@
 #include <tuple>
 
 #include "esp_heap_caps.h"
-extern std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
+//extern std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
 
 
 using namespace esp_panel::drivers;
@@ -20,7 +20,7 @@ static bool driver_installed = false;
 
 extern std::set<std::tuple<uint8_t, uint8_t, uint8_t>> uniqueDevices;
 static std::set<std::tuple<uint8_t, uint8_t, uint8_t>> uiDeviceCache;
-extern std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
+//extern std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
 //DeviceKey key = std::make_tuple(dev_type, mfr_id, dev_num)
 
 //std::vector<lv_obj_t*> all_device_buttons;
@@ -138,15 +138,15 @@ void setup()
     0               // run on core 0
     );
 
-    xTaskCreatePinnedToCore(
-    TaskMemoryGC,
-    "MemGC",
-    4096,
-    nullptr,
-    1,
-    nullptr,
-    1  // run on core 1 (if you want separation from CAN)
-);
+    //xTaskCreatePinnedToCore(
+    //TaskMemoryGC,
+    //"MemGC",
+    //4096,
+    //nullptr,
+    //1,
+    //nullptr,
+    //1  // run on core 1 (if you want separation from CAN)
+    //);
 
     lv_timer_create(checkHeartbeatTimeout, 500, nullptr);
     lv_timer_create(refresh_device_list_cb, 1000, NULL); // refresh every 1 sec
@@ -162,7 +162,10 @@ void on_clear_btn_pressed(lv_event_t* e) {
     // Delete all buttons and free associated DeviceInfo memory
     for (lv_obj_t* btn : all_device_buttons) {
         DeviceInfo* info = (DeviceInfo*)lv_obj_get_user_data(btn);
-        if (info) delete info;  // <-- fixed!
+        if (info) {
+            lv_mem_free(info);
+            lv_obj_set_user_data(btn, nullptr);
+        }
         lv_obj_del(btn);
     }
     all_device_buttons.clear();
@@ -175,14 +178,11 @@ void on_clear_btn_pressed(lv_event_t* e) {
 
     // Clear internal state
     uniqueDevices.clear();
-    deviceMessages.clear();
+    deviceState.clear();
+
     uiDeviceCache.clear();
     
-    // Free selected key
-    if (selectedDeviceKey) {
-        delete selectedDeviceKey;
-        selectedDeviceKey = nullptr;
-    }
+    
 
     // Reset the display label
     if (ctrl_label) {
@@ -247,11 +247,12 @@ void on_device_btn_clicked(lv_event_t* e) {
     DeviceInfo* info = static_cast<DeviceInfo*>(lv_obj_get_user_data(btn));
     if (!info) return;
 
-    // Free previous key and set new one
-    if (selectedDeviceKey) delete selectedDeviceKey;
-    selectedDeviceKey = new DeviceKey(info->dev_type, info->mfr_id, info->dev_num);
+    // Set the selected key
+    static DeviceKey selectedKey;
+    selectedKey = std::make_tuple(info->dev_type, info->mfr_id, info->dev_num);
+    selectedDeviceKey = &selectedKey;
 
-    // Immediately trigger a UI refresh once
+    // Force refresh UI immediately
     refresh_selected_device_cb(nullptr);
 }
 
@@ -260,36 +261,24 @@ void on_device_btn_clicked(lv_event_t* e) {
 
 void loop()
 {
-    //Serial.println("IDLE loop");
-    waveshare_twai_receive();
+
+    //waveshare_twai_receive();
 }
+
+
 void refresh_selected_device_cb(lv_timer_t*) {
     if (!selectedDeviceKey) return;
     if (!lvgl_port_lock(-1)) return;
 
-    auto it = deviceMessages.find(*selectedDeviceKey);
-    if (it == deviceMessages.end()) {
+    auto it = deviceState.find(*selectedDeviceKey);
+    if (it == deviceState.end()) {
         lv_label_set_text(ctrl_label, "No messages found for selected device.");
         lvgl_port_unlock();
         return;
     }
 
-    auto& messages = it->second;
+    const auto& apimap = it->second.api_messages;
 
-    // === 🧹 Deduplicate by API ID safely ===
-    std::map<uint16_t, std::vector<uint8_t>> latest;
-    for (const auto& entry : messages) {
-        latest[entry.api_id] = entry.data;
-    }
-
-    // Clean up vector and only keep latest
-    messages.clear();
-    messages.reserve(latest.size());  // avoid excess realloc
-    for (const auto& [api_id, data] : latest) {
-        messages.push_back({api_id, data});
-    }
-
-    // === 🧵 Build display text ===
     const auto& [dev_type, mfr_id, dev_num] = *selectedDeviceKey;
     const char* dev_type_name = dev_type < 32 ? DEVICE_TYPE_MAP[dev_type] : "Unknown";
     const char* mfr_name = mfr_id < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
@@ -299,12 +288,12 @@ void refresh_selected_device_cb(lv_timer_t*) {
     snprintf(header, sizeof(header), "#%d [%s] %s\n", dev_num, mfr_name, dev_type_name);
     text += header;
 
-    for (const auto& entry : messages) {
+    for (const auto& [api_id, data] : apimap) {
         char line[128];
-        snprintf(line, sizeof(line), "API 0x%03X:", entry.api_id);
+        snprintf(line, sizeof(line), "API 0x%03X:", api_id);
         text += line;
 
-        for (uint8_t b : entry.data) {
+        for (uint8_t b : data) {
             char byteStr[8];
             snprintf(byteStr, sizeof(byteStr), " %02X", b);
             text += byteStr;
@@ -312,38 +301,7 @@ void refresh_selected_device_cb(lv_timer_t*) {
         text += "\n";
     }
 
-    // ✅ Display
     lv_label_set_text(ctrl_label, text.c_str());
-
     lvgl_port_unlock();
-}
-
-void TaskMemoryGC(void *pvParams) {
-    const TickType_t delayTicks = pdMS_TO_TICKS(3000);
-
-    for (;;) {
-        // Optional: Compact MessageEntry vector per device
-        for (auto& [key, vec] : deviceMessages) {
-            std::map<uint16_t, std::vector<uint8_t>> latest;
-            for (const auto& entry : vec) {
-                latest[entry.api_id] = entry.data;
-            }
-
-            vec.clear();
-            for (const auto& [api, data] : latest) {
-                vec.push_back({api, data});
-            }
-        }
-
-        // Print heap info
-        size_t freeHeap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-        size_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-        size_t minEver = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
-
-        Serial.printf("[GC] Compact done | Free Heap: %u bytes | Largest Block: %u bytes | Min Ever: %u bytes\n",
-                      freeHeap, largestBlock, minEver);
-
-        vTaskDelay(delayTicks);
-    }
 }
 

@@ -12,10 +12,6 @@
 // Device key = (deviceType, manufacturerID, deviceNumber)
 using DeviceKey = std::tuple<uint8_t, uint8_t, uint8_t>;
 
-struct MessageEntry {
-    uint16_t api_id;
-    std::vector<uint8_t> data;
-};
 
 struct DeviceInfo {
     uint8_t dev_type;
@@ -24,10 +20,17 @@ struct DeviceInfo {
 };
 
 // Shared globals
-extern std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
+//extern std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
 extern std::set<DeviceKey> uniqueDevices;
 extern std::vector<lv_obj_t*> all_device_buttons;
 extern int64_t last_hb_us;
+
+struct CANDeviceData {
+    uint32_t last_timestamp_us;
+    std::map<uint16_t, std::vector<uint8_t>> api_messages;  // apiID → data[]
+};
+extern std::map<DeviceKey, CANDeviceData> deviceState;
+
 
 // External UI elements
 extern lv_obj_t* hb_label;

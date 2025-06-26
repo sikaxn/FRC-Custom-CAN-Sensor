@@ -8,10 +8,11 @@
 
 
 // Implement globals
-std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
+//std::map<DeviceKey, std::vector<MessageEntry>> deviceMessages;
 std::set<DeviceKey> uniqueDevices;
 std::vector<lv_obj_t*> all_device_buttons;
 int64_t last_hb_us = 0;
+std::map<DeviceKey, CANDeviceData> deviceState;
 
 // External UI elements (defined elsewhere)
 extern lv_obj_t* hb_label;
@@ -21,10 +22,16 @@ extern lv_obj_t* device_list_container;
 
 
 
+
 void extractCANFields(uint32_t id, uint8_t &dev_type, uint8_t &mfr_id, uint8_t &dev_num) {
     dev_type = (id >> 24) & 0x1F;
     mfr_id   = (id >> 16) & 0xFF;
     dev_num  = id & 0x3F;
+}
+
+void clearAllDeviceData() {
+    deviceState.clear();
+    uniqueDevices.clear();
 }
 
 
@@ -46,58 +53,6 @@ const char * MANUFACTURER_MAP[17] = {
     "Redux Robotics","AndyMark","Vivid Hosting"
 };
 
-// ——— Internal: decode & print one message ———
-static void handle_rx_message(twai_message_t &msg) {
-    uint32_t id  = msg.identifier;
-    uint8_t  dlc = msg.data_length_code;
-
-    // Always print full ID + DLC + data bytes
-    //Serial.printf("ID(EXT)=0x%08X DLC=%u Data:", id, dlc);
-    for(int i = 0; i < dlc; i++) {
-        //Serial.printf(" %02X", msg.data[i]);
-    }
-    //Serial.println();
-
-    // Decode as FRC only if extended
-    if(msg.extd) {
-        uint8_t  dev_type = (id >> 24) & 0xFF;
-        uint8_t  mfr_id   = (id >> 16) & 0xFF;
-        uint16_t api_id   = (id >>  6) & 0x3FF;
-        uint8_t  dev_num  =  id        & 0x3F;
-
-        const char * dev_type_name = dev_type < 32 ? DEVICE_TYPE_MAP[dev_type] : "Unknown";
-        const char * mfr_name      = mfr_id   < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
-
-        auto key = std::make_tuple(dev_type, mfr_id, dev_num);
-        MessageEntry entry;
-        entry.api_id = api_id;
-        entry.data.assign(msg.data, msg.data + msg.data_length_code);
-        auto& vec = deviceMessages[key];
-        bool found = false;
-        for (auto& e : vec) {
-            if (e.api_id == entry.api_id) {
-                e.data = entry.data;
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            vec.push_back(entry);
-        }
-
-        if (vec.size() > 64) {
-            vec.erase(vec.begin());  // remove oldest
-        }
-
-        //Serial.printf(
-        //  "  → FRC: DevType=%u(%s) Mfr=%u(%s) API=%u Dev#=%u\n",
-        //  dev_type, dev_type_name,
-        //  mfr_id,   mfr_name,
-        //  api_id,
-        //  dev_num
-        //);
-    }
-}
 
 // ——— Public: initialize the TWAI driver ———
 bool waveshare_twai_init() {
@@ -122,18 +77,7 @@ bool waveshare_twai_init() {
     return true;
 }
 
-// ——— Public: pull in any pending frames once ———
-void waveshare_twai_receive() {
-    twai_message_t msg;
-    // Block up to POLLING_RATE_MS for the first frame
-    if(twai_receive(&msg, pdMS_TO_TICKS(POLLING_RATE_MS)) == ESP_OK) {
-        handle_rx_message(msg);
-        // Drain remaining immediately
-        while(twai_receive(&msg, 0) == ESP_OK) {
-            handle_rx_message(msg);
-        }
-    }
-}
+
 
 // ——— Task: continuously receive frames asynchronously ———
 void TaskCANRx(void *pvParams) {
@@ -147,28 +91,9 @@ void TaskCANRx(void *pvParams) {
             DeviceKey key = std::make_tuple(dev_type, mfr_id, dev_num);
             uint16_t api_id = (msg.identifier >> 6) & 0x3FF;
 
-            // Store or replace the latest message for this API ID
-            MessageEntry entry;
-            entry.api_id = api_id;
-            entry.data.assign(msg.data, msg.data + msg.data_length_code);
-
-            auto& vec = deviceMessages[key];
-            bool found = false;
-            for (auto& e : vec) {
-                if (e.api_id == api_id) {
-                    e.data = entry.data;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                vec.push_back(entry);
-            }
-
-            // Limit growth
-            if (vec.size() > 64) {
-                vec.erase(vec.begin());
-            }
+            auto& dev = deviceState[key];
+            dev.last_timestamp_us = esp_timer_get_time();
+            dev.api_messages[api_id] = std::vector<uint8_t>(msg.data, msg.data + msg.data_length_code);
 
             // First time seeing this device — create UI button
             if (uniqueDevices.insert(key).second) {
