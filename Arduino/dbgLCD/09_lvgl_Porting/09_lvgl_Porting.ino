@@ -71,21 +71,22 @@ void setup()
     /* Lock the mutex due to the LVGL APIs are not thread-safe */
     lvgl_port_lock(-1);
 
+    // Create the device list on the left
     device_list = lv_list_create(lv_scr_act());
     lv_obj_set_size(device_list, 200, 400);
     lv_obj_align(device_list, LV_ALIGN_TOP_LEFT, 10, 10);
     lv_list_add_text(device_list, "CAN Devices:");
 
+    // Create the label next to the device list
     ctrl_label = lv_label_create(lv_scr_act());
-    lv_label_set_text(ctrl_label, "Hi HPP, please select\na device from the left.");
-    lv_obj_set_style_text_font(ctrl_label, &lv_font_montserrat_30, 0);
-    lv_obj_align(ctrl_label, LV_ALIGN_RIGHT_MID, -50, 0);
-        
-    device_list = lv_list_create(lv_scr_act());
-    lv_obj_set_size(device_list, 200, 400);
-    lv_obj_align(device_list, LV_ALIGN_TOP_LEFT, 10, 10);
-    lv_list_add_text(device_list, "CAN Devices:");
+    lv_label_set_text(ctrl_label, "Hi HPP, please select a device from the left.");
+    lv_obj_set_style_text_font(ctrl_label, &lv_font_montserrat_16, 0);
 
+
+    // Align ctrl_label to the right of device_list
+    lv_obj_align_to(ctrl_label, device_list, LV_ALIGN_OUT_RIGHT_TOP, 20, 0);  // 20px margin to the right
+
+        
     // Create CLEAR button below the list
     clear_btn = lv_btn_create(lv_scr_act());
     lv_obj_set_size(clear_btn, 200, 40);
@@ -100,7 +101,7 @@ void setup()
     lv_obj_set_style_text_color(clear_btn, lv_color_white(), 0);
 
     // Add callback
-    lv_obj_add_event_cb(clear_btn, on_clear_btn_pressed, LV_EVENT_CLICKED, NULL);
+    
 
     // Heartbeat status box
     hb_box = lv_obj_create(lv_scr_act());
@@ -112,7 +113,9 @@ void setup()
     lv_label_set_long_mode(hb_label, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(hb_label, 200);
     lv_obj_align(hb_label, LV_ALIGN_TOP_LEFT, 5, 5);
-    
+
+
+    lv_obj_add_event_cb(clear_btn, on_clear_btn_pressed, LV_EVENT_CLICKED, NULL);
 
     xTaskCreatePinnedToCore(
     TaskCANRx,      // function
@@ -152,7 +155,7 @@ void on_clear_btn_pressed(lv_event_t * e) {
 
     // Reset main label
     if (ctrl_label) {
-        lv_label_set_text(ctrl_label, "Hi HPP, please select\na device from the left.");
+        lv_label_set_text(ctrl_label, "Hi HPP, please select a device from the left.");
     }
 
     lvgl_port_unlock();
@@ -173,7 +176,7 @@ void refresh_device_list_cb(lv_timer_t * timer) {
         const char * mfr_name = mfr_id < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
 
         char label_str[64];
-        snprintf(label_str, sizeof(label_str), "%s [%s] #%u", dev_type_name, mfr_name, dev_num);
+        snprintf(label_str, sizeof(label_str), "#%u [%s] %s", dev_num, mfr_name, dev_type_name);
 
         // Create a button in the list
         lv_obj_t* btn = lv_list_add_btn(device_list, LV_SYMBOL_BULLET, label_str);

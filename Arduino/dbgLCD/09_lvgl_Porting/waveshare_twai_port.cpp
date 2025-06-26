@@ -4,6 +4,10 @@
 #include "lvgl_v8_port.h"
 #include <lvgl.h>
 
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
 std::set<std::tuple<uint8_t, uint8_t, uint8_t>> uniqueDevices;
 extern lv_obj_t* hb_label;
 extern lv_obj_t* hb_box;
@@ -171,30 +175,43 @@ void checkHeartbeatTimeout(lv_timer_t*) {
 }
 
 
+uint64_t get_bits(const char* bits, int start, int len) {
+    uint64_t val = 0;
+    for (int i = 0; i < len; ++i) {
+        if (bits[start + i] == '1') {
+            val |= (1ULL << (len - 1 - i));
+        }
+    }
+    return val;
+}
+
 bool decodeFRCHeartbeat(uint8_t* data, char* out, size_t len) {
-    uint64_t bits = 0;
-    for (int i = 7; i >= 0; --i) {
-        bits = (bits << 8) | data[i];  // Compose bits in LSB-first order
+    // Construct LSB-first bit string
+    char bits[65] = {0};
+    for (int i = 0; i < 8; ++i) {
+        for (int b = 0; b < 8; ++b) {
+            bits[i * 8 + b] = ((data[i] >> (7 - b)) & 1) ? '1' : '0';
+        }
     }
 
-    uint8_t  match_time      = (bits >> 56) & 0xFF;
-    uint16_t match_number    = (bits >> 46) & 0x3FF;
-    uint8_t  replay_number   = (bits >> 40) & 0x3F;
-    bool     red_alliance    = (bits >> 39) & 0x1;
-    bool     enabled         = (bits >> 38) & 0x1;
-    bool     autonomous      = (bits >> 37) & 0x1;
-    bool     test            = (bits >> 36) & 0x1;
-    bool     watchdog        = (bits >> 35) & 0x1;
-    uint8_t  tournament_type = (bits >> 32) & 0x7;
-    int      year            = 2000 + ((bits >> 26) & 0x3F) - 36;
-    int      month           = ((bits >> 22) & 0xF) + 1;
-    int      day             = (bits >> 17) & 0x1F;
-    int      seconds         = (bits >> 11) & 0x3F;
-    int      minutes         = (bits >> 5)  & 0x3F;
-    int      hours           = bits & 0x1F;
+    uint8_t  match_time      = get_bits(bits, 56, 8);
+    uint16_t match_number    = get_bits(bits, 46, 10);
+    uint8_t  replay_number   = get_bits(bits, 40, 6);
+    bool     red_alliance    = get_bits(bits, 39, 1);
+    bool     enabled         = get_bits(bits, 38, 1);
+    bool     autonomous      = get_bits(bits, 37, 1);
+    bool     test            = get_bits(bits, 36, 1);
+    bool     watchdog        = get_bits(bits, 35, 1);
+    uint8_t  tournament_type = get_bits(bits, 32, 3);
+    int      year            = 2000 + get_bits(bits, 26, 6) - 36;
+    int      month           = get_bits(bits, 22, 4) + 1;
+    int      day             = get_bits(bits, 17, 5);
+    int      seconds         = get_bits(bits, 11, 6);
+    int      minutes         = get_bits(bits, 5, 6);
+    int      hours           = get_bits(bits, 0, 5);
 
     snprintf(out, len,
-        "%04d-%02d-%02d %02d:%02d:%02d\n"
+        "%04d-%02d-%02d %02d:%02d:%02d (UTC)\n "
         "%s | %s | %s\n"
         "Match %d R%d  %ds",
         year, month, day, hours, minutes, seconds,

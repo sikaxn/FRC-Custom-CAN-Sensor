@@ -35,6 +35,7 @@ void TaskCANRx(void *pvParams);
 
 bool decodeFRCHeartbeat(uint8_t* data, char* out, size_t len);
 void checkHeartbeatTimeout(lv_timer_t*);
+uint64_t get_bits(const char* bits, int start, int len);
 
 
 // Device lookup tables
