@@ -148,7 +148,7 @@ void on_clear_btn_pressed(lv_event_t* e) {
     // Delete all buttons and free associated DeviceInfo memory
     for (lv_obj_t* btn : all_device_buttons) {
         DeviceInfo* info = (DeviceInfo*)lv_obj_get_user_data(btn);
-        if (info) lv_mem_free(info);
+        if (info) delete info;  // <-- fixed!
         lv_obj_del(btn);
     }
     all_device_buttons.clear();
@@ -163,7 +163,7 @@ void on_clear_btn_pressed(lv_event_t* e) {
     uniqueDevices.clear();
     deviceMessages.clear();
     uiDeviceCache.clear();
-
+    
     // Free selected key
     if (selectedDeviceKey) {
         delete selectedDeviceKey;
@@ -179,6 +179,7 @@ void on_clear_btn_pressed(lv_event_t* e) {
 
     Serial.println("[Clear] System reset complete.");
 }
+
 
 
 void refresh_device_list_cb(lv_timer_t * timer) {
@@ -248,7 +249,6 @@ void loop()
     //Serial.println("IDLE loop");
     waveshare_twai_receive();
 }
-
 void refresh_selected_device_cb(lv_timer_t*) {
     if (!selectedDeviceKey) return;
     if (!lvgl_port_lock(-1)) return;
@@ -260,19 +260,22 @@ void refresh_selected_device_cb(lv_timer_t*) {
         return;
     }
 
-    // Keep only latest entry per API ID
     auto& messages = it->second;
+
+    // === 🧹 Deduplicate by API ID safely ===
     std::map<uint16_t, std::vector<uint8_t>> latest;
     for (const auto& entry : messages) {
         latest[entry.api_id] = entry.data;
     }
 
+    // Clean up vector and only keep latest
     messages.clear();
+    messages.reserve(latest.size());  // avoid excess realloc
     for (const auto& [api_id, data] : latest) {
         messages.push_back({api_id, data});
     }
 
-    // Build string to display
+    // === 🧵 Build display text ===
     const auto& [dev_type, mfr_id, dev_num] = *selectedDeviceKey;
     const char* dev_type_name = dev_type < 32 ? DEVICE_TYPE_MAP[dev_type] : "Unknown";
     const char* mfr_name = mfr_id < 17 ? MANUFACTURER_MAP[mfr_id] : "Unknown";
@@ -292,11 +295,11 @@ void refresh_selected_device_cb(lv_timer_t*) {
             snprintf(byteStr, sizeof(byteStr), " %02X", b);
             text += byteStr;
         }
-
         text += "\n";
     }
 
+    // ✅ Display
     lv_label_set_text(ctrl_label, text.c_str());
+
     lvgl_port_unlock();
 }
-
