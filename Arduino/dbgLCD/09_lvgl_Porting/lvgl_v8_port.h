@@ -92,7 +92,7 @@
 #define LVGL_PORT_ROTATION_DEGREE               (CONFIG_LVGL_PORT_ROTATION_DEGREE)
                                                         // Valid if using ESP-IDF
 #else
-#define LVGL_PORT_ROTATION_DEGREE               (0)     // Valid if using Arduino
+#define LVGL_PORT_ROTATION_DEGREE               (180)     // Valid if using Arduino
 #endif
 
 /**
