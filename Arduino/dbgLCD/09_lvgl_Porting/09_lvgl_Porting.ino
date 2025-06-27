@@ -101,6 +101,10 @@ lv_obj_set_size(info_panel, 580, 400);  // Full remaining width
 lv_obj_set_flex_flow(info_panel, LV_FLEX_FLOW_COLUMN);
 lv_obj_set_style_pad_row(info_panel, 12, 0);
 lv_obj_set_style_pad_all(info_panel, 10, 0);
+lv_obj_add_flag(info_panel, LV_OBJ_FLAG_SCROLLABLE);
+lv_obj_set_scroll_dir(info_panel, LV_DIR_VER);
+lv_obj_set_scrollbar_mode(info_panel, LV_SCROLLBAR_MODE_AUTO);
+
 //lv_obj_clear_flag(info_panel, LV_OBJ_FLAG_SCROLLABLE);
 
 // Align to the right of the device list
@@ -115,13 +119,14 @@ lv_obj_set_style_text_font(ctrl_label, &lv_font_montserrat_16, 0);
 
 // === Debug Button Container ===
 debug_btn_container = lv_obj_create(info_panel);
-lv_obj_set_size(debug_btn_container, LV_PCT(100), 180);  // Fixed height, full width
+lv_obj_set_width(debug_btn_container, LV_PCT(100));      // Let width fill parent
 lv_obj_set_flex_flow(debug_btn_container, LV_FLEX_FLOW_ROW_WRAP);
 lv_obj_set_scrollbar_mode(debug_btn_container, LV_SCROLLBAR_MODE_AUTO);
 lv_obj_set_style_pad_all(debug_btn_container, 6, 0);
 lv_obj_set_style_pad_row(debug_btn_container, 6, 0);
 lv_obj_set_style_pad_column(debug_btn_container, 6, 0);
-//lv_obj_clear_flag(debug_btn_container, LV_OBJ_FLAG_SCROLLABLE);
+lv_obj_set_flex_grow(debug_btn_container, 1);            // ✅ Let height grow with content
+
 
 // === CLEAR BUTTON (Below device list) ===
 clear_btn = lv_btn_create(lv_scr_act());

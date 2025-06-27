@@ -1,5 +1,5 @@
 #include "device_debug_ui.h"
-#include "waveshare_twai_port.h"  // for sendCANMessage
+#include "waveshare_twai_port.h"
 #include <string>
 #include <stdio.h>
 #include <Arduino.h>
@@ -52,23 +52,21 @@ void create_debug_buttons_if_known(lv_obj_t* container, uint8_t mfr_id, uint8_t 
                 "Mode", "Red", "Green", "Blue", "Brightness", "On/Off", "Param0", "Param1"
             };
 
-            // Allocate slider context array dynamically
-            SliderContext** slider_contexts = (SliderContext**)lv_mem_alloc(sizeof(SliderContext*) * 8);
+            // Ensure container is vertically scrollable
+            lv_obj_set_scroll_dir(container, LV_DIR_VER);
+            lv_obj_add_flag(container, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_scrollbar_mode(container, LV_SCROLLBAR_MODE_ACTIVE);
+            lv_obj_set_flex_flow(container, LV_FLEX_FLOW_COLUMN);
+            lv_obj_set_style_pad_all(container, 6, 0);
+            lv_obj_set_style_pad_row(container, 8, 0);
 
-            // Main vertical column (scrollable)
-            lv_obj_t* main_col = lv_obj_create(container);
-            lv_obj_set_size(main_col, LV_PCT(100), 200);
-            lv_obj_set_scroll_dir(main_col, LV_DIR_VER);
-            lv_obj_add_flag(main_col, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_set_scrollbar_mode(main_col, LV_SCROLLBAR_MODE_ACTIVE);
-            lv_obj_set_flex_flow(main_col, LV_FLEX_FLOW_COLUMN);
-            lv_obj_set_style_pad_all(main_col, 6, 0);
-            lv_obj_set_style_pad_row(main_col, 8, 0);
+            // Allocate slider context array
+            SliderContext** slider_contexts = (SliderContext**)lv_mem_alloc(sizeof(SliderContext*) * 8);
 
             for (int i = 0; i < 8; ++i) {
                 slider_contexts[i] = (SliderContext*)lv_mem_alloc(sizeof(SliderContext));
 
-                lv_obj_t* row = lv_obj_create(main_col);
+                lv_obj_t* row = lv_obj_create(container);
                 lv_obj_set_size(row, LV_PCT(100), LV_SIZE_CONTENT);
                 lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
                 lv_obj_set_style_pad_column(row, 8, 0);
@@ -91,7 +89,7 @@ void create_debug_buttons_if_known(lv_obj_t* container, uint8_t mfr_id, uint8_t 
             }
 
             // Add Send button
-            lv_obj_t* btn = lv_btn_create(main_col);
+            lv_obj_t* btn = lv_btn_create(container);
             lv_obj_set_size(btn, 160, 50);
             lv_obj_align(btn, LV_ALIGN_CENTER, 0, 0);
             lv_obj_t* btn_label = lv_label_create(btn);
@@ -100,7 +98,7 @@ void create_debug_buttons_if_known(lv_obj_t* container, uint8_t mfr_id, uint8_t 
 
             lv_obj_add_event_cb(btn, send_led_command_cb, LV_EVENT_CLICKED, slider_contexts);
 
-            break;  // Only process one match
+            break;
         }
     }
 
@@ -116,6 +114,6 @@ void create_debug_buttons_if_known(lv_obj_t* container, uint8_t mfr_id, uint8_t 
 
 void clear_debug_buttons() {
     if (debug_btn_container && lv_obj_get_child_cnt(debug_btn_container) > 0) {
-        lv_obj_clean(debug_btn_container);  // Remove all children
+        lv_obj_clean(debug_btn_container);
     }
 }
