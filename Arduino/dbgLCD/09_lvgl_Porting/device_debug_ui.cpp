@@ -42,10 +42,10 @@ void create_debug_buttons_if_known(lv_obj_t* container, uint8_t mfr_id, uint8_t 
 
     for (const auto& [api_id, data] : api_messages) {
         char key[64];
-        snprintf(key, sizeof(key), "mfr=0x%02X dev=0x%02X num=0x%02X api=0x%03X", mfr_id, dev_type, dev_num, api_id);
+        snprintf(key, sizeof(key), "mfr=0x%02X dev=0x%02X api=0x%03X", mfr_id, dev_type, api_id);
         Serial.printf("Creating debug UI for: %s\n", key);
 
-        if (strcmp(key, "mfr=0x08 dev=0x0A num=0x21 api=0x359") == 0) {
+        if (strcmp(key, "mfr=0x08 dev=0x0A api=0x359") == 0) {
             matched = true;
 
             const char* labels[8] = {

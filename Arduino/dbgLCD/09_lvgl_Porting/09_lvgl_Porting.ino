@@ -279,16 +279,14 @@ void refresh_device_list_cb(lv_timer_t * timer) {
 
 void on_device_btn_clicked(lv_event_t* e) {
     lv_obj_t* btn = lv_event_get_target(e);
-    DeviceInfo* info = static_cast<DeviceInfo*>(lv_obj_get_user_data(btn));
+    DeviceInfo* info = (DeviceInfo*)lv_obj_get_user_data(btn);
     if (!info) return;
 
-    // Set the selected key
-    static DeviceKey selectedKey;
-    selectedKey = std::make_tuple(info->dev_type, info->mfr_id, info->dev_num);
-    selectedDeviceKey = &selectedKey;
-
-    // Force refresh UI immediately
-    refresh_selected_device_cb(nullptr);
+    clear_debug_buttons();  // always clear
+    auto key = std::make_tuple(info->dev_type, info->mfr_id, info->dev_num);
+    if (deviceState.count(key)) {
+        create_debug_buttons_if_known(debug_btn_container, info->mfr_id, info->dev_type, info->dev_num, deviceState[key].api_messages);
+    }
 }
 
 
