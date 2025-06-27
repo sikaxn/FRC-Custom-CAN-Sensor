@@ -48,6 +48,9 @@ void checkHeartbeatTimeout(lv_timer_t*);
 uint64_t get_bits(const char* bits, int start, int len);
 void on_device_btn_clicked(lv_event_t* e);
 
+bool sendCANMessage(uint32_t id, const uint8_t* data, uint8_t len, bool extended = true);
+
+
 #define RX_PIN 19
 #define TX_PIN 20
 #define POLLING_RATE_MS 1000

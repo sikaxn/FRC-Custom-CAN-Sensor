@@ -212,3 +212,20 @@ bool decodeFRCHeartbeat(uint8_t* data, char* out, size_t len) {
     return enabled;
 }
 
+
+bool sendCANMessage(uint32_t id, const uint8_t* data, uint8_t len, bool extended) {
+    if (len > 8) return false;
+
+    twai_message_t message = {};
+    message.identifier = id;
+    message.extd = extended;
+    message.data_length_code = len;
+    memcpy(message.data, data, len);
+
+    //memcpy(message.data, data, len);
+
+    esp_err_t result = twai_transmit(&message, pdMS_TO_TICKS(10));
+    return result == ESP_OK;
+}
+
+

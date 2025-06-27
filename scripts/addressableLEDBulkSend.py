@@ -32,7 +32,7 @@ def main():
     payload = create_led_payload()
 
     try:
-        for device_num in range(1, 61):
+        for device_num in range(1, 30):
             can_id = make_can_id(device_num)
             msg = can.Message(arbitration_id=can_id, data=payload, is_extended_id=True)
             try:
