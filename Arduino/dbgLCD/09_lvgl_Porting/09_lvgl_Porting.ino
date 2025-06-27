@@ -134,17 +134,22 @@ lv_obj_center(btn_label);
 
 lv_obj_set_style_bg_color(clear_btn, lv_color_hex(0xD32F2F), 0);
 lv_obj_set_style_text_color(clear_btn, lv_color_white(), 0);
-
-// === HEARTBEAT BOX (Bottom Right) ===
+// === HEARTBEAT BOX (Below the Info Panel) ===
 hb_box = lv_obj_create(lv_scr_act());
-lv_obj_set_size(hb_box, 300, 100);
-lv_obj_align(hb_box, LV_ALIGN_BOTTOM_RIGHT, -10, -10);
+lv_obj_set_size(hb_box, 580, 40);                         // fixed height to match Clear button
+lv_obj_align_to(hb_box, info_panel, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 10);
+lv_obj_clear_flag(hb_box, LV_OBJ_FLAG_SCROLLABLE);
+lv_obj_set_style_pad_all(hb_box, 10, 0);                  // inner padding for label
 
+// === HEARTBEAT LABEL ===
 hb_label = lv_label_create(hb_box);
+lv_label_set_long_mode(hb_label, LV_LABEL_LONG_WRAP);     // multiline
+lv_obj_set_width(hb_label, lv_obj_get_width(hb_box) - 20); // account for 10 px padding on both sides
+lv_obj_align(hb_label, LV_ALIGN_TOP_LEFT, 0, 0);
 lv_label_set_text(hb_label, "Waiting for heartbeat...");
-lv_label_set_long_mode(hb_label, LV_LABEL_LONG_WRAP);
-lv_obj_set_width(hb_label, 280);
-lv_obj_align(hb_label, LV_ALIGN_TOP_LEFT, 10, 10);
+
+
+
 
 
     lv_obj_add_event_cb(clear_btn, on_clear_btn_pressed, LV_EVENT_CLICKED, NULL);

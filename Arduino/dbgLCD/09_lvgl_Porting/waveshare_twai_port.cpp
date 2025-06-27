@@ -197,8 +197,8 @@ bool decodeFRCHeartbeat(uint8_t* data, char* out, size_t len) {
     int      hours           = get_bits(bits, 0, 5);
 
     snprintf(out, len,
-        "%04d-%02d-%02d %02d:%02d:%02d (UTC)\n "
-        "%s | %s | %s\n"
+        "%04d-%02d-%02d %02d:%02d:%02d (UTC) "
+        "%s | %s | %s "
         "Match %d R%d  %ds",
         year, month, day, hours, minutes, seconds,
         red_alliance ? "RED" : "BLUE",
