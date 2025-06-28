@@ -1,6 +1,12 @@
 
 # Custom CAN sensor with roboRIO
 
+## Web firmware flasher
+
+Pre built ESP32 firmware for Battery RFID Tracker and Addressable LED Controller. Just Chrome, USB and flash.
+
+https://studenttechsupport.com/customcanespfw/
+
 ## ChiefDelphi Thread
 https://www.chiefdelphi.com/t/custom-can-sensor-some-good-progress/501764
 

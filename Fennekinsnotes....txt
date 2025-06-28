@@ -54,3 +54,14 @@ max supported led# 65535 (2 byte int)
 
 xx   xx   xx   xx   xx   xx    xx     xx
 Pixcount  Mode resv
+
+
+
+esptool --chip esp32 merge_bin `
+  -o firmware_3_webtool.bin `
+  --flash_mode dio `
+  --flash_freq 80m `
+  --flash_size 4MB `
+  0x1000 addressableLEDdynamicID.ino.bootloader.bin `
+  0x8000 addressableLEDdynamicID.ino.partitions.bin `
+  0x10000 addressableLEDdynamicID.ino.bin
