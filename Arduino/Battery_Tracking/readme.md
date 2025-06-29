@@ -57,6 +57,8 @@ Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Fo
 
 ## Wiring
 
+![image](../../drawing/BatteryRFID_bb.png)
+
 
 | Peripheral         | Function                   | ESP32 Pin   | Notes                           |
 | ------------------ | -------------------------- | ----------- | ------------------------------- |

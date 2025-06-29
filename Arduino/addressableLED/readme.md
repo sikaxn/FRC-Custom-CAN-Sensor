@@ -116,6 +116,8 @@ Mode 3 (Color wipe), color red, full brightness, speed=20
 
 ### 🎯 Custom Pixel Write (`API ID 0x351` to `0x358`)
 
+![image](../../drawing/addressableLED_bb.png)
+
 You can send up to 8 pixel updates per loop using separate CAN IDs. Mode 255 must be set first to allow custom pixel drawing.
 
 | Byte | Field       | Description         |
