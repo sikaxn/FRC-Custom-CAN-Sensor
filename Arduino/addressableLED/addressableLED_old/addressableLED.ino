@@ -1,9 +1,6 @@
 #include <Arduino.h>
 #include <FastLED.h>
 #include "driver/twai.h"
-#include <EEPROM.h>
-
-
 
 #include "pattern.h"
 #include "mode.h"
@@ -36,12 +33,10 @@ const uint8_t buttonModes[] = {0, 1, 2, 3, 4, 5, 6, 7, 255}; //What mode IO0 but
 // —— FRC CAN Constants ——
 #define DEVICE_ID           0x0A //DO NOT change these
 #define MANUFACTURER_ID     0x08 //DO NOT change these
-#define DEFAULT_DEVICE_NUMBER        33 //Can be changed via serial
+#define DEVICE_NUMBER       33 //change this if you have multiple custom CAN LED Controller
 #define GENERAL_API         0x350
 #define CUSTOM_PATTERN_API  0x351  // through 0x358
 #define ESP_FEEDBACK_API    0x359
-
-uint8_t DEVICE_NUMBER = DEFAULT_DEVICE_NUMBER;
 
 // —— TWAI (CAN) Pins & Speed ——
 #define CAN_TX_PIN  GPIO_NUM_4
@@ -121,8 +116,7 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   Serial.println("Starting FRC-CAN + NeoPixel demo");
-  EEPROM.begin(4);
-  EEPROMReadCANID();
+
   // — Button on IO0 to cycle modes —
   pinMode(0, INPUT_PULLUP);
 
@@ -159,8 +153,6 @@ void setup() {
   xTaskCreatePinnedToCore(
     TaskLEDWrite, "LED Task", 4096, NULL, 1, &xHandleLED, 1
   );
-
-  xTaskCreatePinnedToCore(TaskCANIDHelper, "TaskCANIDHelper", 4096, NULL, 1, NULL, 1);
 }
 
 void loop() {
@@ -168,6 +160,8 @@ void loop() {
   vTaskDelay(portMAX_DELAY);
 }
 
+// —— LED Task ——
+// Runs the pattern in `canMode`, auto-cycles every FALLBACK_INTERVAL.
 // —— LED Task ——
 // Runs the pattern in `canMode`, auto-cycles every FALLBACK_INTERVAL.
 
@@ -268,46 +262,5 @@ void TaskCANRx(void* pv) {
 
 
     sendFeedback();
-  }
-}
-
-
-void EEPROMReadCANID() {
-  uint8_t saved = EEPROM.read(0);
-  if (saved <= 63) DEVICE_NUMBER = saved;
-}
-
-void EEPROMSaveCANID() {
-  EEPROM.write(0, DEVICE_NUMBER);
-  EEPROM.commit();
-}
-
-
-void TaskCANIDHelper(void* parameter) {
-  Serial.println("[CANID] Helper task started. Use &CANID SET xx / SAVE / GET");
-  while (true) {
-    if (Serial.available()) {
-      String line = Serial.readStringUntil('\n');
-      line.trim();
-
-      if (line.startsWith("&CANID SET ")) {
-        int val = line.substring(11).toInt();
-        if (val >= 0 && val <= 63) {
-          DEVICE_NUMBER = val;
-          Serial.printf("[CANID] Running DEVICE_NUMBER set to %d\n", DEVICE_NUMBER);
-        } else {
-          Serial.println("[CANID] Invalid value. Must be 0–63.");
-        }
-      } else if (line.equals("&CANID SAVE")) {
-        EEPROMSaveCANID();
-        Serial.println("[CANID] Saved to EEPROM. Rebooting...");
-        delay(1000);
-        ESP.restart();
-      } else if (line.equals("&CANID GET")) {
-        uint8_t eepromVal = EEPROM.read(0);
-        Serial.printf("[CANID] Current=%d, EEPROM=%d, Default=%d\n", DEVICE_NUMBER, eepromVal, DEFAULT_DEVICE_NUMBER);
-      }
-    }
-    vTaskDelay(50 / portTICK_PERIOD_MS);
   }
 }
