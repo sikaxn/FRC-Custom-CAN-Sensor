@@ -229,3 +229,46 @@ While this provides **maximum flexibility** (such as full animation control from
   * Add a delay (`sleep(0.01~0.05)`) between batches.
   * Reduce update rate to 10–20Hz when possible.
 
+
+# Serial command for setting CAN Device Number  
+
+### `&CANID SET <number>`
+
+Sets the active `DEVICE_NUMBER` (in RAM only).
+Must be a value from `0` to `63`.
+
+####  Example:
+
+```
+&CANID SET 12
+```
+
+####  Response:
+
+```
+[CANID] Running DEVICE_NUMBER set to 12
+```
+
+---
+
+### `&CANID SAVE`
+
+Saves the current `DEVICE_NUMBER` to EEPROM and reboots the device.
+
+####  Example:
+
+```
+&CANID SAVE
+```
+
+####  Response:
+
+```
+[CANID] Saved to EEPROM. Rebooting...
+```
+
+---
+
+### `&CANID GET`
+
+Prints the current runtime `DEVICE_NUMBER`, the value stored in EEPROM, and the default hardcoded value.

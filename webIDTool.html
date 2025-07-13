@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CAN Device Number Config</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2em;
+      max-width: 500px;
+      margin: auto;
+    }
+    input[type="number"] {
+      width: 100px;
+    }
+    button {
+      margin: 0.5em 0.25em;
+    }
+    #output {
+      white-space: pre-line;
+      background: #f1f1f1;
+      padding: 1em;
+      margin-top: 1em;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>CAN Device Number Config</h1>
+  <label for="deviceNumber">Device Number (0-63):</label>
+  <input type="number" id="deviceNumber" min="0" max="63">
+  <div>
+    <button onclick="sendSet()">Send SET</button>
+    <button onclick="sendSave()">Send SAVE</button>
+    <button onclick="sendGet()">Send GET</button>
+  </div>
+  <div>
+    <button onclick="connectSerial()">🔌 Connect</button>
+    <button onclick="disconnectSerial()">❌ Disconnect</button>
+  </div>
+
+  <h2>Output</h2>
+  <div id="output"></div>
+
+  <script>
+    let port, reader, writer, keepReading = false;
+
+    async function connectSerial() {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        writer = port.writable.getWriter();
+        keepReading = true;
+        readLoop();
+        log("[INFO] Serial connected");
+        setTimeout(() => sendGet(), 300);  // auto get
+      } catch (e) {
+        log('[ERROR] Failed to connect: ' + e);
+      }
+    }
+
+    async function disconnectSerial() {
+      keepReading = false;
+      if (reader) await reader.cancel();
+      if (writer) writer.releaseLock();
+      if (port) await port.close();
+      log("[INFO] Serial disconnected");
+    }
+
+    async function sendCommand(cmd) {
+      if (!writer) {
+        log("[WARN] Not connected");
+        return;
+      }
+      const textEncoder = new TextEncoder();
+      await writer.write(textEncoder.encode(cmd + "\n"));
+      log("Sent: " + cmd);
+    }
+
+    async function readLoop() {
+      reader = port.readable.getReader();
+      const textDecoder = new TextDecoder();
+      let buffer = "";
+      try {
+        while (keepReading) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            buffer += textDecoder.decode(value, { stream: true });
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop();
+            lines.forEach(line => log(line.trim()));
+          }
+        }
+      } catch (err) {
+        log('[ERROR] Read failed: ' + err);
+      } finally {
+        reader.releaseLock();
+      }
+    }
+
+    function sendSet() {
+      const val = document.getElementById("deviceNumber").value;
+      if (val === "" || val < 0 || val > 63) {
+        alert("Please enter a valid number between 0 and 63");
+        return;
+      }
+      sendCommand(`&CANID SET ${val}`);
+    }
+
+    function sendSave() {
+      sendCommand("&CANID SAVE");
+    }
+
+    function sendGet() {
+      sendCommand("&CANID GET");
+    }
+
+    function log(msg) {
+      if (!msg) return;
+      const output = document.getElementById("output");
+      output.textContent += msg + "\n";
+      output.scrollTop = output.scrollHeight;
+    }
+  </script>
+</body>
+</html>
