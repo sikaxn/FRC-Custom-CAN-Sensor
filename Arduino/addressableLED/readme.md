@@ -232,6 +232,11 @@ While this provides **maximum flexibility** (such as full animation control from
 
 # Serial command for setting CAN Device Number  
 
+Under this setup, CAN device number can be setted using serial command. This setting will be saved inside ESP32 and will not be overwritten, even if you flushed the firmware. The only way to clear it is use ESPTool to erase flash.
+
+https://randomnerdtutorials.com/esp32-erase-flash-memory/
+
+
 ### `&CANID SET <number>`
 
 Sets the active `DEVICE_NUMBER` (in RAM only).
