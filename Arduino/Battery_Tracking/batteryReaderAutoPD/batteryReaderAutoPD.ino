@@ -12,8 +12,8 @@
 
 // === Pin Definitions ===
 #define RST_PIN 22
-#define CAN_TX_PIN GPIO_NUM_16
-#define CAN_RX_PIN GPIO_NUM_17
+#define CAN_TX_PIN  GPIO_NUM_4
+#define CAN_RX_PIN  GPIO_NUM_5
 
 // === CAN Constants ===
 #define BATTERY_STATUS_API_ID_1  0x135
@@ -51,8 +51,8 @@ uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, 
 }
 
 // === RFID Setup ===
-MFRC522DriverPinSimple ss_pin1(5);  // Reader 1 SS
-MFRC522DriverPinSimple ss_pin2(4);  // Reader 2 SS
+MFRC522DriverPinSimple ss_pin1(32);  // Reader 1 SS
+MFRC522DriverPinSimple ss_pin2(33);  // Reader 2 SS
 
 MFRC522DriverSPI driver1{ss_pin1};
 MFRC522DriverSPI driver2{ss_pin2};

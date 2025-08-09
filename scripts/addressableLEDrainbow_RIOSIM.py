@@ -4,7 +4,7 @@ import time
 # —— Constants ——
 DEVICE_ID           = 0x0A
 MANUFACTURER_ID     = 0x08
-DEVICE_NUMBER       = 33
+DEVICE_NUMBER       = 8
 GENERAL_API         = 0x350
 CUSTOM_PATTERN_API  = 0x351
 ESP_FEEDBACK_API    = 0x359
