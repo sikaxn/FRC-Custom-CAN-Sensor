@@ -15,7 +15,7 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotInit() {
-    leds = new addressableLEDCAN(8);  // Match ESP32 device number
+    leds = new addressableLEDCAN(10);  // Match ESP32 device number
 
     // General LED control
     SmartDashboard.setDefaultNumber("LED Mode", 1);

@@ -246,6 +246,7 @@ def start_can():
     try:
         bus = can.Bus(interface='canalystii', channel=0, device=0, bitrate=1000000) #setting if using canalystii
         #bus = can.Bus(interface='gs_usb', channel=0, bitrate=1000000) # setting if using Canable
+        #bus = can.Bus(bustype='slcan', channel='COM8', bitrate=1000000)
 
         Notifier(bus, [CANMessageListener()], timeout=1)
         print("CAN interface ready.")

@@ -11,7 +11,7 @@
 // —— LED Configuration ——
 const uint16_t NUM_LEDS = 60;
 CRGB          leds[NUM_LEDS];
-#define DATA_PIN    16
+#define DATA_PIN    6
 #define BRIGHTNESS  128 //Max brightness limiter. This can't be overwritten on CAN. 
 #define LED_TYPE    WS2812B
 #define COLOR_ORDER GRB
@@ -44,8 +44,8 @@ const uint8_t buttonModes[] = {0, 1, 2, 3, 4, 5, 6, 7, 255}; //What mode IO0 but
 uint8_t DEVICE_NUMBER = DEFAULT_DEVICE_NUMBER;
 
 // —— TWAI (CAN) Pins & Speed ——
-#define CAN_TX_PIN  GPIO_NUM_4
-#define CAN_RX_PIN  GPIO_NUM_5
+#define CAN_TX_PIN  GPIO_NUM_8
+#define CAN_RX_PIN  GPIO_NUM_9
 static const twai_timing_config_t t_config = TWAI_TIMING_CONFIG_1MBITS();
 static const twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
@@ -124,7 +124,7 @@ void setup() {
   EEPROM.begin(4);
   EEPROMReadCANID();
   // — Button on IO0 to cycle modes —
-  pinMode(0, INPUT_PULLUP);
+  pinMode(9, INPUT_PULLUP);
 
   // — FastLED setup —
   FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS)
@@ -157,10 +157,10 @@ void setup() {
 
   // — Start LED task for the first time —
   xTaskCreatePinnedToCore(
-    TaskLEDWrite, "LED Task", 4096, NULL, 1, &xHandleLED, 1
+    TaskLEDWrite, "LED Task", 4096, NULL, 1, &xHandleLED, 0
   );
 
-  xTaskCreatePinnedToCore(TaskCANIDHelper, "TaskCANIDHelper", 4096, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(TaskCANIDHelper, "TaskCANIDHelper", 4096, NULL, 1, NULL, 0);
 }
 
 void loop() {
