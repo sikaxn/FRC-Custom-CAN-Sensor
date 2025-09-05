@@ -22,6 +22,24 @@ https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/main/roboRIO/batteryReader
 1. DONE Reading date and time from roboRIO Heartbeat 
 2. DONE Auto discovery of CTRE PDP or REV PDH so no more requirement of having roboRIO Driver sending voltage and energy (unless using PDP 2.0)
 
+## Chinese_RFID RC522 issue
+
+https://github.com/miguelbalboa/rfid/wiki/Chinese_RFID-RC522
+
+If you use this code and when your ESP32 startup it print any Firmware version other than v2.0,
+
+Especially if they are
+
+RC522
+12 02
+TXD6080
+NXP
+
+Than it might not work properly. Please do additional test and replace module if necessary. Usually the symptom is the tag can be read but nothing is written (even if serial print said written).
+
+Correct serial printout:
+
+<img width="494" height="152" alt="image" src="https://github.com/user-attachments/assets/bd9d2195-e307-4e94-a34b-cce50eb0967f" />
 
 ## Arduino IDE Setup
 
