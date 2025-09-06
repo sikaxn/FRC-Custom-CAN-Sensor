@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# adc_calibrator_v2.py
+# adc_calibrator_v3.py
 #
 # KIPRIM DC310S + CANalyst-II ADC calibration (Tk UI)
 # - COM port: Connect / Disconnect
@@ -12,6 +12,10 @@
 # - Abort button immediately cuts PSU
 # - Auto-abort if measured power > 5.0 W
 # - Error if ADC < 50 (jumper not connected)
+#
+# Changes in v3:
+# - Use PSU measured voltage (median) for each sample (instead of setpoint)
+# - Fixed-point formatting everywhere (no scientific notation)
 
 import os
 import time
@@ -28,6 +32,14 @@ from tkinter import ttk, messagebox
 
 import numpy as np
 import can
+
+# -----------------------------
+# Utility: fixed-point formatter
+# -----------------------------
+def fmt(x, digits):
+    """Return fixed-point string with up to `digits` decimals (no exponent)."""
+    s = f"{x:.{digits}f}"
+    return s.rstrip('0').rstrip('.') if '.' in s else s
 
 # -----------------------------
 # FRC-style CAN ID definitions
@@ -126,8 +138,9 @@ class Calibrator(threading.Thread):
         self.device_number = None
         self.target_can_id = None
 
-        self.samples = []            # [(adc, vtrue), ...]
+        self.samples = []            # [(adc, vtrue_measured), ...]
         self.cur_adc_window = []     # rolling ADC samples per step
+        self.cur_v_window = []       # rolling PSU V readings per step
         self.last_adc_for_ui = None  # for live ADC label
 
     def discover_device_number(self, timeout=20.0):
@@ -187,6 +200,7 @@ class Calibrator(threading.Thread):
     def step_wait_and_sample(self, vset):
         self.set_psu_safe(vset)
         self.cur_adc_window.clear()
+        self.cur_v_window.clear()
         self.ui.switch_to_countdown_mode(self.wait_seconds)
 
         for remaining in range(self.wait_seconds, -1, -1):
@@ -202,22 +216,33 @@ class Calibrator(threading.Thread):
                 self.dc.set_output(False)
                 return None
 
+            # Record PSU voltage sample if valid
+            if v_meas is not None:
+                self.cur_v_window.append(v_meas)
+
             # Pull CAN for ADCs
             self.drain_can_for_adc()
             self.ui.update_countdown(remaining)
             time.sleep(1)
 
+        # Validate windows
         if not self.cur_adc_window:
             self.ui.log("No ADC samples received in this window.")
             return None
+        if not self.cur_v_window:
+            self.ui.log("No PSU voltage readings captured.")
+            return None
 
+        # Median over the last 10 (or all if <10)
         median_adc = int(statistics.median(self.cur_adc_window[-10:]))
+        vtrue = float(statistics.median(self.cur_v_window[-10:]))
+
         if median_adc < 50:
             self.ui.log(f"✖ ADC too low ({median_adc}); jumper not connected?")
             return None
 
-        self.ui.log(f"Recorded ADC={median_adc} at {vset:.2f} V")
-        return median_adc
+        self.ui.log(f"Recorded ADC={median_adc} at PSU={fmt(vtrue, 6)} V")
+        return (median_adc, vtrue)
 
     def run(self):
         try:
@@ -245,19 +270,20 @@ class Calibrator(threading.Thread):
                 if self.stop_event.is_set():
                     break
                 self.ui.set_step(idx, len(self.setpoints), vset)
-                adc = self.step_wait_and_sample(vset)
-                if adc is None:
+                pair = self.step_wait_and_sample(vset)
+                if pair is None:
                     self.dc.set_output(False)
                     self.ui.set_psu_status(False, "Aborted/Failed")
                     self.ui.finish(False)
                     return
-                self.samples.append((adc, vset))
+                adc, vtrue = pair
+                self.samples.append((adc, vtrue))
 
             # Done — PSU off
             self.dc.set_output(False)
             self.ui.set_psu_status(False, "Output OFF")
 
-            # Fit quadratic V = k0 + k1*adc + k2*adc^2
+            # Fit quadratic V = k0 + k1*adc + k2*adc^2 using measured PSU voltages
             adcs  = np.array([a for a, _ in self.samples], dtype=float)
             volts = np.array([v for _, v in self.samples], dtype=float)
             coeffs = np.polyfit(adcs, volts, 2)  # [k2,k1,k0]
@@ -270,11 +296,12 @@ class Calibrator(threading.Thread):
 
             self.ui.log("")
             self.ui.log("=== Calibration Result (V = k0 + k1*adc + k2*adc^2) ===")
-            self.ui.log(f"k0 = {k0:.9f}")
-            self.ui.log(f"k1 = {k1:.12f}")
-            self.ui.log(f"k2 = {k2:.15f}")
-            self.ui.log(f"R^2 = {r2:.6f}")
+            self.ui.log(f"k0 = {fmt(k0, 9)}")
+            self.ui.log(f"k1 = {fmt(k1, 12)}")
+            self.ui.log(f"k2 = {fmt(k2, 15)}")
+            self.ui.log(f"R^2 = {fmt(r2, 6)}")
 
+            # Save (fixed-point strings to avoid exponent notation)
             out = {
                 "timestamp": datetime.utcnow().isoformat() + "Z",
                 "device_id": DEVICE_ID,
@@ -282,20 +309,22 @@ class Calibrator(threading.Thread):
                 "api_id": API_ID_ADC_FRAME,
                 "device_number": self.device_number,
                 "setpoints_v": self.setpoints,
-                "samples": [{"adc": int(a), "v": float(v)} for a, v in self.samples],
-                "fit": {"k0": k0, "k1": k1, "k2": k2, "r2": r2}
+                "samples": [{"adc": int(a), "v": fmt(v, 9)} for a, v in self.samples],
+                "fit": {"k0": fmt(k0, 9), "k1": fmt(k1, 12), "k2": fmt(k2, 15), "r2": fmt(r2, 6)}
             }
             jname = f"calibration_board_{self.device_number}.json"
             cname = f"calibration_board_{self.device_number}.csv"
-            with open(jname, "w") as f: json.dump(out, f, indent=2)
+            with open(jname, "w") as f:
+                json.dump(out, f, indent=2)
             with open(cname, "w") as f:
                 f.write("adc,voltage\n")
                 for a, v in self.samples:
-                    f.write(f"{a},{v}\n")
+                    f.write(f"{a},{fmt(v, 9)}\n")
                 f.write("\n# k0,k1,k2,R2\n")
-                f.write(f"{k0},{k1},{k2},{r2}\n")
+                f.write(f"{fmt(k0,9)},{fmt(k1,12)},{fmt(k2,15)},{fmt(r2,6)}\n")
 
             self.ui.log(f"Saved {jname} and {cname}")
+            # UI labels are already fixed-width decimals, so plain floats are OK here
             self.ui.show_constants(k0, k1, k2, r2)
             self.ui.finish(True)
 
@@ -484,6 +513,7 @@ class App(tk.Tk):
         self.adc_label.config(text=f"ADC: {adc_value}")
 
     def show_constants(self, k0, k1, k2, r2):
+        # UI uses fixed decimals—no scientific format
         self.k0_var.set(f"k0: {k0:.9f}")
         self.k1_var.set(f"k1: {k1:.12f}")
         self.k2_var.set(f"k2: {k2:.15f}")
