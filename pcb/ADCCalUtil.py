@@ -400,7 +400,7 @@ class App(tk.Tk):
         rf.pack(fill="both", expand=True)
 
         ttk.Label(rf, text="Voltage setpoints (V, comma-separated):").grid(row=0, column=0, sticky="w")
-        self.setpoints_var = tk.StringVar(value="5.5, 10, 14, 20, 28")
+        self.setpoints_var = tk.StringVar(value="5.5, 10, 14, 20, 23")
         ttk.Entry(rf, textvariable=self.setpoints_var, width=40).grid(row=0, column=1, sticky="w")
 
         ttk.Label(rf, text="Per-step wait (s):").grid(row=1, column=0, sticky="w")
