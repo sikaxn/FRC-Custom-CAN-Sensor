@@ -5,11 +5,22 @@ Please also check out the WiKi section for more documentation!
 
 https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki
 
+## IronMaple ESP32‐FRC‐devkit
+
+If you are looking for IronMaple ESP32‐FRC‐devkit resources, please switch branch to dev-board.
+
+Code: [[https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board](https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/pcb)](https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/pcb)
+
+Manual: [https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/800.-IronMaple-ESP32%E2%80%90FRC%E2%80%90devkit-Manual](https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/800.-IronMaple-ESP32%E2%80%90FRC%E2%80%90devkit-Manual)
+
+
 ## Web firmware flasher
 
 Pre built ESP32 firmware for Battery RFID Tracker and Addressable LED Controller. Just Chrome, USB and flash.
 
 https://studenttechsupport.com/customcanespfw/
+
+Web flasher source code: https://github.com/sikaxn/sikaxn.github.io/tree/master/customcanespfw
 
 ## ChiefDelphi Thread
 https://www.chiefdelphi.com/t/custom-can-sensor-some-good-progress/501764
