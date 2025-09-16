@@ -7,3 +7,6 @@ pcb/nz/fp-info-cache
 pcb/nz/fp-info-cache
 pcb/nz/fp-info-cache
 /pcb/esptof/esptof-backups
+/pcb/IM-ESP32-Demo/.gradle
+/pcb/IM-ESP32-Demo/build
+/pcb/IM-ESP32-Demo/bin
