@@ -8,7 +8,7 @@ Video demo: https://www.youtube.com/watch?v=rKZOKIWVOAg
 
 Developed with wpilib 2025 and the latest firmware avaliable at the time for REV PDH and CTRE PDP.
 
-## Android Companion APP and roboRIO Driver
+## Android, Python and iOS Companion APP and roboRIO Driver
 
 
 https://github.com/sikaxn/FRC-RFID-Battery-Reader/
