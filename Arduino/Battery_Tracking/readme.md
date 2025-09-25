@@ -10,9 +10,7 @@ Developed with wpilib 2025 and the latest firmware avaliable at the time for REV
 
 # Getting Started
 
-Visit our Wiki: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/900.-IronMaple-RFID-Battery-Tracking-Solution for step to steo guide.
-
-
+Visit our Wiki: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/900.-IronMaple-RFID-Battery-Tracking-Solution for step to Step guide.
 
 ## Android, Python and iOS Companion APP and roboRIO Driver
 
