@@ -4,12 +4,17 @@ CD Thread: https://www.chiefdelphi.com/t/rfid-battery-tracking-some-progress/502
 
 Video demo: https://www.youtube.com/watch?v=rKZOKIWVOAg
 
-![](../../img/batterytrax.JPG)
-
 Developed with wpilib 2025 and the latest firmware avaliable at the time for REV PDH and CTRE PDP.
 
-## Android, Python and iOS Companion APP and roboRIO Driver
+![](../../img/batterytrax.JPG)
 
+# Getting Started
+
+Visit our Wiki: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/900.-IronMaple-RFID-Battery-Tracking-Solution for step to steo guide.
+
+
+
+## Android, Python and iOS Companion APP and roboRIO Driver
 
 https://github.com/sikaxn/FRC-RFID-Battery-Reader/
 
@@ -22,24 +27,7 @@ https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/main/roboRIO/batteryReader
 1. DONE Reading date and time from roboRIO Heartbeat 
 2. DONE Auto discovery of CTRE PDP or REV PDH so no more requirement of having roboRIO Driver sending voltage and energy (unless using PDP 2.0)
 
-## Chinese_RFID RC522 issue
 
-https://github.com/miguelbalboa/rfid/wiki/Chinese_RFID-RC522
-
-If you use this code and when your ESP32 startup it print any Firmware version other than v2.0,
-
-Especially if they are
-
-RC522
-12 02
-TXD6080
-NXP
-
-Than it might not work properly. Please do additional test and replace module if necessary. Usually the symptom is the tag can be read but nothing is written (even if serial print said written).
-
-Correct serial printout:
-
-<img width="494" height="152" alt="image" src="https://github.com/user-attachments/assets/bd9d2195-e307-4e94-a34b-cce50eb0967f" />
 
 ## Arduino IDE Setup
 
@@ -52,11 +40,6 @@ these can be installed using arduino library manager
 https://github.com/OSSLibraries/Arduino_MFRC522v2
 https://github.com/bblanchon/ArduinoJson
 
-## Example RFID Reader holder
-
-https://makerworld.com/en/models/1504037-frc-battery-tracking-example-rfid-reader-holder#profileId-1573770
-
-![](../../img/readerHolder.JPG)
 
 ## Logic
 
@@ -69,25 +52,6 @@ A new usage record is created with voltage, date, etc all 0 because at this time
 6. robot is re enabled… and disabled. every time robot is disabled, that record is updated.
 7. we are done with robot, battery removed from robot, and data could be pulled by android APP.
 
-## Card and data format
-
-Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Format.md)
-
-## Wiring
-
-![image](../../drawing/BatteryRFID_bb.png)
-
-
-| Peripheral         | Function                   | ESP32 Pin   | Notes                           |
-| ------------------ | -------------------------- | ----------- | ------------------------------- |
-| **RC522 Reader 1** | SPI SS (Slave Select)      | **GPIO 5**  | Connected to `ss_pin1`          |
-| **RC522 Reader 2** | SPI SS (Slave Select)      | **GPIO 4**  | Connected to `ss_pin2`          |
-| **RC522 Shared**   | RST (Reset)                | **GPIO 22** | Used for both readers           |
-| **SPI (Shared)**   | SCK (Clock)                | **GPIO 18** | Used for both readers           |
-|                    | MISO (Master In Slave Out) | **GPIO 19** | Used for both readers           |
-|                    | MOSI (Master Out Slave In) | **GPIO 23** | Used for both readers           |
-| **CAN TX**         | Transmit Line              | **GPIO 16** | Connected to CAN transceiver TX |
-| **CAN RX**         | Receive Line               | **GPIO 17** | Connected to CAN transceiver RX |
 
 ##  **CAN Message Types in Use**
 
