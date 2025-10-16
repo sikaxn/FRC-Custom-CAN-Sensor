@@ -3,6 +3,9 @@ package frc.robot;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.CAN;
+
+import com.ctre.phoenix6.hardware.TalonFX;
+
 import edu.wpi.first.hal.CANData;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 
@@ -42,7 +45,7 @@ private static final double ADC_K0 = 0.915434204;
 private static final double ADC_K1 = 0.008560656043; 
 private static final double ADC_K2 = -0.000000358496267; 
 
-
+private static TalonFX m_motor;
   // ----------------------------
   // Battery CAN
   // ----------------------------
@@ -50,6 +53,9 @@ private static final double ADC_K2 = -0.000000358496267;
 
   @Override
   public void robotInit() {
+
+    m_motor = new TalonFX(0);
+
     // ---- Addressable LEDs (existing UI) ----
     leds = new addressableLEDCAN(LEDS_DN);
 
