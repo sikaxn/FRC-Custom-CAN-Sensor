@@ -5,6 +5,12 @@ Please also check out the WiKi section for more documentation!
 
 https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki
 
+# Some resources in another branch
+
+This repo need some cleanup. Will do later.
+
+https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board
+
 ## IronMaple ESP32‐FRC‐devkit sponsored by JLCPCB
 
 If you are looking for IronMaple ESP32‐FRC‐devkit resources, please switch branch to dev-board.
