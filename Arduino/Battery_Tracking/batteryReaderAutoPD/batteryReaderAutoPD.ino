@@ -38,6 +38,11 @@
 #define REV_PDH_MANUF_ID 0x05
 #define REV_PDH_API_ID 0x064
 
+// LED Define
+#define LED_R 13
+#define LED_B 14
+#define LED_G 15
+
 
 
 #define DISABLE_WRITE_DELAY_MS 1000
@@ -68,7 +73,8 @@ void TaskCANRxrioHeartbeat(void* pvParameters);
 void TaskCANRxPD(void* pvParameters);
 void TaskCANTx(void* pvParameters);
 void TaskAutoBatteryManager(void* pvParameters);
-
+void TaskLEDIndicator(void* pvParameters);
+void TaskEnergyCalc(void* pvParameters);
 
 // === CAN & System State ===
 volatile bool canAvailable = false;
@@ -107,6 +113,13 @@ volatile bool heartbeatOk = false;
     STATE_WAIT_FOR_DATA,
     STATE_WRITE_FINAL
   };
+
+extern volatile State currentState;
+extern volatile PDType pdType;
+bool readerDetected = false;
+bool heartbeatAvailable = false;
+bool heartbeatEnabled = false;
+
 volatile PDType pdType = NO_PD;
 volatile State currentState = STATE_WAIT_FOR_TAG;
 
@@ -123,6 +136,10 @@ char batteryFirstUseFull[11] = "";  // Format: "yyMMddHHmm"
 
 
 void setup() {
+  pinMode(LED_R, OUTPUT);
+  pinMode(LED_B, OUTPUT);
+  pinMode(LED_G, OUTPUT);
+
   Serial.begin(115200);
   while (!Serial);
 
@@ -141,10 +158,36 @@ void setup() {
   mfrc1.PCD_Init();
   mfrc2.PCD_Init();
 
+  // -------------------------------------------------------
+  // Detect if MFRC522 readers are responding via version register
+  // -------------------------------------------------------
+  bool reader1OK = false;
+  bool reader2OK = false;
+
   Serial.println("Reader 1:");
   MFRC522Debug::PCD_DumpVersionToSerial(mfrc1, Serial);
+  delay(100);
+
   Serial.println("Reader 2:");
   MFRC522Debug::PCD_DumpVersionToSerial(mfrc2, Serial);
+  delay(100);
+
+  byte ver1 = mfrc1.PCD_GetVersion();
+  byte ver2 = mfrc2.PCD_GetVersion();
+
+  // Known valid MFRC522 and FM17522 family codes
+  if (ver1 == 0x91 || ver1 == 0x92 || ver1 == 0x88 || ver1 == 0xB2) reader1OK = true;
+  if (ver2 == 0x91 || ver2 == 0x92 || ver2 == 0x88 || ver2 == 0xB2) reader2OK = true;
+
+  if (reader1OK || reader2OK) {
+    readerDetected = true;
+    Serial.printf("[INFO] Reader(s) detected: %s%s\n",
+                  reader1OK ? "R1 " : "",
+                  reader2OK ? "R2" : "");
+  } else {
+    readerDetected = false;
+    Serial.println("[WARN] No reader detected (Version = unknown).");
+  }
 
   // === CAN (TWAI) Configuration ===
   twai_general_config_t g_config = {
@@ -154,7 +197,7 @@ void setup() {
     .clkout_io = TWAI_IO_UNUSED,
     .bus_off_io = TWAI_IO_UNUSED,
     .tx_queue_len = 5,
-    .rx_queue_len = 5,
+    .rx_queue_len = 16,
     .alerts_enabled = TWAI_ALERT_RX_DATA,
     .clkout_divider = 0
   };
@@ -179,6 +222,8 @@ xTaskCreatePinnedToCore(TaskCANRxPD,            "CAN RX PD",       4096, NULL, 1
 xTaskCreatePinnedToCore(TaskCANRxJava,          "CAN RX Java",     4096, NULL, 1, NULL, 0);
 xTaskCreatePinnedToCore(TaskCANRxrioHeartbeat,  "CAN RX Heartbeat",4096, NULL, 1, NULL, 0);
 xTaskCreatePinnedToCore(TaskEnergyCalc,         "Energy Calc",     4096, NULL, 1, NULL, 1);
+xTaskCreatePinnedToCore(TaskLEDIndicator,       "LEDIndicator", 2048, NULL, 1, NULL, 1);
+
 }
 
 
@@ -351,9 +396,11 @@ void TaskCANRxPD(void* pvParameters) {
 }
 
 void TaskCANRxrioHeartbeat(void* pvParameters) {
-  const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
+  const unsigned long HEARTBEAT_TIMEOUT_MS = 5000;   // nominal frame spacing ~500 ms
+  const uint8_t MAX_MISSED = 3;                      // require 3 consecutive misses
+  uint8_t missedCount = 0;
   bool firstRead = true;
-  bool lastHeartbeatOk = false;
+  bool heartbeatHealthy = false;                     // smoothed “OK” flag
 
   for (;;) {
     if (!canAvailable) {
@@ -362,66 +409,69 @@ void TaskCANRxrioHeartbeat(void* pvParameters) {
     }
 
     twai_message_t msg;
-    if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK &&
-        msg.extd && msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
+    // Drain all pending frames to avoid queue buildup
+    while (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK) {
+      if (msg.extd && msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
+        uint64_t bits = 0;
+        for (int i = 0; i < 8; ++i) bits = (bits << 8) | msg.data[i];
 
-      uint64_t bits = 0;
-      for (int i = 0; i < 8; ++i) {
-        bits = (bits << 8) | msg.data[i];
+        auto get_bits = [](uint64_t v, int s, int l) -> int {
+          return (v >> (64 - s - l)) & ((1ULL << l) - 1);
+        };
+
+        currentlyEnabled = get_bits(bits, 38, 1);
+        lastHeartbeatMs  = millis();
+        heartbeatOk      = true;
+
+        // Update LED indicators
+        heartbeatAvailable = true;
+        heartbeatEnabled   = currentlyEnabled;
+
+        year   = get_bits(bits, 26, 6) + 2000 - 36;
+        month  = get_bits(bits, 22, 4) + 1;
+        day    = get_bits(bits, 17, 5);
+        hour   = get_bits(bits, 0, 5);
+        minute = get_bits(bits, 5, 6);
+        second = std::min(get_bits(bits, 11, 6), 59);
+
+        if (firstRead || currentlyEnabled != wasEnabled) {
+          firstRead = false;
+          wasEnabled = currentlyEnabled;
+          Serial.printf("[Heartbeat] %s | %.1f V  %d J | %04d-%02d-%02d %02d:%02d:%02d\n",
+                        currentlyEnabled ? "ENABLED" : "DISABLED",
+                        voltage, energy,
+                        year, month, day, hour, minute, second);
+        }
       }
-
-      auto get_bits = [](uint64_t value, int start, int length) -> int {
-        return (value >> (64 - start - length)) & ((1ULL << length) - 1);
-      };
-
-      currentlyEnabled = get_bits(bits, 38, 1);
-      heartbeatOk = true;
-      lastHeartbeatMs = millis();
-
-      year = get_bits(bits, 26, 6) + 2000 - 36;
-
-      month  = get_bits(bits, 22, 4) + 1;
-      day    = get_bits(bits, 17, 5);
-      hour   = get_bits(bits, 0, 5);
-      minute = get_bits(bits, 5, 6);
-      second = std::min(get_bits(bits, 11, 6), 59);
-
-      if (firstRead || currentlyEnabled != wasEnabled) {
-        firstRead = false;
-        wasEnabled = currentlyEnabled;
-
-        const char* pdTypeStr = pdType == CTRE_PDP ? "CTRE_PDP" :
-                                pdType == REV_PDH  ? "REV_PDH"  : "NO_PD";
-
-        const char* stateStr = currentState == STATE_WAIT_FOR_TAG ? "WAIT_FOR_TAG" :
-                               currentState == STATE_PARSE_AND_WRITE_INITIAL ? "PARSE_AND_WRITE_INITIAL" :
-                               currentState == STATE_WAIT_FOR_DATA ? "WAIT_FOR_DATA" :
-                               currentState == STATE_WRITE_FINAL ? "WRITE_FINAL" : "UNKNOWN";
-
-        Serial.printf(
-          "[Heartbeat] %s | Voltage: %.1fV | Energy: %d | Lowest: %.2fV | Date: %04d-%02d-%02d %02d:%02d:%02d | PD: %s | State: %s\n",
-          currentlyEnabled ? "ENABLED" : "DISABLED",
-          voltage,
-          energy,
-          lowestVoltage,
-          year, month, day, hour, minute, second,
-          pdTypeStr,
-          stateStr
-        );
-      }
+      taskYIELD();   // prevent watchdog
     }
 
-    // Heartbeat timeout
-    bool heartbeatCurrentlyOk = (millis() - lastHeartbeatMs) <= HEARTBEAT_TIMEOUT_MS;
-    if (!heartbeatCurrentlyOk && lastHeartbeatOk) {
-      heartbeatOk = false;
-      currentlyEnabled = false;
+    // ---- Debounced timeout check ----
+    bool okNow = (millis() - lastHeartbeatMs) <= HEARTBEAT_TIMEOUT_MS;
+
+    if (!okNow) {
+      if (missedCount < MAX_MISSED) missedCount++;
+      else if (heartbeatHealthy) {
+        heartbeatHealthy   = false;
+        heartbeatOk        = false;
+        heartbeatAvailable = false;
+        heartbeatEnabled   = false;
+        currentlyEnabled   = false;
+        Serial.printf("[WARN] Heartbeat lost! No frame for %lu ms.\n",
+                      millis() - lastHeartbeatMs);
+      }
+    } else {
+      if (!heartbeatHealthy && missedCount >= MAX_MISSED)
+        Serial.println("[INFO] Heartbeat restored.");
+      missedCount = 0;
+      heartbeatHealthy = true;
     }
-    lastHeartbeatOk = heartbeatCurrentlyOk;
 
     vTaskDelay(10);
   }
 }
+
+
 
 void TaskCANRxJava(void* pvParameters) {
   float rioVoltage = 0.0f;
@@ -530,7 +580,7 @@ void TaskEnergyCalc(void* pvParameters) {
       localEnergyJ += voltage * PDcurrent * dt;
     }
 
-    if (millis() - lastPrint >= 1000) { //print interval
+    if (millis() - lastPrint >= 10000) { //print interval
       lastPrint = millis();
 
       int currentKJ = (int)((localEnergyJ / 1000.0f) + 0.5f);  // Round to nearest kJ
@@ -552,6 +602,66 @@ void TaskEnergyCalc(void* pvParameters) {
   }
 }
 
+// ==========================================================
+// TaskLEDIndicator
+//  R = reader / state
+//  B = PD type
+//  G = heartbeat
+// ==========================================================
+void TaskLEDIndicator(void* pvParameters) {
+
+
+  for (;;) {
+    // ---------------- RED LED ----------------
+    if (!readerDetected) {
+      digitalWrite(LED_R, LOW);
+    } else {
+      switch (currentState) {
+        case STATE_WAIT_FOR_TAG:
+        case STATE_PARSE_AND_WRITE_INITIAL:
+          digitalWrite(LED_R, (millis() / 500) % 2);   // slow flash
+          break;
+        case STATE_WAIT_FOR_DATA:
+          digitalWrite(LED_R, HIGH);                  // solid
+          break;
+        case STATE_WRITE_FINAL:
+          digitalWrite(LED_R, (millis() / 100) % 2);  // quick flash
+          break;
+        default:
+          digitalWrite(LED_R, LOW);
+          break;
+      }
+    }
+
+    // ---------------- BLUE LED ----------------
+    switch (pdType) {
+      case NO_PD:
+        digitalWrite(LED_B, LOW);                     // off when no PD
+        break;
+
+      case CTRE_PDP:
+      case REV_PDH:
+        digitalWrite(LED_B, HIGH);                    // solid when CTRE or REV
+        break;
+
+      default:
+        digitalWrite(LED_B, LOW);                     // off for unknown types
+        break;
+    }
+
+
+    // ---------------- GREEN LED ----------------
+    if (!heartbeatAvailable) {
+      digitalWrite(LED_G, LOW);                      // off
+    } else if (heartbeatEnabled) {
+      digitalWrite(LED_G, (millis() / 300) % 2);     // blink
+    } else {
+      digitalWrite(LED_G, HIGH);                     // solid
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(50));  // update every 50 ms
+  }
+}
 
 
 //=======READER Handing function DO NOT CHANGE========
