@@ -1,6 +1,6 @@
 0x135 rio -> ESP32
 
-xx 				 xx 		xx 		  xx xx          xx 	    xx xx
+xx 				                 xx 		xx 		  xx xx          xx 	    xx xx
 voltage * 10 (e.g., 139 = 13.9V) State override use roboRIO as PD roborio energy ESP reboot unused
 
 
