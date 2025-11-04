@@ -227,7 +227,13 @@ public void requestReboot() {
   // --------------------------------------------------------------------------
   public String  getSerial()        { return serial; }
   public int     getCycleCount()    { return cycleCount; }
-  public int     getNote()          { return note; }
+  public int getNote() {
+    if (!espOnline || serial == null || serial.isEmpty()) {
+        return -1;  // No battery / ESP not available
+    }
+    return note;
+  }
+
   public int     getESPState()      { return espState; }
   public int     getPDType()        { return pdType; }
   public boolean isReaderDetected() { return readerDetected; }
