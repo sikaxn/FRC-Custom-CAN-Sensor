@@ -1,5 +1,6 @@
 #include <Arduino.h>  // Needed for FreeRTOS in Arduino context
 
+// === Libraries ===
 #include <MFRC522v2.h>
 #include <MFRC522DriverSPI.h>
 #include <MFRC522DriverPinSimple.h>
@@ -7,47 +8,53 @@
 #include <ArduinoJson.h>
 #include <NdefMessage.h>
 #include <NdefRecord.h>
-
 #include "driver/twai.h"
 
-// === Pin Definitions ===
-#define RST_PIN 22
-#define CAN_TX_PIN  GPIO_NUM_4
-#define CAN_RX_PIN  GPIO_NUM_5
+// ==================================================
+// ===============  HARDWARE DEFINITIONS  ============
+// ==================================================
+#define RST_PIN        22
+#define CAN_TX_PIN     GPIO_NUM_4
+#define CAN_RX_PIN     GPIO_NUM_5
 
-// === CAN Constants ===
-#define BATTERY_STATUS_API_ID_1  0x135
-#define BATTERY_STATUS_API_ID_2  0x136
-#define RFID_META_API_ID_1       0x131
-#define RFID_META_API_ID_2       0x132
-#define RFID_META_API_ID_3       0x133
-#define HEARTBEAT_ID             0x01011840
-
-#define DEVICE_ID        0x0A  // DO NOT CHANGE
-#define MANUFACTURER_ID  0x08  // DO NOT CHANGE
-#define DEVICE_NUMBER    33    // Device Number 0–63
-
-// === CTRE PDP Constants ===
-#define CTRE_PDP_TYPE_ID 0x08
-#define CTRE_PDP_MANUF_ID 0x04
-#define CTRE_PDP_API_VOLTAGE 0x052
-#define CTRE_PDP_API_CURRENT 0x05D
-
-// === REV PDH Constants ===
-#define REV_PDH_TYPE_ID 0x08
-#define REV_PDH_MANUF_ID 0x05
-#define REV_PDH_API_ID 0x064
-
-// LED Define
-#define LED_R 13
+// RGB LED Pins
+#define LED_R 15
+#define LED_G 13
 #define LED_B 14
-#define LED_G 15
-
-
 
 #define DISABLE_WRITE_DELAY_MS 1000
 
-// === CAN Message ID Constructor ===
+// ==================================================
+// ===================  CAN CONSTANTS  ===============
+// ==================================================
+
+// FRC Device Identifiers
+#define DEVICE_ID        0x0A   // Do not change
+#define MANUFACTURER_ID  0x08   // Do not change
+#define DEVICE_NUMBER    33     // Custom device number (0–63)
+
+// CAN API IDs (FRC-style)
+#define HEARTBEAT_ID             0x01011840
+#define RFID_META_API_ID_1       0x131
+#define RFID_META_API_ID_2       0x132
+#define RFID_META_API_ID_3       0x133
+#define BATTERY_STATUS_API_ID_1  0x135
+#define BATTERY_STATUS_API_ID_2  0x136
+
+// CTRE PDP
+#define CTRE_PDP_TYPE_ID     0x08
+#define CTRE_PDP_MANUF_ID    0x04
+#define CTRE_PDP_API_VOLTAGE 0x052
+#define CTRE_PDP_API_CURRENT 0x05D
+
+// REV PDH
+#define REV_PDH_TYPE_ID      0x08
+#define REV_PDH_MANUF_ID     0x05
+#define REV_PDH_API_ID       0x064
+
+// ==================================================
+// ===============  CAN MESSAGE BUILDER  =============
+// ==================================================
 uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, uint8_t deviceNumber) {
   return ((uint32_t)(deviceID & 0xFF) << 24) |
          ((uint32_t)(manufacturerID & 0xFF) << 16) |
@@ -55,7 +62,9 @@ uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, 
          (deviceNumber & 0x3F);
 }
 
-// === RFID Setup ===
+// ==================================================
+// ==================  RFID DRIVERS  =================
+// ==================================================
 MFRC522DriverPinSimple ss_pin1(32);  // Reader 1 SS
 MFRC522DriverPinSimple ss_pin2(33);  // Reader 2 SS
 
@@ -64,63 +73,82 @@ MFRC522DriverSPI driver2{ss_pin2};
 
 MFRC522 mfrc1{driver1};
 MFRC522 mfrc2{driver2};
-
 MFRC522::MIFARE_Key keyA;
 
-// === Task Declarations ===
+// ==================================================
+// ==================  TASK HEADERS  =================
+// ==================================================
 void TaskCANRxJava(void* pvParameters);
 void TaskCANRxrioHeartbeat(void* pvParameters);
 void TaskCANRxPD(void* pvParameters);
 void TaskCANTx(void* pvParameters);
 void TaskAutoBatteryManager(void* pvParameters);
 void TaskLEDIndicator(void* pvParameters);
-void TaskEnergyCalc(void* pvParameters);
+void TaskCANGlobalHandler(void* pvParameters);
+void TaskLEDIndicator(void* pvParameters);
 
-// === CAN & System State ===
+// ==================================================
+// ===============  SYSTEM STATE GLOBALS  ============
+// ==================================================
 volatile bool canAvailable = false;
 volatile bool lastEnabled = false;
+volatile bool currentlyEnabled = false;
+volatile bool wasEnabled = false;
+volatile bool heartbeatOk = false;
 
+// Time / Date
 volatile int year = 0, month = 0, day = 0;
-
 volatile uint8_t hour = 0, minute = 0, second = 0;
-volatile float voltage = 0.0, lowestVoltage = 0.0;
-volatile float PDvoltage = 0, PDcurrent = 0;
+
+// Power
+volatile float voltage = 0.0f;
+volatile float lowestVoltage = 0.0f;
+volatile float PDvoltage = 0.0f;
+volatile float PDcurrent = 0.0f;
 volatile int energy = 0;
 volatile int roboRIOenergy = 0;
+volatile bool useRoboRIOEnergy = false;  // true = RIO energy, false = ESP
+volatile float rioVoltage = 0.0f;  // Voltage value reported from roboRIO
 
-// === Battery Metadata (from tag) ===
-char batterySN[17] = "";            // Up to 16 characters + null
-uint16_t batteryFirstUse = 0;       // Encoded as MMDD (e.g., 603 for June 3)
+
+volatile unsigned long lastHeartbeatMs = 0;
+
+// ==================================================
+// =============  BATTERY METADATA GLOBALS  ==========
+// ==================================================
+char batterySN[17] = "";            // 16 chars + null
+uint16_t batteryFirstUse = 0;       // Encoded as MMDD
 uint16_t batteryCycleCount = 0;
 uint8_t batteryNote = 0;
 bool batteryMetaValid = false;
 int currentSessionId = 0;
 
-volatile uint16_t authFailCount = 0;   // 2-byte counter, capped at 65535
-volatile uint16_t totalWriteCount = 0;   // 2-byte counter, capped at 65535
-volatile bool useRoboRIOEnergy = false;   // true = use RIO-provided energy, false = use ESP-calculated
+volatile uint16_t authFailCount = 0;
+volatile uint16_t totalWriteCount = 0;
+char batteryFirstUseFull[11] = "";  // Format: "yyMMddHHmm"
 
-volatile unsigned long lastHeartbeatMs = 0;
-volatile bool currentlyEnabled = false;
-volatile bool wasEnabled = false;
-volatile bool heartbeatOk = false; 
+// ==================================================
+// ==================  ENUMERATIONS  =================
+// ==================================================
+enum PDType {
+  NO_PD,
+  CTRE_PDP,
+  REV_PDH
+};
 
+enum State {
+  STATE_WAIT_FOR_TAG,
+  STATE_PARSE_AND_WRITE_INITIAL,
+  STATE_WAIT_FOR_DATA,
+  STATE_WRITE_FINAL
+};
 
-  enum PDType {
-    NO_PD,
-    CTRE_PDP,
-    REV_PDH
-  };
-
-    enum State {
-    STATE_WAIT_FOR_TAG,
-    STATE_PARSE_AND_WRITE_INITIAL,
-    STATE_WAIT_FOR_DATA,
-    STATE_WRITE_FINAL
-  };
-
+// ==================================================
+// ================  GLOBAL FLAGS  ==================
+// ==================================================
 extern volatile State currentState;
 extern volatile PDType pdType;
+
 bool readerDetected = false;
 bool heartbeatAvailable = false;
 bool heartbeatEnabled = false;
@@ -128,24 +156,24 @@ bool heartbeatEnabled = false;
 volatile PDType pdType = NO_PD;
 volatile State currentState = STATE_WAIT_FOR_TAG;
 
-
-// === Forward Declarations ===
+// ==================================================
+// ===============  FORWARD DECLARATIONS  ============
+// ==================================================
 String handleReader(MFRC522& reader, int readerNum);
 void printParsedBatteryJson(const String& json);
 String extractJsonFromNdefText(const String& raw);
 int extractInt(const String& src, const char* key);
 String extractString(const String& src, const char* key);
 void writeNewUsageLog(int eventId, const String& timeStr, int energy, float voltage, int readerId);
-char batteryFirstUseFull[11] = "";  // Format: "yyMMddHHmm"
 
-QueueHandle_t canRxQueue;
-
+// CAN handlers
 void onCANMessage(const twai_message_t* msg);
 void handleHeartbeat(const twai_message_t& msg);
 void handleJavaCAN(const twai_message_t& msg);
 void handlePD(const twai_message_t& msg);
 
-
+// Queue
+QueueHandle_t canRxQueue;
 
 void setup() {
   pinMode(LED_R, OUTPUT);
@@ -187,9 +215,10 @@ void setup() {
   byte ver1 = mfrc1.PCD_GetVersion();
   byte ver2 = mfrc2.PCD_GetVersion();
 
-  // Known valid MFRC522 and FM17522 family codes
-  if (ver1 == 0x91 || ver1 == 0x92 || ver1 == 0x88 || ver1 == 0xB2) reader1OK = true;
-  if (ver2 == 0x91 || ver2 == 0x92 || ver2 == 0x88 || ver2 == 0xB2) reader2OK = true;
+  // Known valid MFRC522 or FM17522 variants → anything except 0xFF is good
+  if (ver1 != 0xFF) reader1OK = true;
+  if (ver2 != 0xFF) reader2OK = true;
+
 
   if (reader1OK || reader2OK) {
     readerDetected = true;
@@ -242,7 +271,7 @@ void setup() {
   xTaskCreatePinnedToCore(TaskAutoBatteryManager, "Battery Manager", 4096, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(TaskCANTx,              "CAN TX",          4096, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(TaskCANRx,              "CAN RX Unified",  4096, NULL, 1, NULL, 0);
-  xTaskCreatePinnedToCore(TaskEnergyCalc,         "Energy Calc",     4096, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(TaskCANGlobalHandler,   "Global Data",     4096, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(TaskLEDIndicator,       "LEDIndicator",    2048, NULL, 1, NULL, 1);
 }
 
@@ -344,238 +373,7 @@ void TaskAutoBatteryManager(void* pvParameters) {
     vTaskDelay(20);
   }
 }
-/*
-void TaskCANRxPD(void* pvParameters) {
 
-
-  pdType = NO_PD;
-  uint8_t dev_type = 0, manuf = 0, dev_num = 0;
-  
-  twai_message_t msg;
-
-  Serial.println("[CANRxPD] Scanning for Power Distribution device...");
-
-  for (;;) {
-    if (twai_receive(&msg, pdMS_TO_TICKS(1000)) != ESP_OK || !msg.extd) continue;
-
-    uint32_t id = msg.identifier;
-    uint8_t this_type = (id >> 24) & 0x1F;
-    uint8_t this_manuf = (id >> 16) & 0xFF;
-    uint16_t api_id = (id >> 6) & 0x3FF;
-    uint8_t this_dev_num = id & 0x3F;
-
-    switch (pdType) {
-      case NO_PD:
-        if (this_type == CTRE_PDP_TYPE_ID && this_manuf == CTRE_PDP_MANUF_ID && api_id == CTRE_PDP_API_VOLTAGE) {
-          pdType = CTRE_PDP;
-          dev_type = this_type;
-          manuf = this_manuf;
-          dev_num = this_dev_num;
-          Serial.printf("[CANRxPD] CTRE PDP detected (Device Number: %d)\n", dev_num);
-        } else if (this_type == REV_PDH_TYPE_ID && this_manuf == REV_PDH_MANUF_ID && api_id == REV_PDH_API_ID) {
-          pdType = REV_PDH;
-          dev_type = this_type;
-          manuf = this_manuf;
-          dev_num = this_dev_num;
-          Serial.printf("[CANRxPD] REV PDH detected (Device Number: %d)\n", dev_num);
-        }
-        break;
-
-      case CTRE_PDP:
-        if (this_type == dev_type && this_manuf == manuf && this_dev_num == dev_num) {
-          switch (api_id) {
-            case CTRE_PDP_API_VOLTAGE:
-              PDvoltage = msg.data[6] * 0.05f + 4.0f;
-              break;
-            case CTRE_PDP_API_CURRENT:
-              PDcurrent = ((msg.data[1] << 4) | (msg.data[2] >> 4)) * 0.125f;
-              break;
-          }
-
-          if (PDvoltage > 0) {
-            //Serial.printf("[CANRxPD] Voltage: %.2f V | Current: %.2f A\n", PDvoltage, PDcurrent);
-            //PDvoltage = PDcurrent = 0;
-          }
-          
-        }
-        break;
-
-      case REV_PDH:
-        if (this_type == dev_type && this_manuf == manuf && this_dev_num == dev_num && api_id == REV_PDH_API_ID) {
-          uint16_t vbus_raw = ((msg.data[1] & 0x0F) << 8) | msg.data[0];
-          PDvoltage = vbus_raw * 0.0078125f;
-          PDcurrent = msg.data[4] * 2.0f;
-
-          if (PDvoltage > 0) {
-            //Serial.printf("[CANRxPD] Voltage: %.2f V | Current: %.2f A\n", PDvoltage, PDcurrent);
-            //PDvoltage = PDcurrent = 0;
-          }
-        }
-        break;
-    }
-  }
-}
-
-void TaskCANRxrioHeartbeat(void* pvParameters) {
-  const unsigned long HEARTBEAT_TIMEOUT_MS = 5000;   // nominal frame spacing ~500 ms
-  const uint8_t MAX_MISSED = 3;                      // require 3 consecutive misses
-  uint8_t missedCount = 0;
-  bool firstRead = true;
-  bool heartbeatHealthy = false;                     // smoothed “OK” flag
-
-  for (;;) {
-    if (!canAvailable) {
-      vTaskDelay(10);
-      continue;
-    }
-
-    twai_message_t msg;
-    // Drain all pending frames to avoid queue buildup
-    while (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK) {
-      if (msg.identifier == HEARTBEAT_ID) {
-        uint64_t bits = 0;
-        for (int i = 0; i < 8; ++i) bits = (bits << 8) | msg.data[i];
-
-        auto get_bits = [](uint64_t v, int s, int l) -> int {
-          return (v >> (64 - s - l)) & ((1ULL << l) - 1);
-        };
-
-        currentlyEnabled = get_bits(bits, 38, 1);
-        lastHeartbeatMs  = millis();
-        heartbeatOk      = true;
-
-        // Update LED indicators
-        heartbeatAvailable = true;
-        heartbeatEnabled   = currentlyEnabled;
-
-        year   = get_bits(bits, 26, 6) + 2000 - 36;
-        month  = get_bits(bits, 22, 4) + 1;
-        day    = get_bits(bits, 17, 5);
-        hour   = get_bits(bits, 0, 5);
-        minute = get_bits(bits, 5, 6);
-        second = std::min(get_bits(bits, 11, 6), 59);
-
-        if (firstRead || currentlyEnabled != wasEnabled) {
-          firstRead = false;
-          wasEnabled = currentlyEnabled;
-          Serial.printf("[Heartbeat] %s | %.1f V  %d J | %04d-%02d-%02d %02d:%02d:%02d\n",
-                        currentlyEnabled ? "ENABLED" : "DISABLED",
-                        voltage, energy,
-                        year, month, day, hour, minute, second);
-        }
-      }
-      taskYIELD();   // prevent watchdog
-    }
-
-    // ---- Debounced timeout check ----
-    bool okNow = (millis() - lastHeartbeatMs) <= HEARTBEAT_TIMEOUT_MS;
-
-    if (!okNow) {
-      if (missedCount < MAX_MISSED) missedCount++;
-      else if (heartbeatHealthy) {
-        heartbeatHealthy   = false;
-        heartbeatOk        = false;
-        heartbeatAvailable = false;
-        heartbeatEnabled   = false;
-        currentlyEnabled   = false;
-        Serial.printf("[WARN] Heartbeat lost! No frame for %lu ms.\n",
-                      millis() - lastHeartbeatMs);
-      }
-    } else {
-      if (!heartbeatHealthy && missedCount >= MAX_MISSED)
-        Serial.println("[INFO] Heartbeat restored.");
-      missedCount = 0;
-      heartbeatHealthy = true;
-    }
-
-    vTaskDelay(10);
-  }
-}
-
-
-void TaskCANRxJava(void* pvParameters) {
-  float rioVoltage = 0.0f;
-
-  for (;;) {
-    if (!canAvailable) {
-      vTaskDelay(10);
-      continue;
-    }
-
-    twai_message_t msg;
-    if (twai_receive(&msg, pdMS_TO_TICKS(10)) == ESP_OK && msg.extd) {
-
-      // Extract API ID (10-bit)
-      uint16_t apiId = (msg.identifier >> 6) & 0x3FF;
-
-      // ==================================================
-      // 0x135  :  RIO → ESP32
-      // [0]=V*10 | [1]=stateOverride | [2]=useRIOasPD
-      // [3..4]=energy(kJ) | [5]=espReboot | [6,7]=unused
-      // ==================================================
-      if (apiId == 0x135 && msg.data_length_code >= 6) {
-        rioVoltage = msg.data[0] / 10.0f;
-
-        uint8_t stateOverrideVal = msg.data[1];
-        bool newUseRoboRIOEnergy = (msg.data[2] != 0);
-        int newRoboRIOenergy = (msg.data[3] << 8) | msg.data[4];
-        bool espRebootFlag = (msg.data[5] != 0);
-
-        // --- Update globals ---
-        useRoboRIOEnergy = newUseRoboRIOEnergy;
-        roboRIOenergy = newRoboRIOenergy;
-
-        // --- Apply state override if non-zero ---
-        if (stateOverrideVal != 0) {
-          switch (stateOverrideVal) {
-            case STATE_WAIT_FOR_TAG:
-            case STATE_PARSE_AND_WRITE_INITIAL:
-            case STATE_WAIT_FOR_DATA:
-            case STATE_WRITE_FINAL:
-              currentState = static_cast<State>(stateOverrideVal);
-              Serial.printf("[CANRxJava] State overridden by RIO → %d\n", currentState);
-              break;
-            default:
-              Serial.printf("[CANRxJava] Invalid stateOverride: %u\n", stateOverrideVal);
-              break;
-          }
-        }
-
-        // --- Handle reboot flag ---
-        if (espRebootFlag) {
-          Serial.println("[CANRxJava] ESP reboot requested by RIO!");
-          vTaskDelay(pdMS_TO_TICKS(200));  // short flush delay
-          esp_restart();
-        }
-
-        // Debug print (optional)
-        Serial.printf("[CANRxJava] 0x135 RIO→ESP | V=%.1fV | useRIO=%d | energy=%d kJ | stateOv=%u | reboot=%d\n",
-                      rioVoltage, useRoboRIOEnergy, roboRIOenergy, stateOverrideVal, espRebootFlag);
-      }
-
-      // Optional legacy voltage packet
-      else if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
-        rioVoltage = msg.data[6] / 10.0f;
-      }
-    }
-
-    // --- Voltage source preference ---
-    if (pdType != NO_PD && PDvoltage > 5.0f) {
-      voltage = PDvoltage;
-    } else if (rioVoltage > 5.0f) {
-      voltage = rioVoltage;
-    }
-
-    // --- Track lowest voltage ---
-    if (voltage >= 5.0f && (lowestVoltage == 0.0f || voltage < lowestVoltage)) {
-      lowestVoltage = voltage;
-    }
-
-    vTaskDelay(10);
-  }
-}
-
-*/
 
 // ---------------------------------------
 // Task: Handle TWAI alerts asynchronously
@@ -621,7 +419,7 @@ void TaskCANRx(void* pvParameters) {
   twai_message_t msg;
   for (;;) {
     if (xQueueReceive(canRxQueue, &msg, portMAX_DELAY) == pdPASS) {
-      onCANMessage(msg);   // <— pass by value/reference, not pointer
+      onCANMessage(&msg);   // <— pass by value/reference, not pointer
     }
   }
 }
@@ -707,198 +505,175 @@ void TaskCANTx(void* pvParameters) {
   }
 }
 
-// ---------------------------
-// Message dispatcher
-// ---------------------------
-// Robust dispatcher: exact heartbeat match, PD by type/manuf/api, Java by our device/manuf/devnum+api
-void onCANMessage(const twai_message_t& msg)  {
-  if (!msg.extd) return;
+// ==================================================
+// ===============  CAN MESSAGE HANDLER  =============
+// ==================================================
 
-  const uint32_t id = msg.identifier;
+// Timestamps for activity detection
+unsigned long lastCANMsgTime = 0;
+unsigned long lastPDMsgTime = 0;
+unsigned long lastJavaMsgTime = 0;
+unsigned long lastHeartbeatTime = 0;
 
-  // --- 1) Heartbeat: match full 29-bit extended ID ---
-  #ifndef HEARTBEAT_ID
-  // If not already defined elsewhere, define per your spec
-  #define HEARTBEAT_ID 0x01011840UL
-  #endif
-  if (id == HEARTBEAT_ID) {
-    handleHeartbeat(msg);
-    return;
+// Global online status flags
+bool canOnline = false;
+bool pdOnline = false;
+bool javaOnline = false;
+bool heartbeatOnline = false;
+
+// Global values
+float globalVoltage = 0.0f;
+float energyTotal = 0.0f;
+
+// Called from TaskCANRx() when a CAN message is received
+void onCANMessage(const twai_message_t* msg) {
+  if (!msg || !msg->extd) return;
+
+  lastCANMsgTime = millis();
+
+  uint32_t id = msg->identifier;
+  uint8_t deviceType = (id >> 24) & 0x1F;
+  uint8_t manufacturer = (id >> 16) & 0xFF;
+  uint16_t apiID = (id >> 6) & 0x3FF;
+  uint8_t deviceNumber = id & 0x3F;
+
+  // Route messages
+  if (apiID == BATTERY_STATUS_API_ID_1 || apiID == BATTERY_STATUS_API_ID_2 ||
+      apiID == RFID_META_API_ID_1 || apiID == RFID_META_API_ID_2 || apiID == RFID_META_API_ID_3) {
+    handleJavaCAN(*msg);
+    lastJavaMsgTime = millis();
+  } 
+  else if (apiID == CTRE_PDP_API_VOLTAGE || apiID == CTRE_PDP_API_CURRENT ||
+           apiID == REV_PDH_API_ID) {
+    handlePD(*msg);
+    lastPDMsgTime = millis();
+  }
+  else if (id == HEARTBEAT_ID) {
+    handleHeartbeat(*msg);
+    lastHeartbeatTime = millis();
   }
 
-  // --- Parse FRC CAN fields ---
-  const uint8_t  dev_type = (id >> 24) & 0x1F;
-  const uint8_t  manuf    = (id >> 16) & 0xFF;
-  const uint16_t api_id   = (id >> 6)  & 0x3FF;
-  const uint8_t  dev_num  =  id        & 0x3F;
-
-  // --- 2) PD frames (CTRE PDP or REV PDH) ---
-  // CTRE PDP: voltage or current APIs
-  const bool isCtrePdp = (dev_type == CTRE_PDP_TYPE_ID) &&
-                         (manuf    == CTRE_PDP_MANUF_ID) &&
-                         (api_id == CTRE_PDP_API_VOLTAGE || api_id == CTRE_PDP_API_CURRENT);
-
-  // REV PDH: single API
-  const bool isRevPdh  = (dev_type == REV_PDH_TYPE_ID) &&
-                         (manuf    == REV_PDH_MANUF_ID) &&
-                         (api_id   == REV_PDH_API_ID);
-
-  if (isCtrePdp || isRevPdh) {
-    handlePD(msg);
-    return;
-  }
-
-  // --- 3) RIO Java messages: must match our device type/manufacturer/device number + known APIs ---
-  if ((dev_type == DEVICE_ID) && (manuf == MANUFACTURER_ID) && (dev_num == (DEVICE_NUMBER & 0x3F))) {
-    // List your Java/RIO APIs here
-    if (api_id == 0x131 || api_id == 0x132 || api_id == 0x133 || api_id == 0x135
-        || api_id == BATTERY_STATUS_API_ID_1 /* if you still use this */) {
-      handleJavaCAN(msg);
-      return;
-    }
-  }
-
-  // otherwise: ignore
+  // Other CAN messages ignored, but count them for canOnline tracking
 }
 
-// ===============================
-// Handle RoboRIO Heartbeat (0x135 system heartbeat ID)
-// ===============================
-void handleHeartbeat(const twai_message_t& msg) {
-  static unsigned long lastHeartbeatMs = 0;
-  static unsigned long lastPrintMs = 0;
-  static bool firstRead = true;
-  static bool heartbeatHealthy = false;
-  static uint8_t missedCount = 0;
-  const unsigned long HEARTBEAT_TIMEOUT_MS = 5000;
-  const uint8_t MAX_MISSED = 3;
+// ==================================================
+// ============  GLOBAL DATA SUPERVISOR  =============
+// ==================================================
+void TaskCANGlobalHandler(void* pvParameters) {
+  unsigned long lastLoop   = millis();
+  unsigned long lastPrint  = 0;
+  float dt = 0.0f;
 
-  if (msg.identifier == HEARTBEAT_ID && msg.data_length_code == 8) {
-    uint64_t bits = 0;
-    for (int i = 0; i < 8; ++i)
-      bits = (bits << 8) | msg.data[i];
+  // Track last known states to detect transitions
+  bool lastCanOnline        = true;
+  bool lastPdOnline         = true;
+  bool lastJavaOnline       = true;
+  bool lastHeartbeatOnline  = true;
 
-    auto get_bits = [](uint64_t v, int s, int l) -> int {
-      return (v >> (64 - s - l)) & ((1ULL << l) - 1);
-    };
+  for (;;) {
+    unsigned long now = millis();
+    dt = (now - lastLoop) / 1000.0f;
+    lastLoop = now;
 
-    currentlyEnabled = get_bits(bits, 38, 1);
-    lastHeartbeatMs  = millis();
-    heartbeatOk      = true;
-    heartbeatAvailable = true;
-    heartbeatEnabled   = currentlyEnabled;
+    // --- Timeout detection (1000 ms) ---
+    canOnline        = (now - lastCANMsgTime    < 1000);
+    pdOnline         = (now - lastPDMsgTime     < 1000);
+    javaOnline       = (now - lastJavaMsgTime   < 1000);
+    heartbeatOnline  = (now - lastHeartbeatTime < 1000);
 
-    year   = get_bits(bits, 26, 6) + 2000 - 36;
-    month  = get_bits(bits, 22, 4) + 1;
-    day    = get_bits(bits, 17, 5);
-    hour   = get_bits(bits, 0, 5);
-    minute = get_bits(bits, 5, 6);
-    second = std::min(get_bits(bits, 11, 6), 59);
-
-    if (firstRead || currentlyEnabled != wasEnabled) {
-      firstRead = false;
+    // --- Heartbeat loss safety fallback ---
+    if (!heartbeatOnline && currentlyEnabled) {
       wasEnabled = currentlyEnabled;
-      Serial.printf("[Heartbeat] %s | %.1f V  %d J | %04d-%02d-%02d %02d:%02d:%02d\n",
-                    currentlyEnabled ? "ENABLED" : "DISABLED",
-                    voltage, energy,
-                    year, month, day, hour, minute, second);
+      currentlyEnabled = false;
+      Serial.println("[Heartbeat] LOST — Robot DISABLED (timeout)");
     }
-  }
 
-  // ---- Debounced timeout check ----
-  bool okNow = (millis() - lastHeartbeatMs) <= HEARTBEAT_TIMEOUT_MS;
-
-  if (!okNow) {
-    if (missedCount < MAX_MISSED) missedCount++;
-    else if (heartbeatHealthy) {
-      heartbeatHealthy   = false;
-      heartbeatOk        = false;
-      heartbeatAvailable = false;
-      heartbeatEnabled   = false;
-      currentlyEnabled   = false;
-      Serial.printf("[WARN] Heartbeat lost! No frame for %lu ms.\n",
-                    millis() - lastHeartbeatMs);
+    // --- PD offline fallback ---
+    if (!pdOnline) {
+      PDvoltage = 0.0f;
+      PDcurrent = 0.0f;
     }
-  } else {
-    if (!heartbeatHealthy && missedCount >= MAX_MISSED)
-      Serial.println("[INFO] Heartbeat restored.");
-    missedCount = 0;
-    heartbeatHealthy = true;
-  }
-}
 
+    // --- Voltage source preference ---
+    if (pdOnline && PDvoltage > 5.0f)
+      globalVoltage = PDvoltage;
+    else if (javaOnline && voltage > 5.0f)
+      globalVoltage = voltage;
+    else
+      globalVoltage = 0.0f;
 
-// ===============================
-// Handle Java-side custom RIO packets (0x131, 0x132, 0x133, 0x135)
-// ===============================
-void handleJavaCAN(const twai_message_t& msg) {
-  if (!msg.extd) return;
-  Serial.println("[Java] Java frame.");
-  uint16_t apiId = (msg.identifier >> 6) & 0x3FF;
-  float rioVoltage = 0.0f;
+    // --- Track lowest voltage ---
+    if (globalVoltage > 5.0f &&
+        (lowestVoltage == 0.0f || globalVoltage < lowestVoltage))
+      lowestVoltage = globalVoltage;
 
-  // 0x135 : RIO → ESP32 control and energy frame
-  if (apiId == 0x135 && msg.data_length_code >= 6) {
-    rioVoltage = msg.data[0] / 10.0f;
+    // --- Energy calculation ---
+    float power = globalVoltage * PDcurrent;
+    energyTotal += power * dt;
 
-    uint8_t stateOverrideVal = msg.data[1];
-    bool newUseRoboRIOEnergy = (msg.data[2] != 0);
-    int newRoboRIOenergy = (msg.data[3] << 8) | msg.data[4];
-    bool espRebootFlag = (msg.data[5] != 0);
+    // --- Determine if we should print ---
+    bool triggerPrint = false;
 
-    // --- Update globals ---
-    useRoboRIOEnergy = newUseRoboRIOEnergy;
-    roboRIOenergy = newRoboRIOenergy;
+    // Time-based print every 10 s
+    if (now - lastPrint >= 10000) {
+      triggerPrint = true;
+    }
 
-    // --- Apply state override ---
-    if (stateOverrideVal != 0) {
-      switch (stateOverrideVal) {
-        case STATE_WAIT_FOR_TAG:
-        case STATE_PARSE_AND_WRITE_INITIAL:
-        case STATE_WAIT_FOR_DATA:
-        case STATE_WRITE_FINAL:
-          currentState = static_cast<State>(stateOverrideVal);
-          Serial.printf("[CANRxJava] State overridden by RIO → %d\n", currentState);
-          break;
-        default:
-          Serial.printf("[CANRxJava] Invalid stateOverride: %u\n", stateOverrideVal);
-          break;
+    // Print on any ONLINE→OFFLINE transition
+    if ((!canOnline        &&  lastCanOnline) ||
+        (!pdOnline         &&  lastPdOnline) ||
+        (!javaOnline       &&  lastJavaOnline) ||
+        (!heartbeatOnline  &&  lastHeartbeatOnline)) {
+      triggerPrint = true;
+    }
+
+    // --- Perform print if triggered ---
+    if (triggerPrint) {
+      // Format PD type string
+      const char* pdName = "NO_PD";
+      switch (pdType) {
+        case CTRE_PDP: pdName = "CTRE_PDP"; break;
+        case REV_PDH:  pdName = "REV_PDH";  break;
+        default: break;
       }
+
+      // Format enable/disable
+      const char* robotState = currentlyEnabled ? "EN" : "DIS";
+
+      // Format timestamp safely
+      char timeStr[24];
+      snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02d %02d:%02d:%02d",
+               year, month, day, hour, minute, second);
+
+      Serial.printf(
+        "[CANGlobal] CAN:%d HB:%d PD:%d Java:%d | "
+        "PDType:%s | Robot:%s | "
+        "V=%.2fV I=%.2fA E=%.1fJ | LowestV=%.2f | %s\n",
+        canOnline, heartbeatOnline, pdOnline, javaOnline,
+        pdName, robotState,
+        globalVoltage, PDcurrent, energyTotal,
+        lowestVoltage, timeStr
+      );
+
+      lastPrint = now;
     }
 
-    // --- Handle reboot flag ---
-    if (espRebootFlag) {
-      Serial.println("[CANRxJava] ESP reboot requested by RIO!");
-      vTaskDelay(pdMS_TO_TICKS(200));  // short flush delay
-      esp_restart();
-    }
+    // --- Update last-known states ---
+    lastCanOnline        = canOnline;
+    lastPdOnline         = pdOnline;
+    lastJavaOnline       = javaOnline;
+    lastHeartbeatOnline  = heartbeatOnline;
 
-    Serial.printf("[CANRxJava] 0x135 RIO→ESP | V=%.1fV | useRIO=%d | energy=%d kJ | stateOv=%u | reboot=%d\n",
-                  rioVoltage, useRoboRIOEnergy, roboRIOenergy, stateOverrideVal, espRebootFlag);
+    vTaskDelay(pdMS_TO_TICKS(100));  // Run every 100 ms
   }
-
-  // Optional legacy voltage packet (e.g., 0x131)
-  else if (apiId == BATTERY_STATUS_API_ID_1 && msg.data_length_code >= 7) {
-    rioVoltage = msg.data[6] / 10.0f;
-  }
-
-  // --- Voltage source preference ---
-  if (pdType != NO_PD && PDvoltage > 5.0f)
-    voltage = PDvoltage;
-  else if (rioVoltage > 5.0f)
-    voltage = rioVoltage;
-
-  // --- Track lowest voltage ---
-  if (voltage >= 5.0f && (lowestVoltage == 0.0f || voltage < lowestVoltage))
-    lowestVoltage = voltage;
 }
 
 
-// ===============================
-// Handle Power Distribution (CTRE PDP / REV PDH)
-// ===============================
+
+// ==================================================
+// =================  HANDLE PD =====================
+// ==================================================
 void handlePD(const twai_message_t& msg) {
-  Serial.println("[PD] PD frame.");
   static uint8_t dev_type = 0, manuf = 0, dev_num = 0;
 
   uint32_t id = msg.identifier;
@@ -915,7 +690,8 @@ void handlePD(const twai_message_t& msg) {
         manuf = this_manuf;
         dev_num = this_dev_num;
         Serial.printf("[CANRxPD] CTRE PDP detected (Device Number: %d)\n", dev_num);
-      } else if (this_type == REV_PDH_TYPE_ID && this_manuf == REV_PDH_MANUF_ID && api_id == REV_PDH_API_ID) {
+      } 
+      else if (this_type == REV_PDH_TYPE_ID && this_manuf == REV_PDH_MANUF_ID && api_id == REV_PDH_API_ID) {
         pdType = REV_PDH;
         dev_type = this_type;
         manuf = this_manuf;
@@ -945,56 +721,72 @@ void handlePD(const twai_message_t& msg) {
       }
       break;
   }
+
+  //Serial.printf("[PD] Type:%d | V:%.2fV | I:%.2fA\n", pdType, PDvoltage, PDcurrent);
 }
 
+// ==================================================
+// ===============  HANDLE JAVA CAN =================
+// ==================================================
+void handleJavaCAN(const twai_message_t& msg) {
+  uint32_t id = msg.identifier;
+  uint16_t api_id = (id >> 6) & 0x3FF;
 
-
-void TaskEnergyCalc(void* pvParameters) {
-  const TickType_t sampleInterval = pdMS_TO_TICKS(100);  // 100 ms
-  const float dt = 0.1f;  // Time step in seconds
-  static float localEnergyJ = 0.0f;  // Persistent local energy in J
-  unsigned long lastPrint = millis();
-  int lastKJ = 0;
-
-  for (;;) {
-    if (useRoboRIOEnergy) {
-      //  Use RIO-provided energy (in kJ), ignore local calculation
-      energy = roboRIOenergy;
-
-      if (millis() - lastPrint >= 10000) {
-        lastPrint = millis();
-        Serial.printf("[EnergyCalc] Using RIO-provided energy: %d kJ\n", energy);
-      }
-
-    } else {
-      //  Local energy accumulation
-      if (energy < INT32_MAX) {
-        // Always accumulate, even if V or I = 0 (idle is part of energy tracking)
-        localEnergyJ += voltage * PDcurrent * dt;
-      }
-
-      if (millis() - lastPrint >= 10000) { // print interval
-        lastPrint = millis();
-
-        int currentKJ = (int)((localEnergyJ / 1000.0f) + 0.5f);  // Round to nearest kJ
-        int deltaKJ = currentKJ - lastKJ;
-
-        if (deltaKJ > 0 && energy < INT32_MAX - deltaKJ) {
-          energy += deltaKJ;
-        } else if (energy >= INT32_MAX - deltaKJ) {
-          energy = INT32_MAX;
-        }
-
-        Serial.printf("[EnergyCalc] +%d kJ | Total: %.1f J | (%d kJ) | V: %.2f V | I: %.2f A\n",
-                      deltaKJ, localEnergyJ, energy, voltage, PDcurrent);
-
-        lastKJ = currentKJ;
-      }
+  switch (api_id) {
+    case BATTERY_STATUS_API_ID_1: {  // Voltage
+      rioVoltage = ((msg.data[1] << 8) | msg.data[0]) * 0.01f;
+      break;
     }
 
-    vTaskDelay(sampleInterval);
+    case BATTERY_STATUS_API_ID_2: {  // Energy or similar data
+      roboRIOenergy = ((msg.data[1] << 8) | msg.data[0]);
+      break;
+    }
+
+    case RFID_META_API_ID_1: {
+      // Could be used for metadata or datetime; depends on your previous Java layout
+      break;
+    }
   }
+
+  Serial.printf("[JavaCAN] ID:%03X | V_rio=%.2fV | E_rio=%dJ\n", api_id, rioVoltage, roboRIOenergy);
 }
+
+void handleHeartbeat(const twai_message_t& msg) {
+  if (!msg.extd || msg.identifier != HEARTBEAT_ID || msg.data_length_code != 8)
+    return;  // Not a valid heartbeat frame
+
+  // Assemble 8 bytes into one 64-bit big-endian word
+  uint64_t bits = 0;
+  for (int i = 0; i < 8; ++i)
+    bits = (bits << 8) | msg.data[i];
+
+  auto get_bits = [](uint64_t v, int s, int l) -> int {
+    return (v >> (64 - s - l)) & ((1ULL << l) - 1);
+  };
+
+  // === Decode enable flag ===
+  bool newEnabled = get_bits(bits, 38, 1);
+  lastHeartbeatTime = millis();
+  heartbeatOnline = true;
+
+  if (newEnabled != currentlyEnabled) {
+    wasEnabled = currentlyEnabled;
+    currentlyEnabled = newEnabled;
+
+    Serial.printf("[Heartbeat] Robot %s\n",
+                  currentlyEnabled ? "ENABLED" : "DISABLED");
+  }
+
+  // === Decode datetime ===
+  year   = get_bits(bits, 26, 6) + 2000 - 36;
+  month  = get_bits(bits, 22, 4) + 1;
+  day    = get_bits(bits, 17, 5);
+  hour   = get_bits(bits, 0, 5);
+  minute = get_bits(bits, 5, 6);
+  second = std::min(get_bits(bits, 11, 6), 59);
+}
+
 
 void TaskLEDIndicator(void* pvParameters) {
   for (;;) {
@@ -1008,10 +800,10 @@ void TaskLEDIndicator(void* pvParameters) {
           digitalWrite(LED_R, (millis() / 500) % 2);   // slow flash
           break;
         case STATE_WAIT_FOR_DATA:
-          digitalWrite(LED_R, HIGH);                  // solid
+          digitalWrite(LED_R, HIGH);                   // solid
           break;
         case STATE_WRITE_FINAL:
-          digitalWrite(LED_R, (millis() / 100) % 2);  // quick flash
+          digitalWrite(LED_R, (millis() / 100) % 2);   // quick flash
           break;
         default:
           digitalWrite(LED_R, LOW);
@@ -1019,30 +811,22 @@ void TaskLEDIndicator(void* pvParameters) {
       }
     }
 
-    // ---------------- BLUE LED ----------------
-    switch (pdType) {
-      case NO_PD:
-        digitalWrite(LED_B, LOW);                     // off when no PD
-        break;
-
-      case CTRE_PDP:
-      case REV_PDH:
-        digitalWrite(LED_B, HIGH);                    // solid when CTRE or REV
-        break;
-
-      default:
-        digitalWrite(LED_B, LOW);                     // off for unknown types
-        break;
+    // ---------------- BLUE LED (PD status) ----------------
+    if (pdOnline) {
+      digitalWrite(LED_B, HIGH);  // PD OK → solid blue
+    } else if (!pdOnline && (millis() / 1000) % 2 == 0) {
+      digitalWrite(LED_B, HIGH);  // blink every second if PD lost
+    } else {
+      digitalWrite(LED_B, LOW);   // off otherwise
     }
 
-
-    // ---------------- GREEN LED ----------------
-    if (!heartbeatAvailable) {
-      digitalWrite(LED_G, LOW);                      // off
-    } else if (heartbeatEnabled) {
-      digitalWrite(LED_G, (millis() / 300) % 2);     // blink
+    // ---------------- GREEN LED (heartbeat / enable) ----------------
+    if (!heartbeatOnline) {
+      digitalWrite(LED_G, LOW);  // heartbeat lost → off
+    } else if (currentlyEnabled) {
+      digitalWrite(LED_G, (millis() / 300) % 2);  // enabled → blink
     } else {
-      digitalWrite(LED_G, HIGH);                     // solid
+      digitalWrite(LED_G, HIGH);  // disabled → solid
     }
 
     vTaskDelay(pdMS_TO_TICKS(50));  // update every 50 ms
