@@ -98,7 +98,7 @@ public class batteryCAN {
         if (espOnline)
             System.out.println("[BatteryCAN] ESP32 reconnected.");
         else
-            System.out.println("[BatteryCAN] ESP32 offline for.");
+            System.out.println("[BatteryCAN] ESP32 offline.");
         lastESPOnline = espOnline;
     }
 
