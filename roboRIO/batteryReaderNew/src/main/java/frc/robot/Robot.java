@@ -2,71 +2,47 @@ package frc.robot;
 
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.subsystems.batteryCAN;
 
 public class Robot extends TimedRobot {
-
-  private batteryCAN batteryCan;
-  private boolean lastRebootButton = false;
+  private batteryCAN battery;
 
   @Override
   public void robotInit() {
-    batteryCan = new batteryCAN();
-
-    // Initialize SmartDashboard fields
-    SmartDashboard.putNumber("Set Energy (kJ)", 0);
-    SmartDashboard.putNumber("State Override", 0);
-    SmartDashboard.putBoolean("Request ESP Reboot", false);
+    battery = new batteryCAN(33); // your ESP32 device number
+    SmartDashboard.putNumber("Override State", 0);
+    SmartDashboard.putNumber("Energy kJ", 0);
+    SmartDashboard.putBoolean("ESP Reboot", false);
   }
 
   @Override
   public void robotPeriodic() {
-    CommandScheduler.getInstance().run();
+    // Handle CAN RX/TX
+    battery.update();
 
-    // Update CAN communication (auto handles TX & RX)
-    batteryCan.update();
+    // === Display telemetry from ESP32 ===
+    SmartDashboard.putString("Battery Serial", battery.getSerial());
+    SmartDashboard.putNumber("Cycle Count", battery.getCycleCount());
+    SmartDashboard.putNumber("Note", battery.getNote());
+    SmartDashboard.putNumber("ESP State", battery.getESPState());
+    SmartDashboard.putNumber("PD Type", battery.getPDType());
+    SmartDashboard.putBoolean("Reader Detected", battery.isReaderDetected());
+    SmartDashboard.putNumber("Auth Fail Count", battery.getAuthFailCount());
+    SmartDashboard.putNumber("Write Count", battery.getWriteCount());
+    SmartDashboard.putString("Battery Date", battery.getFirstUseDateTime());
 
-    // --------------------- Dashboard Input ---------------------
-    double energyInput = SmartDashboard.getNumber("Set Energy (kJ)", 0);
-    int overrideState = (int) SmartDashboard.getNumber("State Override", 0);
-    boolean requestReboot = SmartDashboard.getBoolean("Request ESP Reboot", false);
+    // === Dashboard Controls ===
+    int overrideState = (int) SmartDashboard.getNumber("Override State", 0);
+    int energyKJ = (int) SmartDashboard.getNumber("Energy kJ", 0);
+    boolean reboot = SmartDashboard.getBoolean("ESP Reboot", false);
 
-    // Energy override
-    if (energyInput > 0) {
-      batteryCan.setEnergyKJ((int) energyInput);
-    } else {
-      batteryCan.clearEnergyControl();
+    battery.setOverrideState(overrideState);
+    battery.setEnergyKJ(energyKJ);
+
+    // Button-style reboot trigger
+    if (reboot) {
+      battery.requestReboot();
+      SmartDashboard.putBoolean("ESP Reboot", false);
     }
-
-    // State override
-    batteryCan.overrideState(overrideState);
-
-    // One-shot ESP reboot
-    if (requestReboot && !lastRebootButton) {
-      batteryCan.requestESPReboot();
-      SmartDashboard.putBoolean("Request ESP Reboot", false); // reset toggle
-    }
-    lastRebootButton = requestReboot;
-
-    // --------------------- Dashboard Output ---------------------
-    SmartDashboard.putString("Battery SN", batteryCan.getSerial());
-    SmartDashboard.putString("First Use (UTC)",
-        String.format("%04d-%02d-%02d %02d:%02d",
-            batteryCan.getYear(), batteryCan.getMonth(),
-            batteryCan.getDay(), batteryCan.getHour(),
-            batteryCan.getMinute()));
-    SmartDashboard.putNumber("Cycle Count", batteryCan.getCycleCount());
-    SmartDashboard.putNumber("Battery Note", batteryCan.getNote());
-
-    SmartDashboard.putBoolean("Reader Detected", batteryCan.isReaderDetected());
-    SmartDashboard.putNumber("ESP State", batteryCan.getESPState());
-    SmartDashboard.putNumber("PD Type", batteryCan.getPDType());
-    SmartDashboard.putNumber("Auth Fail Count", batteryCan.getAuthFailCount());
-    SmartDashboard.putNumber("Write Count", batteryCan.getWriteCount());
-
-    SmartDashboard.putBoolean("Use RIO Energy", batteryCan.isUseRIOEnergy());
-    SmartDashboard.putNumber("Energy KJ (TX)", batteryCan.getEnergyKJ());
-    SmartDashboard.putNumber("Override State (TX)", batteryCan.getOverrideState());
   }
 }

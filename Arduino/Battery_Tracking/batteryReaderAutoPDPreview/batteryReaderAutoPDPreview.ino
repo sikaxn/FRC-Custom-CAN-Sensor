@@ -101,7 +101,7 @@ volatile int year = 0, month = 0, day = 0;
 volatile uint8_t hour = 0, minute = 0, second = 0;
 
 // Power
-volatile float voltage = 0.0f;
+//volatile float voltage = 0.0f;
 volatile float lowestVoltage = 0.0f;
 volatile float PDvoltage = 0.0f;
 volatile float PDcurrent = 0.0f;
@@ -109,6 +109,23 @@ volatile int energy = 0;
 volatile int roboRIOenergy = 0;
 volatile bool useRoboRIOEnergy = false;  // true = RIO energy, false = ESP
 volatile float rioVoltage = 0.0f;  // Voltage value reported from roboRIO
+
+// Timestamps for activity detection
+unsigned long lastCANMsgTime = 0;
+unsigned long lastPDMsgTime = 0;
+unsigned long lastJavaMsgTime = 0;
+unsigned long lastHeartbeatTime = 0;
+
+// Global online status flags
+bool canOnline = false;
+bool pdOnline = false;
+bool javaOnline = false;
+bool heartbeatOnline = false;
+
+// Global values
+float globalVoltage = 0.0f;
+float energyTotal = 0.0f;
+
 
 
 volatile unsigned long lastHeartbeatMs = 0;
@@ -152,6 +169,8 @@ extern volatile PDType pdType;
 bool readerDetected = false;
 bool heartbeatAvailable = false;
 bool heartbeatEnabled = false;
+
+
 
 volatile PDType pdType = NO_PD;
 volatile State currentState = STATE_WAIT_FOR_TAG;
@@ -509,21 +528,6 @@ void TaskCANTx(void* pvParameters) {
 // ===============  CAN MESSAGE HANDLER  =============
 // ==================================================
 
-// Timestamps for activity detection
-unsigned long lastCANMsgTime = 0;
-unsigned long lastPDMsgTime = 0;
-unsigned long lastJavaMsgTime = 0;
-unsigned long lastHeartbeatTime = 0;
-
-// Global online status flags
-bool canOnline = false;
-bool pdOnline = false;
-bool javaOnline = false;
-bool heartbeatOnline = false;
-
-// Global values
-float globalVoltage = 0.0f;
-float energyTotal = 0.0f;
 
 // Called from TaskCANRx() when a CAN message is received
 void onCANMessage(const twai_message_t* msg) {
@@ -560,20 +564,20 @@ void onCANMessage(const twai_message_t* msg) {
 // ============  GLOBAL DATA SUPERVISOR  =============
 // ==================================================
 void TaskCANGlobalHandler(void* pvParameters) {
-  unsigned long lastLoop   = millis();
-  unsigned long lastPrint  = 0;
+  unsigned long lastLoop = millis();
+  unsigned long lastPrintTime = 0;  
+  float lastVoltage = 0.0f;
   float dt = 0.0f;
 
-  // Track last known states to detect transitions
-  bool lastCanOnline        = true;
-  bool lastPdOnline         = true;
-  bool lastJavaOnline       = true;
-  bool lastHeartbeatOnline  = true;
+  bool lastPdOnline = true;
+  bool lastHeartbeatOnline = true;
+  bool lastJavaOnline = true;
 
   for (;;) {
     unsigned long now = millis();
     dt = (now - lastLoop) / 1000.0f;
     lastLoop = now;
+
 
     // --- Timeout detection (1000 ms) ---
     canOnline        = (now - lastCANMsgTime    < 1000);
@@ -597,8 +601,8 @@ void TaskCANGlobalHandler(void* pvParameters) {
     // --- Voltage source preference ---
     if (pdOnline && PDvoltage > 5.0f)
       globalVoltage = PDvoltage;
-    else if (javaOnline && voltage > 5.0f)
-      globalVoltage = voltage;
+    else if (javaOnline && rioVoltage > 5.0f)
+      globalVoltage = rioVoltage;
     else
       globalVoltage = 0.0f;
 
@@ -608,61 +612,40 @@ void TaskCANGlobalHandler(void* pvParameters) {
       lowestVoltage = globalVoltage;
 
     // --- Energy calculation ---
-    float power = globalVoltage * PDcurrent;
-    energyTotal += power * dt;
+    static float localEnergyTotal_J = 0.0f;
+    float power_W = globalVoltage * PDcurrent;  // watts = volts * amps
+    localEnergyTotal_J += power_W * dt;
 
-    // --- Determine if we should print ---
-    bool triggerPrint = false;
-
-    // Time-based print every 10 s
-    if (now - lastPrint >= 10000) {
-      triggerPrint = true;
+    // --- Choose energy source ---
+    if (useRoboRIOEnergy) {
+      // RIO reports energy in kJ directly
+      energyTotal = roboRIOenergy;
+    } else {
+      // Convert J → kJ (float, 1 decimal)
+      energyTotal = localEnergyTotal_J / 1000.0f;
     }
 
-    // Print on any ONLINE→OFFLINE transition
-    if ((!canOnline        &&  lastCanOnline) ||
-        (!pdOnline         &&  lastPdOnline) ||
-        (!javaOnline       &&  lastJavaOnline) ||
-        (!heartbeatOnline  &&  lastHeartbeatOnline)) {
-      triggerPrint = true;
+    // --- Update integer global energy (kJ) for NFC / CAN TX ---
+    energy = (int)roundf(energyTotal);
+
+    // --- Debug print every 10 seconds or on loss events ---
+    if (now - lastPrintTime > 3000)  {
+
+      Serial.printf("[CANGlobal] CAN:%d HB:%d PD:%d Java:%d | PDType:%s | Robot:%s | V=%.2fV I=%.2fA E=%d kJ | LowestV=%.2f | %04d-%02d-%02d %02d:%02d:%02d\n",
+                    canOnline, heartbeatOnline, pdOnline, javaOnline,
+                    (pdType == REV_PDH) ? "REV_PDH" :
+                    (pdType == CTRE_PDP) ? "CTRE_PDP" : "NONE",
+                    currentlyEnabled ? "EN" : "DIS",
+                    globalVoltage, PDcurrent, energy,
+                    lowestVoltage,
+                    year, month, day, hour, minute, second);
+
+      lastPrintTime = now;
+      lastPdOnline = pdOnline;
+      lastHeartbeatOnline = heartbeatOnline;
+      lastJavaOnline = javaOnline;
     }
 
-    // --- Perform print if triggered ---
-    if (triggerPrint) {
-      // Format PD type string
-      const char* pdName = "NO_PD";
-      switch (pdType) {
-        case CTRE_PDP: pdName = "CTRE_PDP"; break;
-        case REV_PDH:  pdName = "REV_PDH";  break;
-        default: break;
-      }
-
-      // Format enable/disable
-      const char* robotState = currentlyEnabled ? "EN" : "DIS";
-
-      // Format timestamp safely
-      char timeStr[24];
-      snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02d %02d:%02d:%02d",
-               year, month, day, hour, minute, second);
-
-      Serial.printf(
-        "[CANGlobal] CAN:%d HB:%d PD:%d Java:%d | "
-        "PDType:%s | Robot:%s | "
-        "V=%.2fV I=%.2fA E=%.1fJ | LowestV=%.2f | %s\n",
-        canOnline, heartbeatOnline, pdOnline, javaOnline,
-        pdName, robotState,
-        globalVoltage, PDcurrent, energyTotal,
-        lowestVoltage, timeStr
-      );
-
-      lastPrint = now;
-    }
-
-    // --- Update last-known states ---
-    lastCanOnline        = canOnline;
-    lastPdOnline         = pdOnline;
-    lastJavaOnline       = javaOnline;
-    lastHeartbeatOnline  = heartbeatOnline;
 
     vTaskDelay(pdMS_TO_TICKS(100));  // Run every 100 ms
   }
@@ -729,28 +712,82 @@ void handlePD(const twai_message_t& msg) {
 // ===============  HANDLE JAVA CAN =================
 // ==================================================
 void handleJavaCAN(const twai_message_t& msg) {
-  uint32_t id = msg.identifier;
-  uint16_t api_id = (id >> 6) & 0x3FF;
+  uint16_t api_id = (msg.identifier >> 6) & 0x3FF;
+
+  static int lastOverrideState = 0;
+  static bool overrideApplied = false;
 
   switch (api_id) {
-    case BATTERY_STATUS_API_ID_1: {  // Voltage
-      rioVoltage = ((msg.data[1] << 8) | msg.data[0]) * 0.01f;
+    case 0x135: {  // RIO → ESP Control Frame
+      rioVoltage        = msg.data[0] * 0.1f;   // voltage ×10
+      uint8_t newOverride = msg.data[1];        // override command
+      useRoboRIOEnergy  = msg.data[2];          // use RIO as PD
+      // big-endian decode (MSB first)
+      roboRIOenergy = ((uint16_t)msg.data[3] << 8) | (uint16_t)msg.data[4];
+
+
+      bool rebootReq    = msg.data[5];
+
+      lastJavaMsgTime = millis();
+      javaOnline = true;
+
+      // --- Reboot handling ---
+      if (rebootReq) {
+        Serial.println("[CAN] Reboot requested by RIO");
+        ESP.restart();
+      }
+
+      // --- Override debounce handling ---
+      if (newOverride != 0) {
+        if (newOverride != lastOverrideState)
+          overrideApplied = false;  // new command detected
+
+        if (!overrideApplied) {
+          switch (newOverride) {
+            case 1:
+              currentState = STATE_WAIT_FOR_TAG;
+              Serial.println("[Override] STATE_WAIT_FOR_TAG");
+              break;
+            case 2:
+              currentState = STATE_PARSE_AND_WRITE_INITIAL;
+              Serial.println("[Override] STATE_PARSE_AND_WRITE_INITIAL");
+              break;
+            case 3:
+              currentState = STATE_WAIT_FOR_DATA;
+              Serial.println("[Override] STATE_WAIT_FOR_DATA");
+              break;
+            case 4:
+              currentState = STATE_WRITE_FINAL;
+              Serial.println("[Override] STATE_WRITE_FINAL");
+              break;
+            default:
+              Serial.printf("[Override] Unknown override: %d\n", newOverride);
+              break;
+          }
+          overrideApplied = true;
+          lastOverrideState = newOverride;
+        }
+      } else {
+        // override cleared
+        if (lastOverrideState != 0) {
+          Serial.println("[Override] Released (returning to automatic)");
+        }
+        lastOverrideState = 0;
+        overrideApplied = false;
+      }
+
       break;
     }
 
-    case BATTERY_STATUS_API_ID_2: {  // Energy or similar data
-      roboRIOenergy = ((msg.data[1] << 8) | msg.data[0]);
+    case 0x136:
+      // Reserved future telemetry frame
       break;
-    }
 
-    case RFID_META_API_ID_1: {
-      // Could be used for metadata or datetime; depends on your previous Java layout
+    default:
       break;
-    }
   }
-
-  Serial.printf("[JavaCAN] ID:%03X | V_rio=%.2fV | E_rio=%dJ\n", api_id, rioVoltage, roboRIOenergy);
 }
+
 
 void handleHeartbeat(const twai_message_t& msg) {
   if (!msg.extd || msg.identifier != HEARTBEAT_ID || msg.data_length_code != 8)
