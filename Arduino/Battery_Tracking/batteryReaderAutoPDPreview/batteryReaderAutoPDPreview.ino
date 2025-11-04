@@ -647,7 +647,7 @@ void TaskCANGlobalHandler(void* pvParameters) {
     }
 
 
-    vTaskDelay(pdMS_TO_TICKS(100));  // Run every 100 ms
+    vTaskDelay(pdMS_TO_TICKS(50));  // Run every 50 ms
   }
 }
 
