@@ -32,7 +32,8 @@ public class batteryCAN {
   private static final int API_ESP_STATE = 0x133;
   private static final int API_RIO_CTRL  = 0x135;
 
-  private static final double SEND_INTERVAL_S = 0.050; // 50 ms
+  private static final double SEND_INTERVAL_S = 0.050;  // 50 ms
+  private static final double ESP_TIMEOUT_S   = 1.000;  // 1000 ms
 
   private final CAN can;
   private final CANData rxFrame = new CANData();
@@ -51,6 +52,10 @@ public class batteryCAN {
   private int energyKJ = 0;
   private int overrideState = 0;
   private boolean espRebootRequested = false;
+
+  // --- ESP Online Tracking ---
+  private boolean espOnline = false;
+  private boolean lastESPOnline = false;
 
   // --- Internal scheduler ---
   private double lastSendTime = 0.0;
@@ -75,18 +80,35 @@ public class batteryCAN {
   // Main update loop (RX + TX)
   // --------------------------------------------------------------------------
   private void update() {
-    // ---- RX Frames ----
-    if (can.readPacketLatest(API_ESP_SN, rxFrame))  parseSerial(rxFrame.data);
-    if (can.readPacketLatest(API_ESP_META, rxFrame)) parseMeta(rxFrame.data);
-    if (can.readPacketLatest(API_ESP_STATE, rxFrame)) parseState(rxFrame.data);
-
-    // ---- TX Control Frame ----
     double now = Timer.getFPGATimestamp();
-    if ((now - lastSendTime) >= SEND_INTERVAL_S) {
-      lastSendTime = now;
-      sendControl();
+    boolean gotAnyFrame = false;
+
+    // --- RX Frames ---
+    if (can.readPacketNew(API_ESP_SN, rxFrame))  { parseSerial(rxFrame.data); gotAnyFrame = true; }
+    if (can.readPacketNew(API_ESP_META, rxFrame)) { parseMeta(rxFrame.data); gotAnyFrame = true; }
+    if (can.readPacketNew(API_ESP_STATE, rxFrame)) { parseState(rxFrame.data); gotAnyFrame = true; }
+
+    // --- Update online/offline status ---
+    if (gotAnyFrame) {
+        lastUpdate = now;
     }
-  }
+
+    espOnline = (now - lastUpdate) <= ESP_TIMEOUT_S;
+    if (espOnline != lastESPOnline) {
+        if (espOnline)
+            System.out.println("[BatteryCAN] ESP32 reconnected.");
+        else
+            System.out.println("[BatteryCAN] ESP32 offline for.");
+        lastESPOnline = espOnline;
+    }
+
+    // --- TX ---
+    if ((now - lastSendTime) >= SEND_INTERVAL_S) {
+        lastSendTime = now;
+        sendControl();
+    }
+}
+
 
   // --------------------------------------------------------------------------
   // ESP → RIO parsers
@@ -94,7 +116,6 @@ public class batteryCAN {
   private void parseSerial(byte[] d) {
     serial = new String(d).trim();
     valid = true;
-    lastUpdate = Timer.getFPGATimestamp();
   }
 
   private void parseMeta(byte[] d) {
@@ -107,7 +128,6 @@ public class batteryCAN {
     cycleCount = d[5] & 0xFF;
     note   = (d.length > 6) ? (d[6] & 0xFF) : 0;
     valid = true;
-    lastUpdate = Timer.getFPGATimestamp();
   }
 
   private void parseState(byte[] d) {
@@ -120,7 +140,6 @@ public class batteryCAN {
     if (d.length >= 7)
       writeCount = ((d[5] & 0xFF) << 8) | (d[6] & 0xFF);
     valid = true;
-    lastUpdate = Timer.getFPGATimestamp();
   }
 
   // --------------------------------------------------------------------------
@@ -150,12 +169,31 @@ public class batteryCAN {
   }
 
   public void setOverrideState(int state) {
-    overrideState = state & 0xFF;
-  }
+    int newState = state & 0xFF;
 
-  public void requestReboot() {
-    espRebootRequested = true;
-  }
+    // Only print when changing from 0 → non-zero
+    if (overrideState == 0 && newState != 0) {
+        System.out.println("[BatteryCAN] Dangerous debug override enabled! "
+            + "Use ESP reboot if scanning for a new tag or new PD instead.");
+    }
+
+    overrideState = newState;
+}
+
+
+private double lastRebootRequestTime = 0;  // add this field near the top with other variables
+
+public void requestReboot() {
+    double now = Timer.getFPGATimestamp();
+
+    // Only act if flipping from false → true, and debounce at 1s
+    if (!espRebootRequested && (now - lastRebootRequestTime) > 1.0) {
+        espRebootRequested = true;
+        lastRebootRequestTime = now;
+        System.out.println("[BatteryCAN] ESP32 reboot requested.");
+    }
+}
+
 
   // --------------------------------------------------------------------------
   // Public getters
@@ -174,5 +212,10 @@ public class batteryCAN {
   /** Returns formatted first-use timestamp as "YYYY-MM-DD HH:MM". */
   public String getFirstUseDateTime() {
     return String.format("%04d-%02d-%02d %02d:%02d", year, month, day, hour, minute);
+  }
+
+  /** Returns true if ESP has sent any CAN frame within the last 1000ms. */
+  public boolean getIsESPOnline() {
+    return espOnline;
   }
 }

@@ -29,9 +29,10 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("Auth Fail Count", battery.getAuthFailCount());
     SmartDashboard.putNumber("Write Count", battery.getWriteCount());
     SmartDashboard.putString("Battery Date", battery.getFirstUseDateTime());
+    SmartDashboard.putString("ESP32 Status", battery.getIsESPOnline() ? "ONLINE" : "OFFLINE");
 
     // === Dashboard Controls ===
-    int overrideState = (int) SmartDashboard.getNumber("Override State", 0);
+    int overrideState = (int) SmartDashboard.getNumber("Override State", 0); //this is a dangerous action and should only be used for debuging.
     int energyKJ = (int) SmartDashboard.getNumber("Energy kJ", 0);
     boolean reboot = SmartDashboard.getBoolean("ESP Reboot", false);
 
