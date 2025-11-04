@@ -78,14 +78,13 @@ MFRC522::MIFARE_Key keyA;
 // ==================================================
 // ==================  TASK HEADERS  =================
 // ==================================================
-void TaskCANRxJava(void* pvParameters);
-void TaskCANRxrioHeartbeat(void* pvParameters);
-void TaskCANRxPD(void* pvParameters);
-void TaskCANTx(void* pvParameters);
-void TaskAutoBatteryManager(void* pvParameters);
-void TaskLEDIndicator(void* pvParameters);
-void TaskCANGlobalHandler(void* pvParameters);
-void TaskLEDIndicator(void* pvParameters);
+void TaskCANAlertHandler(void* pvParameters);     // Handles TWAI alerts (bus off, recovery)
+void TaskCANGlobalHandler(void* pvParameters);    // Unified CAN receive handler (all inbound frames)
+void TaskCANTx(void* pvParameters);               // Periodic CAN transmit manager
+void TaskCANRx(void* pvParameters);               // Periodic CAN Receive manager
+void TaskAutoBatteryManager(void* pvParameters);  // NFC + battery session management
+void TaskLEDIndicator(void* pvParameters);        // LED status logic
+
 
 // ==================================================
 // ===============  SYSTEM STATE GLOBALS  ============

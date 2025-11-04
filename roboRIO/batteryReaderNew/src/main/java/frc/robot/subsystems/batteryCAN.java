@@ -145,21 +145,48 @@ public class batteryCAN {
   // --------------------------------------------------------------------------
   // RIO → ESP control frame builder
   // --------------------------------------------------------------------------
-  private void sendControl() {
+
+private boolean canWriteError = false;  // add this field near the top with other state vars
+
+private void sendControl() {
     byte[] payload = new byte[8];
     int v10 = (int)Math.round(RobotController.getBatteryVoltage() * 10.0);
     payload[0] = (byte)(v10 & 0xFF);
     payload[1] = (byte)overrideState;
     payload[2] = (byte)((energyKJ > 0) ? 1 : 0); // useRIOEnergy flag
-    payload[3] = (byte)((energyKJ >> 8) & 0xFF); // MSB first (big-endian)
+    payload[3] = (byte)((energyKJ >> 8) & 0xFF); // MSB first
     payload[4] = (byte)(energyKJ & 0xFF);         // LSB
     payload[5] = (byte)(espRebootRequested ? 1 : 0);
     payload[6] = 0;
     payload[7] = 0;
 
-    can.writePacket(payload, API_RIO_CTRL);
+    try {
+        can.writePacket(payload, API_RIO_CTRL);
+
+        // Recovery message (print once)
+        if (canWriteError) {
+            System.out.println("[BatteryCAN] CAN bus recovered.");
+            canWriteError = false;
+        }
+
+    } catch (edu.wpi.first.hal.util.UncleanStatusException e) {
+        // Suppress spam: print once when first seen
+        if (!canWriteError && e.getMessage() != null &&
+            e.getMessage().contains("CAN Output Buffer Full")) {
+            System.out.println("[BatteryCAN] CAN buffer full — no ESP32 disconnected?");
+            canWriteError = true;
+        }
+        return; // skip reboot flag reset
+    } catch (Exception e) {
+        if (!canWriteError) {
+            System.out.println("[BatteryCAN] Unexpected CAN write exception: " + e.getMessage());
+            canWriteError = true;
+        }
+        return;
+    }
+
     espRebootRequested = false; // one-shot
-  }
+}
 
   // --------------------------------------------------------------------------
   // Public setters

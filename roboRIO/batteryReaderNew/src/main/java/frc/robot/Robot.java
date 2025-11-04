@@ -22,6 +22,14 @@ public class Robot extends TimedRobot {
     // === Display telemetry from ESP32 ===
     SmartDashboard.putString("Battery Serial", battery.getSerial());
     SmartDashboard.putNumber("Cycle Count", battery.getCycleCount());
+    String noteLabel = switch (battery.getNote()) {
+        case 0 -> "Normal";
+        case 1 -> "Practice Only";
+        case 2 -> "Scrap";
+        case 3 -> "Other";
+        default -> "Unknown";
+    };
+    SmartDashboard.putString("NotCause", noteLabel);
     SmartDashboard.putNumber("Note", battery.getNote());
     SmartDashboard.putNumber("ESP State", battery.getESPState());
     SmartDashboard.putNumber("PD Type", battery.getPDType());
