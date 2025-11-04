@@ -17,8 +17,7 @@ public class Robot extends TimedRobot {
 
   @Override
   public void robotPeriodic() {
-    // Handle CAN RX/TX
-    battery.update();
+
 
     // === Display telemetry from ESP32 ===
     SmartDashboard.putString("Battery Serial", battery.getSerial());

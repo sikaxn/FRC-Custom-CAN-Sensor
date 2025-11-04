@@ -2,31 +2,31 @@ package frc.robot.subsystems;
 
 import edu.wpi.first.hal.CANData;
 import edu.wpi.first.wpilibj.CAN;
+import edu.wpi.first.wpilibj.Notifier;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.Timer;
 
 /**
  * BatteryCAN driver for ESP32-based battery tracker.
- * 
- * Protocol:
- *  ESP32 → RIO:
- *    0x131 - Battery Serial (8 bytes ASCII)
- *    0x132 - Metadata (yy mm dd HH mm cycle note)
- *    0x133 - System State (espState, pdType, readerLock, authFail, writeCount)
- * 
- *  RIO → ESP32:
- *    0x135 - Control Frame:
- *      [0] = rioVoltage * 10
- *      [1] = overrideState
- *      [2] = useRIOEnergy (auto true if energyKJ > 0)
- *      [3..4] = energyKJ (big-endian)
- *      [5] = espRebootRequested (button)
- *      [6..7] = unused
+ *
+ * ESP32 → RIO:
+ *   0x131 – Battery Serial (8 bytes)
+ *   0x132 – Metadata (yy mm dd HH mm cycle note)
+ *   0x133 – System State (espState, pdType, readerLock, authFail, writeCount)
+ *
+ * RIO → ESP32 (0x135):
+ *   [0] = rioVoltage × 10
+ *   [1] = overrideState
+ *   [2] = useRIOEnergy (flag if energyKJ > 0)
+ *   [3] = energyKJ MSB
+ *   [4] = energyKJ LSB
+ *   [5] = espReboot request
+ *   [6-7] = unused
  */
 public class batteryCAN {
   private static final int DEFAULT_DEVICE_NUMBER = 33;
 
-  // CAN API IDs
+  // --- CAN API IDs ---
   private static final int API_ESP_SN    = 0x131;
   private static final int API_ESP_META  = 0x132;
   private static final int API_ESP_STATE = 0x133;
@@ -36,6 +36,7 @@ public class batteryCAN {
 
   private final CAN can;
   private final CANData rxFrame = new CANData();
+  private final Notifier notifier;
 
   // --- ESP → RIO data ---
   private String serial = "";
@@ -51,9 +52,12 @@ public class batteryCAN {
   private int overrideState = 0;
   private boolean espRebootRequested = false;
 
-  // --- Scheduler ---
+  // --- Internal scheduler ---
   private double lastSendTime = 0.0;
 
+  // --------------------------------------------------------------------------
+  // Constructor: starts background Notifier
+  // --------------------------------------------------------------------------
   public batteryCAN() {
     this(DEFAULT_DEVICE_NUMBER);
   }
@@ -61,16 +65,22 @@ public class batteryCAN {
   public batteryCAN(int deviceNumber) {
     this.can = new CAN(deviceNumber);
     this.lastSendTime = Timer.getFPGATimestamp();
+
+    // Start periodic CAN handler (50 ms)
+    notifier = new Notifier(this::update);
+    notifier.startPeriodic(SEND_INTERVAL_S);
   }
 
-  /** Call periodically (e.g. in robotPeriodic). Handles RX and TX. */
-  public void update() {
-    // RX
-    if (can.readPacketLatest(API_ESP_SN, rxFrame)) parseSerial(rxFrame.data);
+  // --------------------------------------------------------------------------
+  // Main update loop (RX + TX)
+  // --------------------------------------------------------------------------
+  private void update() {
+    // ---- RX Frames ----
+    if (can.readPacketLatest(API_ESP_SN, rxFrame))  parseSerial(rxFrame.data);
     if (can.readPacketLatest(API_ESP_META, rxFrame)) parseMeta(rxFrame.data);
     if (can.readPacketLatest(API_ESP_STATE, rxFrame)) parseState(rxFrame.data);
 
-    // TX every 50 ms
+    // ---- TX Control Frame ----
     double now = Timer.getFPGATimestamp();
     if ((now - lastSendTime) >= SEND_INTERVAL_S) {
       lastSendTime = now;
@@ -78,9 +88,9 @@ public class batteryCAN {
     }
   }
 
-  // =======================================================
-  // --------------- ESP → RIO Frame Parsers ---------------
-  // =======================================================
+  // --------------------------------------------------------------------------
+  // ESP → RIO parsers
+  // --------------------------------------------------------------------------
   private void parseSerial(byte[] d) {
     serial = new String(d).trim();
     valid = true;
@@ -105,24 +115,26 @@ public class batteryCAN {
     espState = d[0] & 0xFF;
     pdType   = d[1] & 0xFF;
     readerDetected = (d[2] & 0xFF) != 0;
-    if (d.length >= 5) authFailCount = ((d[3] & 0xFF) << 8) | (d[4] & 0xFF);
-    if (d.length >= 7) writeCount = ((d[5] & 0xFF) << 8) | (d[6] & 0xFF);
+    if (d.length >= 5)
+      authFailCount = ((d[3] & 0xFF) << 8) | (d[4] & 0xFF);
+    if (d.length >= 7)
+      writeCount = ((d[5] & 0xFF) << 8) | (d[6] & 0xFF);
     valid = true;
     lastUpdate = Timer.getFPGATimestamp();
   }
 
-  // =======================================================
-  // --------------- RIO → ESP Control Frame ---------------
-  // =======================================================
+  // --------------------------------------------------------------------------
+  // RIO → ESP control frame builder
+  // --------------------------------------------------------------------------
   private void sendControl() {
     byte[] payload = new byte[8];
-    int v10 = (int) Math.round(RobotController.getBatteryVoltage() * 10);
-    payload[0] = (byte) (v10 & 0xFF);
-    payload[1] = (byte) overrideState;
-    payload[2] = (byte) ((energyKJ > 0) ? 1 : 0); // useRIOEnergy auto
-    payload[3] = (byte) ((energyKJ >> 8) & 0xFF);
-    payload[4] = (byte) (energyKJ & 0xFF);
-    payload[5] = (byte) (espRebootRequested ? 1 : 0);
+    int v10 = (int)Math.round(RobotController.getBatteryVoltage() * 10.0);
+    payload[0] = (byte)(v10 & 0xFF);
+    payload[1] = (byte)overrideState;
+    payload[2] = (byte)((energyKJ > 0) ? 1 : 0); // useRIOEnergy flag
+    payload[3] = (byte)((energyKJ >> 8) & 0xFF); // MSB first (big-endian)
+    payload[4] = (byte)(energyKJ & 0xFF);         // LSB
+    payload[5] = (byte)(espRebootRequested ? 1 : 0);
     payload[6] = 0;
     payload[7] = 0;
 
@@ -130,9 +142,9 @@ public class batteryCAN {
     espRebootRequested = false; // one-shot
   }
 
-  // =======================================================
-  // ------------------- Public Setters --------------------
-  // =======================================================
+  // --------------------------------------------------------------------------
+  // Public setters
+  // --------------------------------------------------------------------------
   public void setEnergyKJ(int value) {
     energyKJ = Math.max(0, Math.min(65535, value));
   }
@@ -145,19 +157,19 @@ public class batteryCAN {
     espRebootRequested = true;
   }
 
-  // =======================================================
-  // ------------------- Public Getters --------------------
-  // =======================================================
-  public String getSerial() { return serial; }
-  public int getCycleCount() { return cycleCount; }
-  public int getNote() { return note; }
-  public int getESPState() { return espState; }
-  public int getPDType() { return pdType; }
+  // --------------------------------------------------------------------------
+  // Public getters
+  // --------------------------------------------------------------------------
+  public String  getSerial()        { return serial; }
+  public int     getCycleCount()    { return cycleCount; }
+  public int     getNote()          { return note; }
+  public int     getESPState()      { return espState; }
+  public int     getPDType()        { return pdType; }
   public boolean isReaderDetected() { return readerDetected; }
-  public int getAuthFailCount() { return authFailCount; }
-  public int getWriteCount() { return writeCount; }
-  public boolean isValid() { return valid; }
-  public double getLastUpdate() { return lastUpdate; }
+  public int     getAuthFailCount() { return authFailCount; }
+  public int     getWriteCount()    { return writeCount; }
+  public boolean isValid()          { return valid; }
+  public double  getLastUpdate()    { return lastUpdate; }
 
   /** Returns formatted first-use timestamp as "YYYY-MM-DD HH:MM". */
   public String getFirstUseDateTime() {
