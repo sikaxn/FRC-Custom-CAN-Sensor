@@ -871,7 +871,7 @@ void TaskLEDIndicator(void* pvParameters) {
         Serial.println(F("[INFO] Write success — auth fail warning cleared."));
       }
 
-      // New: Clear warning when robot becomes enabled
+      // Clear warning when robot becomes enabled
       if (writeFailActive && currentlyEnabled) {
         writeFailActive = false;
         Serial.println(F("[INFO] Robot enabled — clearing write fail warning."));
@@ -904,7 +904,7 @@ void TaskLEDIndicator(void* pvParameters) {
     // ---------------- Priority 4: Yellow (auth fail warning) ----------------
     else if (writeFailActive) {
       r = 255; g = 255;
-      blinkHz = 5;  // 10 Hz blink → recent write/auth failure
+      blinkHz = 5;  // 5 Hz blink → recent write/auth failure
     }
 
     // ---------------- Priority 3: Yellow (other cautions) ----------------
@@ -915,6 +915,13 @@ void TaskLEDIndicator(void* pvParameters) {
     else if (!pdOnline && !javaOnline) {
       r = 255; g = 255;
       blinkHz = 2;  // PD and Java both offline
+    }
+
+    // ---------------- Priority 2.5: Cyan (using RoboRIO energy) ----------------
+    else if (readerDetected && heartbeatOnline && (pdOnline || javaOnline) &&
+             !currentlyEnabled && useRoboRIOEnergy) {
+      g = 255; b = 255;   // Cyan solid
+      blinkHz = 0;
     }
 
     // ---------------- Priority 2: Green / White (good) ----------------
