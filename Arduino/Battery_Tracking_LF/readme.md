@@ -20,6 +20,14 @@ Unlike the full IronMaple Battery Tracking Solution that uses HF NFC (13.56 MHz)
 
 * Each tag’s ID is fixed and must be managed manually.
 
+# ESP32 Online Flasher
+
+TBD
+
+# roboRIO Driver
+
+https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/roboRIO/batteryReaderLF
+
 # GPIO
 
 | **Symbol**    | **GPIO Pin**              | **Direction**       | **Function / Description**                                                                     |
@@ -39,3 +47,4 @@ Unlike the full IronMaple Battery Tracking Solution that uses HF NFC (13.56 MHz)
 | `0x10` | Rio → ESP | Reboot request                                | `[0x01]` (one byte)        |
 | `0x11` | ESP → Rio | First 8 bytes of tag serial                   | `[S0..S7]`                 |
 | `0x12` | ESP → Rio | Last 6 bytes of tag serial + status + counter | `[S8..S13][status][count]` |
+
