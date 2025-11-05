@@ -86,7 +86,7 @@ void setup() {
   twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
   if (twai_driver_install(&g_config, &t_config, &f_config) == ESP_OK && twai_start() == ESP_OK)
-    Serial.println(F("[CAN] TWAI driver started (500kbps)"));
+    Serial.println(F("[CAN] TWAI driver started (1Mbps)"));
   else
     Serial.println(F("[CAN] ERROR starting driver"));
 
