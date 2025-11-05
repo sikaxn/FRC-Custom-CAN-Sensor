@@ -141,6 +141,9 @@ int currentSessionId = 0;
 
 volatile uint16_t authFailCount = 0;
 volatile uint16_t totalWriteCount = 0;
+static uint16_t lastAuthFailCount = 0;
+static uint16_t lastWriteCount = 0;
+static bool writeFailActive = false;
 char batteryFirstUseFull[11] = "";  // Format: "yyMMddHHmm"
 
 // ==================================================
@@ -845,18 +848,46 @@ void handleHeartbeat(const twai_message_t& msg) {
 
 
 void TaskLEDIndicator(void* pvParameters) {
+  static uint32_t lastAuthCheck = 0;
+
   for (;;) {
     uint8_t blinkHz = 0;  // 0 = solid
     uint8_t r = 0, g = 0, b = 0;
 
-    // ---------------- Priority 5: Blue (highest) ----------------
+    // --- Update write-failure flag every 100 ms ---
+    if (millis() - lastAuthCheck > 100) {
+      lastAuthCheck = millis();
+
+      // Detect increase in auth fail count → trigger yellow warning
+      if (authFailCount > lastAuthFailCount) {
+        writeFailActive = true;
+        lastAuthFailCount = authFailCount;
+        Serial.println(F("[WARN] Write authentication failed — LED warning active."));
+      }
+
+      // If a successful write happened after failure → auto-clear warning
+      if (writeFailActive && totalWriteCount > lastWriteCount) {
+        writeFailActive = false;
+        Serial.println(F("[INFO] Write success — auth fail warning cleared."));
+      }
+
+      // New: Clear warning when robot becomes enabled
+      if (writeFailActive && currentlyEnabled) {
+        writeFailActive = false;
+        Serial.println(F("[INFO] Robot enabled — clearing write fail warning."));
+      }
+
+      lastWriteCount = totalWriteCount;
+    }
+
+    // ---------------- Priority 6: Blue (highest) ----------------
     if (currentState == STATE_PARSE_AND_WRITE_INITIAL ||
         currentState == STATE_WRITE_FINAL) {
       b = 255;
       blinkHz = 4;  // 4 Hz blink → writing card
     }
 
-    // ---------------- Priority 4: Red (error) ----------------
+    // ---------------- Priority 5: Red (error) ----------------
     else if (!canOnline) {
       r = 255;
       blinkHz = 1;  // 1 Hz blink → CAN lost
@@ -870,7 +901,13 @@ void TaskLEDIndicator(void* pvParameters) {
       blinkHz = 3;  // 3 Hz blink → no heartbeat
     }
 
-    // ---------------- Priority 3: Yellow (caution) ----------------
+    // ---------------- Priority 4: Yellow (auth fail warning) ----------------
+    else if (writeFailActive) {
+      r = 255; g = 255;
+      blinkHz = 5;  // 10 Hz blink → recent write/auth failure
+    }
+
+    // ---------------- Priority 3: Yellow (other cautions) ----------------
     else if (currentState == STATE_WAIT_FOR_TAG) {
       r = 255; g = 255;
       blinkHz = 1;  // waiting for tag
@@ -883,32 +920,29 @@ void TaskLEDIndicator(void* pvParameters) {
     // ---------------- Priority 2: Green / White (good) ----------------
     else if (readerDetected && heartbeatOnline && (pdOnline || javaOnline)) {
       if (currentlyEnabled) {
-        // Enabled while good → White solid
-        r = g = b = 255;
+        r = g = b = 255;   // White solid
         blinkHz = 0;
       } else {
-        // Disabled but OK → Green solid
-        g = 255;
+        g = 255;           // Green solid
         blinkHz = 0;
       }
     }
 
-    // ---------------- Fallback (lowest priority) ----------------
+    // ---------------- Fallback (lowest) ----------------
     else if (currentlyEnabled && canOnline && heartbeatOnline &&
              pdOnline && javaOnline && readerDetected) {
-      // Everything perfect and enabled → solid white
-      r = g = b = 255;
+      r = g = b = 255;  // All perfect → white
       blinkHz = 0;
     }
 
-    // ---------------- Blink Logic ----------------
+    // --- Blink Timing ---
     bool on = true;
     if (blinkHz > 0) {
       unsigned long period = 1000 / (blinkHz * 2);
       on = (millis() / period) % 2;
     }
 
-    // ---------------- Apply LED ----------------
+    // --- Apply LED ---
     analogWrite(LED_R, on ? r : 0);
     analogWrite(LED_G, on ? g : 0);
     analogWrite(LED_B, on ? b : 0);
@@ -1123,7 +1157,12 @@ void writeNewUsageLog(int eventId, const String& timeStr, int energy, float volt
   reader.PCD_Reset();
   reader.PCD_Init();
 
-  if (!reader.PICC_IsNewCardPresent() || !reader.PICC_ReadCardSerial()) return;
+  if (!reader.PICC_IsNewCardPresent() || !reader.PICC_ReadCardSerial()) {
+  Serial.println("[WRITE] Unable to write. Skip.");
+  if (authFailCount < 0xFFFF) authFailCount++;  // count as a failure
+  return;
+}
+
 
   byte blockData[MAX_BLOCKS][16];
   bool blockValid[MAX_BLOCKS] = {false};
