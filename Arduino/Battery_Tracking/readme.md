@@ -1,3 +1,7 @@
+# This is out dated.
+
+Please go to Dev-Board tree. https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/Battery_Tracking
+
 # Battery Tracking 
 
 CD Thread: https://www.chiefdelphi.com/t/rfid-battery-tracking-some-progress/502847
