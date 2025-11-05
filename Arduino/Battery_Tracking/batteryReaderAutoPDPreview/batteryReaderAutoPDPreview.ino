@@ -399,28 +399,48 @@ void TaskAutoBatteryManager(void* pvParameters) {
 void TaskCANAlertHandler(void* pvParameters) {
   uint32_t alerts;
   twai_message_t msg;
+  bool recovering = false;
 
   for (;;) {
     // Wait for alert flags (RX_DATA triggers when a new frame is received)
     if (twai_read_alerts(&alerts, pdMS_TO_TICKS(100)) == ESP_OK) {
+
+      // Handle incoming frames quickly
       if (alerts & TWAI_ALERT_RX_DATA) {
         while (twai_receive(&msg, 0) == ESP_OK) {
           xQueueSend(canRxQueue, &msg, 0);
         }
       }
 
-      if (alerts & TWAI_ALERT_BUS_OFF) {
-        Serial.println("[CAN] Bus Off detected, recovering...");
-        twai_initiate_recovery();
+      // ---------- TX FAIL ----------
+      if (alerts & TWAI_ALERT_TX_FAILED) {
+        Serial.println(F("[CAN] TX failed!"));
       }
 
-      if (alerts & TWAI_ALERT_TX_FAILED) {
-        Serial.println("[CAN] TX failed!");
+      // ---------- BUS OFF DETECTED ----------
+      if (alerts & TWAI_ALERT_BUS_OFF) {
+        Serial.println(F("[CAN] Bus Off detected, entering recovery..."));
+        recovering = true;
+        twai_initiate_recovery();   // Start recovery
       }
+
+      // ---------- RECOVERY COMPLETE ----------
+    if (recovering && (alerts & TWAI_ALERT_RECOVERY_IN_PROGRESS)) {
+      Serial.println(F("[CAN] Bus recovery in progress... restarting CAN driver."));
+      if (twai_start() == ESP_OK) {
+        Serial.println(F("[CAN] CAN bus restarted successfully."));
+      } else {
+        Serial.println(F("[CAN] Failed to restart CAN bus!"));
+      }
+      recovering = false;
     }
-    vTaskDelay(1);
+
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(5));
   }
 }
+
 
 
 static void IRAM_ATTR twai_isr_handler(void* arg) {
@@ -826,48 +846,77 @@ void handleHeartbeat(const twai_message_t& msg) {
 
 void TaskLEDIndicator(void* pvParameters) {
   for (;;) {
-    // ---------------- RED LED ----------------
-    if (!readerDetected) {
-      digitalWrite(LED_R, LOW);
-    } else {
-      switch (currentState) {
-        case STATE_WAIT_FOR_TAG:
-        case STATE_PARSE_AND_WRITE_INITIAL:
-          digitalWrite(LED_R, (millis() / 500) % 2);   // slow flash
-          break;
-        case STATE_WAIT_FOR_DATA:
-          digitalWrite(LED_R, HIGH);                   // solid
-          break;
-        case STATE_WRITE_FINAL:
-          digitalWrite(LED_R, (millis() / 100) % 2);   // quick flash
-          break;
-        default:
-          digitalWrite(LED_R, LOW);
-          break;
+    uint8_t blinkHz = 0;  // 0 = solid
+    uint8_t r = 0, g = 0, b = 0;
+
+    // ---------------- Priority 5: Blue (highest) ----------------
+    if (currentState == STATE_PARSE_AND_WRITE_INITIAL ||
+        currentState == STATE_WRITE_FINAL) {
+      b = 255;
+      blinkHz = 4;  // 4 Hz blink → writing card
+    }
+
+    // ---------------- Priority 4: Red (error) ----------------
+    else if (!canOnline) {
+      r = 255;
+      blinkHz = 1;  // 1 Hz blink → CAN lost
+    }
+    else if (!readerDetected) {
+      r = 255;
+      blinkHz = 2;  // 2 Hz blink → no reader
+    }
+    else if (!heartbeatOnline) {
+      r = 255;
+      blinkHz = 3;  // 3 Hz blink → no heartbeat
+    }
+
+    // ---------------- Priority 3: Yellow (caution) ----------------
+    else if (currentState == STATE_WAIT_FOR_TAG) {
+      r = 255; g = 255;
+      blinkHz = 1;  // waiting for tag
+    }
+    else if (!pdOnline && !javaOnline) {
+      r = 255; g = 255;
+      blinkHz = 2;  // PD and Java both offline
+    }
+
+    // ---------------- Priority 2: Green / White (good) ----------------
+    else if (readerDetected && heartbeatOnline && (pdOnline || javaOnline)) {
+      if (currentlyEnabled) {
+        // Enabled while good → White solid
+        r = g = b = 255;
+        blinkHz = 0;
+      } else {
+        // Disabled but OK → Green solid
+        g = 255;
+        blinkHz = 0;
       }
     }
 
-    // ---------------- BLUE LED (PD status) ----------------
-    if (pdOnline) {
-      digitalWrite(LED_B, HIGH);  // PD OK → solid blue
-    } else if (!pdOnline && (millis() / 1000) % 2 == 0) {
-      digitalWrite(LED_B, HIGH);  // blink every second if PD lost
-    } else {
-      digitalWrite(LED_B, LOW);   // off otherwise
+    // ---------------- Fallback (lowest priority) ----------------
+    else if (currentlyEnabled && canOnline && heartbeatOnline &&
+             pdOnline && javaOnline && readerDetected) {
+      // Everything perfect and enabled → solid white
+      r = g = b = 255;
+      blinkHz = 0;
     }
 
-    // ---------------- GREEN LED (heartbeat / enable) ----------------
-    if (!heartbeatOnline) {
-      digitalWrite(LED_G, LOW);  // heartbeat lost → off
-    } else if (currentlyEnabled) {
-      digitalWrite(LED_G, (millis() / 300) % 2);  // enabled → blink
-    } else {
-      digitalWrite(LED_G, HIGH);  // disabled → solid
+    // ---------------- Blink Logic ----------------
+    bool on = true;
+    if (blinkHz > 0) {
+      unsigned long period = 1000 / (blinkHz * 2);
+      on = (millis() / period) % 2;
     }
 
-    vTaskDelay(pdMS_TO_TICKS(50));  // update every 50 ms
+    // ---------------- Apply LED ----------------
+    analogWrite(LED_R, on ? r : 0);
+    analogWrite(LED_G, on ? g : 0);
+    analogWrite(LED_B, on ? b : 0);
+
+    vTaskDelay(pdMS_TO_TICKS(50));
   }
 }
+
 
 
 //=======READER Handing function DO NOT CHANGE========
