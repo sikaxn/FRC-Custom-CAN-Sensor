@@ -4,13 +4,6 @@ This is a simple and low-cost battery identification system that uses LF (Low Fr
 
 Unlike the full IronMaple Battery Tracking Solution that uses HF NFC (13.56 MHz) tags with JSON-based BEST data format, this approach is purely for identification, not for logging or writing data. It can be easily integrated into the robot’s control system or pit equipment where simple read-only ID functionality is sufficient.
 
-## Required Equipment
-
-* RDM6300 LF RFID Reader Module
-* EM4100 / EM4200 Tag
-* ESP32 Development Board
-* CAN Transceiver Module (TJA1051)
-* Power Supply (Buck converter) for ESP32
 
 ## Limitations
 
@@ -19,6 +12,20 @@ Unlike the full IronMaple Battery Tracking Solution that uses HF NFC (13.56 MHz)
 * Not compatible with phones or NFC readers.
 
 * Each tag’s ID is fixed and must be managed manually.
+
+
+# Required Equipment
+
+* RDM6300 LF RFID Reader Module
+* EM4100 / EM4200 Tag
+* ESP32 Development Board
+* CAN Transceiver Module (TJA1051)
+* Power Supply (Buck converter) for ESP32
+
+# Wiring
+
+
+![image](../../drawing/BatteryRFIDLF_bb.png)
 
 # ESP32 Online Flasher
 
