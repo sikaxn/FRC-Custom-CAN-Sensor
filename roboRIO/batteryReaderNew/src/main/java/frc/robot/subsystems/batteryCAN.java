@@ -237,7 +237,7 @@ public void requestReboot() {
   public int     getESPState()      { return espState; }
   public int     getPDType()        { return pdType; }
   public boolean isReaderDetected() { return readerDetected; }
-  public int     getAuthFailCount() { return authFailCount; }
+  public int     getWriteFailCount() { return authFailCount; } // Renamed for better clearity. All write fail are counted as auth fail now.
   public int     getWriteCount()    { return writeCount; }
   public boolean isValid()          { return valid; }
   public double  getLastUpdate()    { return lastUpdate; }

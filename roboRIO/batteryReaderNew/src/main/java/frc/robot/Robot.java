@@ -34,7 +34,7 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("ESP State", battery.getESPState());
     SmartDashboard.putNumber("PD Type", battery.getPDType());
     SmartDashboard.putBoolean("Reader Detected", battery.isReaderDetected());
-    SmartDashboard.putNumber("Auth Fail Count", battery.getAuthFailCount());
+    SmartDashboard.putNumber("Write Fail Count", battery.getWriteFailCount());
     SmartDashboard.putNumber("Write Count", battery.getWriteCount());
     SmartDashboard.putString("Battery Date", battery.getFirstUseDateTime());
     SmartDashboard.putString("ESP32 Status", battery.getIsESPOnline() ? "ONLINE" : "OFFLINE");
