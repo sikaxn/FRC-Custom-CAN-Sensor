@@ -10,6 +10,7 @@ Developed with wpilib 2025 and the latest firmware avaliable at the time for REV
 
 ## Android Companion APP and roboRIO Driver
 
+(new for preview firmware) https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/roboRIO/batteryReaderNew
 
 https://github.com/sikaxn/FRC-RFID-Battery-Reader/
 
