@@ -1,5 +1,6 @@
 #include <Arduino.h>  // Needed for FreeRTOS in Arduino context
-
+#include <EEPROM.h>
+#include "driver/twai.h"
 // === Libraries ===
 #include <MFRC522v2.h>
 #include <MFRC522DriverSPI.h>
@@ -8,7 +9,7 @@
 #include <ArduinoJson.h>
 #include <NdefMessage.h>
 #include <NdefRecord.h>
-#include "driver/twai.h"
+
 
 // ==================================================
 // ===============  HARDWARE DEFINITIONS  ============
@@ -31,7 +32,9 @@
 // FRC Device Identifiers
 #define DEVICE_ID        0x0A   // Do not change
 #define MANUFACTURER_ID  0x08   // Do not change
-#define DEVICE_NUMBER    33     // Custom device number (0–63)
+uint8_t DEVICE_NUMBER = 0;
+const uint8_t DEFAULT_DEVICE_NUMBER = 33;
+const int EEPROM_ADDR_DEVICE_NUM = 0;
 
 // CAN API IDs (FRC-style)
 #define HEARTBEAT_ID             0x01011840
@@ -84,6 +87,7 @@ void TaskCANTx(void* pvParameters);               // Periodic CAN transmit manag
 void TaskCANRx(void* pvParameters);               // Periodic CAN Receive manager
 void TaskAutoBatteryManager(void* pvParameters);  // NFC + battery session management
 void TaskLEDIndicator(void* pvParameters);        // LED status logic
+void TaskCANIDHelper(void* parameter);
 
 
 // ==================================================
@@ -204,6 +208,20 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
 
+  //CAN ID init
+  EEPROM.begin(8);  // allocate small EEPROM space
+
+  uint8_t stored = EEPROM.read(EEPROM_ADDR_DEVICE_NUM);
+  if (stored <= 63) {
+    DEVICE_NUMBER = stored;
+  } else {
+    DEVICE_NUMBER = DEFAULT_DEVICE_NUMBER;
+    EEPROM.write(EEPROM_ADDR_DEVICE_NUM, DEVICE_NUMBER);
+    EEPROM.commit();
+  }
+
+  Serial.printf("[CANID] Loaded DEVICE_NUMBER = %d\n", DEVICE_NUMBER);
+
   // === Reset pin for MFRC522 (shared between both readers) ===
   pinMode(RST_PIN, OUTPUT);
   digitalWrite(RST_PIN, HIGH);  // Keep reset HIGH to enable readers
@@ -294,6 +312,7 @@ void setup() {
   xTaskCreatePinnedToCore(TaskCANRx,              "CAN RX Unified",  4096, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(TaskCANGlobalHandler,   "Global Data",     4096, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(TaskLEDIndicator,       "LEDIndicator",    2048, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(TaskCANIDHelper, "CANID Helper", 4096, NULL, 1, NULL, 0);
 }
 
 
@@ -958,7 +977,40 @@ void TaskLEDIndicator(void* pvParameters) {
   }
 }
 
+void EEPROMSaveCANID() {
+  EEPROM.write(0, DEVICE_NUMBER);
+  EEPROM.commit();
+}
 
+
+void TaskCANIDHelper(void* parameter) {
+  Serial.println("[CANID] Helper task started. Use &CANID SET xx / SAVE / GET");
+  while (true) {
+    if (Serial.available()) {
+      String line = Serial.readStringUntil('\n');
+      line.trim();
+
+      if (line.startsWith("&CANID SET ")) {
+        int val = line.substring(11).toInt();
+        if (val >= 0 && val <= 63) {
+          DEVICE_NUMBER = val;
+          Serial.printf("[CANID] Running DEVICE_NUMBER set to %d\n", DEVICE_NUMBER);
+        } else {
+          Serial.println("[CANID] Invalid value. Must be 0–63.");
+        }
+      } else if (line.equals("&CANID SAVE")) {
+        EEPROMSaveCANID();
+        Serial.println("[CANID] Saved to EEPROM. Rebooting...");
+        delay(1000);
+        ESP.restart();
+      } else if (line.equals("&CANID GET")) {
+        uint8_t eepromVal = EEPROM.read(0);
+        Serial.printf("[CANID] Current=%d, EEPROM=%d, Default=%d\n", DEVICE_NUMBER, eepromVal, DEFAULT_DEVICE_NUMBER);
+      }
+    }
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+  }
+}
 
 //=======READER Handing function DO NOT CHANGE========
 

@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include "driver/twai.h"   // ESP32 CAN driver
-
+#include <EEPROM.h>
 // =============================
 // --- Pin configuration ---
 // =============================
@@ -28,6 +28,9 @@ uint8_t lfTagCounter = 0; // 0–255 increments when new tag detected
 bool CANGood = false;            // Global: true = CAN activity OK
 unsigned long lastCANRxTime = 0; // Timestamp of last received frame
 
+
+
+
 // =============================
 // --- Function declarations ---
 // =============================
@@ -36,12 +39,17 @@ void TaskLEDIndicator(void* pvParameters);
 void TaskCANTx(void* pvParameters);
 void TaskCANRx(void* pvParameters);
 void CAN_SendFrame(uint16_t apiId, uint8_t* data, uint8_t len);
-
+void TaskCANIDHelper(void* parameter);
 
 // === CAN Constants ===
 #define DEVICE_ID        0x0A  // DO NOT CHANGE
 #define MANUFACTURER_ID  0x08  // DO NOT CHANGE
-#define DEVICE_NUMBER    55    // 0-63 unique per device
+
+// === CAN ID Configuration ===
+uint8_t DEVICE_NUMBER = 0;
+const uint8_t DEFAULT_DEVICE_NUMBER = 55;
+const int EEPROM_ADDR_DEVICE_NUM = 0;
+
 
 #define STATUS_API_ID        0x180
 #define COLOR_SENSOR_API_ID  0x184
@@ -70,6 +78,19 @@ void setup() {
   delay(200);
   Serial.println(F("\n=== ESP32 LF Reader + CAN Interface ==="));
 
+  EEPROM.begin(8);  // allocate small EEPROM space
+
+  uint8_t stored = EEPROM.read(EEPROM_ADDR_DEVICE_NUM);
+  if (stored <= 63) {
+    DEVICE_NUMBER = stored;
+  } else {
+    DEVICE_NUMBER = DEFAULT_DEVICE_NUMBER;
+    EEPROM.write(EEPROM_ADDR_DEVICE_NUM, DEVICE_NUMBER);
+    EEPROM.commit();
+  }
+
+  Serial.printf("[CANID] Loaded DEVICE_NUMBER = %d\n", DEVICE_NUMBER);
+
   // --- Setup CAN (TWAI) ---
   twai_general_config_t g_config = {
     .mode = TWAI_MODE_NORMAL,
@@ -97,6 +118,7 @@ void setup() {
   xTaskCreatePinnedToCore(TaskLEDIndicator,   "LEDIndicator", 2048, NULL, 1, NULL, 1);
   xTaskCreatePinnedToCore(TaskCANTx,          "CANTx", 4096, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(TaskCANRx,          "CANRx", 4096, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(TaskCANIDHelper, "CANID Helper", 4096, NULL, 1, NULL, 0);
 }
 
 // =============================
@@ -322,5 +344,40 @@ void CAN_SendFrame(uint32_t id, uint8_t* data, uint8_t len) {
   esp_err_t result = twai_transmit(&msg, pdMS_TO_TICKS(10));
   if (result != ESP_OK) {
     Serial.printf("[CAN] TX failed for 0x%08lX (err=%d)\n", id, result);
+  }
+}
+
+void EEPROMSaveCANID() {
+  EEPROM.write(0, DEVICE_NUMBER);
+  EEPROM.commit();
+}
+
+
+void TaskCANIDHelper(void* parameter) {
+  Serial.println("[CANID] Helper task started. Use &CANID SET xx / SAVE / GET");
+  while (true) {
+    if (Serial.available()) {
+      String line = Serial.readStringUntil('\n');
+      line.trim();
+
+      if (line.startsWith("&CANID SET ")) {
+        int val = line.substring(11).toInt();
+        if (val >= 0 && val <= 63) {
+          DEVICE_NUMBER = val;
+          Serial.printf("[CANID] Running DEVICE_NUMBER set to %d\n", DEVICE_NUMBER);
+        } else {
+          Serial.println("[CANID] Invalid value. Must be 0–63.");
+        }
+      } else if (line.equals("&CANID SAVE")) {
+        EEPROMSaveCANID();
+        Serial.println("[CANID] Saved to EEPROM. Rebooting...");
+        delay(1000);
+        ESP.restart();
+      } else if (line.equals("&CANID GET")) {
+        uint8_t eepromVal = EEPROM.read(0);
+        Serial.printf("[CANID] Current=%d, EEPROM=%d, Default=%d\n", DEVICE_NUMBER, eepromVal, DEFAULT_DEVICE_NUMBER);
+      }
+    }
+    vTaskDelay(50 / portTICK_PERIOD_MS);
   }
 }
