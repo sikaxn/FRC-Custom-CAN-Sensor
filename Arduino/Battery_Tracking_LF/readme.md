@@ -4,6 +4,9 @@ This is a simple and low-cost battery identification system that uses LF (Low Fr
 
 Unlike the full IronMaple Battery Tracking Solution that uses HF NFC (13.56 MHz) tags with JSON-based BEST data format, this approach is purely for identification, not for logging or writing data. It can be easily integrated into the robot’s control system or pit equipment where simple read-only ID functionality is sufficient.
 
+# STOP! Compatibility warning!
+
+**This system is not, and will never be, compatible with the Iron Maple Battery Tracking ecosystem or the FRC Battery Reader App. The incompatibility is due to fundamental differences in technology. To function correctly, the reader and tag type must match exactly (RDM6300 ↔ EM4xxx family); mixing LF modules with HF tags or vice versa will not work.**
 
 ## Limitations
 
