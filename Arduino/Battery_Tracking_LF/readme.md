@@ -32,7 +32,7 @@ Unlike the full IronMaple Battery Tracking Solution that uses HF NFC (13.56 MHz)
 
 # ESP32 Online Flasher
 
-TBD
+https://studenttechsupport.com/customcanespfw/
 
 # roboRIO Driver
 
