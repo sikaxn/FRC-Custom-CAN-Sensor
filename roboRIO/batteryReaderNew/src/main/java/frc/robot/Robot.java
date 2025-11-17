@@ -13,6 +13,7 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("Override State", 0);
     SmartDashboard.putNumber("Energy kJ", 0);
     SmartDashboard.putBoolean("ESP Reboot", false);
+    SmartDashboard.putBoolean("Using RIO energy", false);
   }
 
   @Override
@@ -43,10 +44,11 @@ public class Robot extends TimedRobot {
     int overrideState = (int) SmartDashboard.getNumber("Override State", 0); //this is a dangerous action and should only be used for debuging.
     int energyKJ = (int) SmartDashboard.getNumber("Energy kJ", 0);
     boolean reboot = SmartDashboard.getBoolean("ESP Reboot", false);
+    boolean isUsingRIOEnergy = SmartDashboard.getBoolean("Using RIO energy", false);
 
     battery.setOverrideState(overrideState);
     battery.setEnergyKJ(energyKJ);
-
+    battery.setUseRIOEnergy(isUsingRIOEnergy);
     // Button-style reboot trigger
     if (reboot) {
       battery.requestReboot();

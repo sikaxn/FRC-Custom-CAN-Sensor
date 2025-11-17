@@ -50,6 +50,8 @@ public class batteryCAN {
 
   // --- RIO → ESP control data ---
   private int energyKJ = 0;
+  private boolean useRIOEnergy = false;
+
   private int overrideState = 0;
   private boolean espRebootRequested = false;
 
@@ -151,10 +153,11 @@ private boolean canWriteError = false;  // add this field near the top with othe
 private void sendControl() {
     byte[] payload = new byte[8];
     int v10 = (int)Math.round(RobotController.getBatteryVoltage() * 10.0);
+
     payload[0] = (byte)(v10 & 0xFF);
     payload[1] = (byte)overrideState;
-    payload[2] = (byte)((energyKJ > 0) ? 1 : 0); // useRIOEnergy flag
-    payload[3] = (byte)((energyKJ >> 8) & 0xFF); // MSB first
+    payload[2] = (byte)(useRIOEnergy ? 1 : 0);    // NEW FLAG
+    payload[3] = (byte)((energyKJ >> 8) & 0xFF);  // MSB
     payload[4] = (byte)(energyKJ & 0xFF);         // LSB
     payload[5] = (byte)(espRebootRequested ? 1 : 0);
     payload[6] = 0;
@@ -163,20 +166,18 @@ private void sendControl() {
     try {
         can.writePacket(payload, API_RIO_CTRL);
 
-        // Recovery message (print once)
         if (canWriteError) {
             System.out.println("[BatteryCAN] CAN bus recovered.");
             canWriteError = false;
         }
 
     } catch (edu.wpi.first.hal.util.UncleanStatusException e) {
-        // Suppress spam: print once when first seen
         if (!canWriteError && e.getMessage() != null &&
             e.getMessage().contains("CAN Output Buffer Full")) {
             System.out.println("[BatteryCAN] CAN buffer full — no ESP32 disconnected?");
             canWriteError = true;
         }
-        return; // skip reboot flag reset
+        return;
     } catch (Exception e) {
         if (!canWriteError) {
             System.out.println("[BatteryCAN] Unexpected CAN write exception: " + e.getMessage());
@@ -186,39 +187,52 @@ private void sendControl() {
     }
 
     espRebootRequested = false; // one-shot
-}
-
-  // --------------------------------------------------------------------------
-  // Public setters
-  // --------------------------------------------------------------------------
-  public void setEnergyKJ(int value) {
-    energyKJ = Math.max(0, Math.min(65535, value));
   }
 
-  public void setOverrideState(int state) {
-    int newState = state & 0xFF;
 
-    // Only print when changing from 0 → non-zero
-    if (overrideState == 0 && newState != 0) {
-        System.out.println("[BatteryCAN] Dangerous debug override enabled! "
-            + "Use ESP reboot if scanning for a new tag or new PD instead.");
+    // --------------------------------------------------------------------------
+    // Public setters
+    // --------------------------------------------------------------------------
+    public void setEnergyKJ(int value) {
+      energyKJ = Math.max(0, Math.min(65535, value));
+      // no automatic flag change
+  }
+
+  /** Sets the energy and automatically enables the flag + sends immediately. */
+    public void setEnergyKJAndSend(int value) {
+      energyKJ = Math.max(0, Math.min(65535, value));
+      useRIOEnergy = true;
+      sendControl();
     }
 
-    overrideState = newState;
-}
-
-
-private double lastRebootRequestTime = 0;  // add this field near the top with other variables
-
-public void requestReboot() {
-    double now = Timer.getFPGATimestamp();
-
-    // Only act if flipping from false → true, and debounce at 1s
-    if (!espRebootRequested && (now - lastRebootRequestTime) > 1.0) {
-        espRebootRequested = true;
-        lastRebootRequestTime = now;
-        System.out.println("[BatteryCAN] ESP32 reboot requested.");
+    public void setUseRIOEnergy(boolean value) {
+      useRIOEnergy = value;
     }
+
+    public void setOverrideState(int state) {
+      int newState = state & 0xFF;
+
+      // Only print when changing from 0 → non-zero
+      if (overrideState == 0 && newState != 0) {
+          System.out.println("[BatteryCAN] Dangerous debug override enabled! "
+              + "Use ESP reboot if scanning for a new tag or new PD instead.");
+      }
+
+      overrideState = newState;
+  }
+
+
+  private double lastRebootRequestTime = 0;  // add this field near the top with other variables
+
+  public void requestReboot() {
+      double now = Timer.getFPGATimestamp();
+
+      // Only act if flipping from false → true, and debounce at 1s
+      if (!espRebootRequested && (now - lastRebootRequestTime) > 1.0) {
+          espRebootRequested = true;
+          lastRebootRequestTime = now;
+          System.out.println("[BatteryCAN] ESP32 reboot requested.");
+      }
 }
 
 
