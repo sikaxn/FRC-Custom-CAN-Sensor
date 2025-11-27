@@ -290,11 +290,19 @@ bool sensorInit() {
 }
 
 void restartI2CBus() {
+  Serial.println("[I2C] Restarting bus...");
+
   Wire.end();
-  delay(2);
+  delay(4);
+
+  // Re-init I2C
   Wire.begin(SDA_PIN, SCL_PIN);
   Wire.setClock(400000);
+  delay(4);
+
+  Serial.println("[I2C] Bus restart complete.");
 }
+
 
 // ===================================================================
 // CAN INIT
@@ -326,6 +334,11 @@ void TaskSensorRead(void *pvParameters)
   const TickType_t period = pdMS_TO_TICKS(25); // ALWAYS 25 ms (fastest possible)
   TickType_t last = xTaskGetTickCount();
 
+  // Track how many consecutive bad frames we’ve seen
+  static uint8_t badFrameCount = 0;
+  // Track whether we have ever seen at least one valid sample
+  static bool haveGoodSample = false;
+
   for (;;) {
     vTaskDelayUntil(&last, period);
 
@@ -352,8 +365,10 @@ void TaskSensorRead(void *pvParameters)
         Serial.println("[Sensor] Re-config OK");
     }
 
+    // ---- READ ----
+    lastReadError = false;  // make sure your global is cleared before read
     uint8_t st = 0;
-    readStatus(st);
+    readStatus(st);         // optional, used only to set lastReadError on I2C failure
 
     uint32_t red20   = read20(REG_DATA_RED);
     uint32_t green20 = read20(REG_DATA_GREEN);
@@ -361,21 +376,27 @@ void TaskSensorRead(void *pvParameters)
     uint32_t ir20    = read20(REG_DATA_INFRARED);
     uint16_t prox11  = read11(REG_PROXIMITY_DATA);
 
-    bool allZero = (red20==0 && green20==0 && blue20==0 && ir20==0 && prox11==0);
-    bool allMax  = (red20   == 0x003FFFFF &&
-                    green20 == 0x003FFFFF &&
-                    blue20  == 0x003FFFFF &&
-                    ir20    == 0x003FFFFF &&
-                    prox11  == 0x07FF);
+    bool allZero =
+        (red20 == 0 && green20 == 0 && blue20 == 0 &&
+         ir20  == 0 && prox11 == 0);
 
+    bool allMax  =
+        (red20   == 0x003FFFFF &&
+         green20 == 0x003FFFFF &&
+         blue20  == 0x003FFFFF &&
+         ir20    == 0x003FFFFF &&
+         prox11  == 0x07FF);
 
     bool good = !lastReadError && !allZero && !allMax;
 
     if (good) {
+      // Good frame → reset bad-frame counter, mark online, update sample
+      badFrameCount = 0;
       sensorOnline = true;
+      haveGoodSample = true;
 
       ColorSample temp;
-      temp.red   = (uint16_t)(red20   >> 4);
+      temp.red   = (uint16_t)(red20   >> 4);  // shrink 20-bit to 16-bit
       temp.green = (uint16_t)(green20 >> 4);
       temp.blue  = (uint16_t)(blue20  >> 4);
       temp.ir    = (uint16_t)(ir20    >> 4);
@@ -386,31 +407,59 @@ void TaskSensorRead(void *pvParameters)
       portENTER_CRITICAL(&sampleMux);
       gSample = temp;
       portEXIT_CRITICAL(&sampleMux);
+
+      continue;
     }
-    else {
-      sensorOnline = false;
 
-      portENTER_CRITICAL(&sampleMux);
-      gSample.online = false;
-      portEXIT_CRITICAL(&sampleMux);
+    // --- BAD SAMPLE PATH (all-zero, all-max, or I2C error) ---
 
-      unsigned long now = millis();
-      if (now - lastReinitAttemptMs >= 500) {
-        lastReinitAttemptMs = now;
+    badFrameCount++;
 
-        restartI2CBus();
-        uint8_t pid = 0;
+    // Don’t immediately drop offline on the first couple of bad frames:
+    // this avoids thrashing if there’s a transient glitch or engine not yet ready.
+    if (badFrameCount < 3 && !haveGoodSample) {
+      // Early boot / not yet good once → just wait for sensor to settle
+      continue;
+    }
 
-        if (sensorInit() && readPartID(pid)) {
-          Serial.print("[Sensor] Reinit OK, PID=");
+    // Mark sensor offline logically
+    sensorOnline = false;
+
+    // Mark sample offline (we keep last R/G/B/etc values, just flip the flag)
+    portENTER_CRITICAL(&sampleMux);
+    gSample.online = false;
+    portEXIT_CRITICAL(&sampleMux);
+
+    // Periodic re-init attempt (max every 500 ms)
+    unsigned long now = millis();
+    if (now - lastReinitAttemptMs >= 500) {
+      lastReinitAttemptMs = now;
+
+      Serial.println("[Sensor] Offline → attempting reinit");
+      restartI2CBus();
+      uint8_t pid = 0;
+
+      if (sensorInit() && readPartID(pid)) {
+        delay(5);   // allow sensor to start engines
+
+        uint8_t st2 = 0;
+        if (readStatus(st2) && (st2 & 0x06)) {   // bit1 ALS ready, bit2 RGB ready
+          Serial.print("[Sensor] Reinit OK (engines ready), PID=");
           Serial.println(pid, HEX);
           sensorOnline = true;
+          // We will set gSample.online=true on the next good frame
+          badFrameCount = 0;
+        } else {
+          Serial.println("[Sensor] Reinit FAILED (engines not ready)");
+          sensorOnline = false;
         }
-        else {
-          Serial.println("[Sensor] Reinit FAILED");
-        }
+      } else {
+        Serial.println("[Sensor] Reinit FAILED");
+        sensorOnline = false;
       }
     }
+    // loop continues, next iteration will either get a good frame
+    // (and flip online + update sample) or try reinit again later
   }
 }
 
