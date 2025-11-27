@@ -53,6 +53,9 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "driver/twai.h"
+#include <EEPROM.h>
+
+
 
 // ========= I2C & PIN =========
 static constexpr uint8_t I2C_ADDR = 0x52;
@@ -66,7 +69,24 @@ static constexpr gpio_num_t CAN_RX_PIN = GPIO_NUM_5;
 // ========= CAN/FRC IDs =========
 #define DEVICE_ID        0x0A
 #define MANUFACTURER_ID  0x08
-#define DEVICE_NUMBER    33
+//#define DEVICE_NUMBER    33
+
+// =================== CAN Device Number via EEPROM ===================
+#define EEPROM_ADDRESS 64
+#define DEFAULT_DEVICE_NUMBER 33  // your fallback
+volatile uint8_t g_deviceNumber = DEFAULT_DEVICE_NUMBER;
+
+void EEPROMReadCANID() {
+  uint8_t saved = EEPROM.read(0);
+  g_deviceNumber = (saved <= 63) ? saved : DEFAULT_DEVICE_NUMBER;
+}
+
+void EEPROMSaveCANID() {
+  EEPROM.write(0, g_deviceNumber);
+  EEPROM.commit();
+}
+
+
 
 #define API_COLOR_DATA1   0x184
 #define API_COLOR_DATA2   0x185
@@ -84,10 +104,7 @@ static inline uint32_t makeCANMsgID(uint8_t deviceID,
          (uint32_t)(deviceNumber & 0x3F);
 }
 
-static inline uint16_t getApiID(uint32_t canId)
-{
-  return (uint16_t)((canId >> 6) & 0x3FF);
-}
+
 
 // ===================================================================
 // REV COLOR SENSOR ENUMS + REGISTERS
@@ -345,9 +362,12 @@ void TaskSensorRead(void *pvParameters)
     uint16_t prox11  = read11(REG_PROXIMITY_DATA);
 
     bool allZero = (red20==0 && green20==0 && blue20==0 && ir20==0 && prox11==0);
-    bool allMax  = (red20==0x3FFFF && green20==0x3FFFF &&
-                    blue20==0x3FFFF && ir20==0x3FFFF &&
-                    prox11==0x07FF);
+    bool allMax  = (red20   == 0x003FFFFF &&
+                    green20 == 0x003FFFFF &&
+                    blue20  == 0x003FFFFF &&
+                    ir20    == 0x003FFFFF &&
+                    prox11  == 0x07FF);
+
 
     bool good = !lastReadError && !allZero && !allMax;
 
@@ -432,7 +452,7 @@ void TaskCANTx(void *pvParameters)
         twai_message_t msg = {};
         msg.extd = 1;
         msg.data_length_code = 8;
-        msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_COLOR_DATA1, DEVICE_NUMBER);
+        msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_COLOR_DATA1, g_deviceNumber);
 
         msg.data[0] = s.red   >> 8;
         msg.data[1] = s.red   & 0xFF;
@@ -451,7 +471,7 @@ void TaskCANTx(void *pvParameters)
         twai_message_t msg = {};
         msg.extd = 1;
         msg.data_length_code = 8;
-        msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_COLOR_DATA2, DEVICE_NUMBER);
+        msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_COLOR_DATA2, g_deviceNumber);
 
         msg.data[0] = s.ir >> 8;
         msg.data[1] = s.ir & 0xFF;
@@ -470,7 +490,7 @@ void TaskCANTx(void *pvParameters)
         twai_message_t msg = {};
         msg.extd = 1;
         msg.data_length_code = 8;
-        msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_COLOR_STATUS, DEVICE_NUMBER);
+        msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_COLOR_STATUS, g_deviceNumber);
 
         msg.data[0] = gn;
         msg.data[1] = onlineFlag ? 1 : 0;
@@ -506,22 +526,90 @@ void handleConfigFrame(const twai_message_t &msg)
   Serial.println("[CAN-RX] Config frame received");
 }
 
+
+
 void TaskCANRx(void *pvParameters)
 {
   Serial.println("[CAN-RX] Task start");
 
   for (;;) {
     twai_message_t msg;
+
+    // Block until a CAN frame arrives
     if (twai_receive(&msg, portMAX_DELAY) == ESP_OK) {
+
+      // Only accept extended (29-bit) frames
       if (!msg.extd)
         continue;
 
-      uint16_t api = getApiID(msg.identifier);
-      if (api == API_COLOR_CONFIG)
+      uint32_t id = msg.identifier;
+
+      // =============================
+      // Inline FRC CAN ID decoding
+      // =============================
+      uint8_t  deviceID       = (id >> 24) & 0xFF;
+      uint8_t  manufacturerID = (id >> 16) & 0xFF;
+      uint16_t apiID          = (id >> 6)  & 0x3FF;
+      uint8_t  deviceNumber   =  id        & 0x3F;
+
+      // =============================
+      // Addressing filters
+      // =============================
+      if (deviceID       != DEVICE_ID)        continue;
+      if (manufacturerID != MANUFACTURER_ID)  continue;
+      if (deviceNumber   != g_deviceNumber)   continue;
+
+      // =============================
+      // API handling
+      // =============================
+      if (apiID == API_COLOR_CONFIG) {
         handleConfigFrame(msg);
+      }
+
+      // (Add more API handlers here)
     }
   }
 }
+
+
+
+void TaskCANIDHelper(void* parameter) {
+  Serial.println("[CANID] Helper task started. Use &CANID SET xx / SAVE / GET");
+
+  while (true) {
+    if (Serial.available()) {
+      String line = Serial.readStringUntil('\n');
+      line.trim();
+
+      if (line.startsWith("&CANID SET ")) {
+        int val = line.substring(11).toInt();
+        if (val >= 0 && val <= 63) {
+          g_deviceNumber = (uint8_t)val;
+          Serial.printf("[CANID] Running DEVICE_NUMBER set to %d\n", g_deviceNumber);
+        } else {
+          Serial.println("[CANID] Invalid value. Must be 0–63.");
+        }
+      }
+
+      else if (line.equals("&CANID SAVE")) {
+        EEPROMSaveCANID();
+        Serial.println("[CANID] Saved to EEPROM. Rebooting...");
+        delay(1000);
+        ESP.restart();
+      }
+
+      else if (line.equals("&CANID GET")) {
+        uint8_t eepromVal = EEPROM.read(0);
+        Serial.printf("[CANID] Current=%d, EEPROM=%d, Default=%d\n",
+                      g_deviceNumber, eepromVal, DEFAULT_DEVICE_NUMBER);
+      }
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
+}
+
+
 
 // ===================================================================
 // SETUP & LOOP
@@ -530,6 +618,11 @@ void setup()
 {
   Serial.begin(115200);
   delay(200);
+
+  // --- NEW: EEPROM init and read CAN device number ---
+  EEPROM.begin(EEPROM_ADDRESS);
+  EEPROMReadCANID();
+  Serial.printf("[BOOT] DEVICE_NUMBER=%d\n", g_deviceNumber);
 
   Wire.begin(SDA_PIN, SCL_PIN);
   Wire.setClock(400000);
@@ -547,6 +640,7 @@ void setup()
 
   initCAN();
 
+  xTaskCreatePinnedToCore(TaskCANIDHelper, "TaskCANIDHelper", 4096, nullptr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(TaskSensorRead, "SensorRead", 4096, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(TaskCANTx,      "CANTx",      4096, NULL, 2, NULL, 0);
   xTaskCreatePinnedToCore(TaskCANRx,      "CANRx",      4096, NULL, 2, NULL, 0);
