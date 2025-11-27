@@ -3,6 +3,10 @@
   SDA=IO21, SCL=IO22, I2C addr 0x52
 
   Prints 20-bit raw R/G/B/IR and 11-bit Proximity.
+  Adds:
+    - Offline detection (I2C error / all-zero / all-max)
+    - Last-good caching
+    - Simple re-init on reconnect attempt
 
   References:
   - REVLib C++ header (registers/bitfields): ColorSensorV3.h
@@ -103,6 +107,16 @@ enum GainFactor : uint8_t {
   GAIN_18X = 4
 };
 
+// ========= Offline / Recovery state =========
+bool sensorOnline = false;
+bool lastReadError = false;
+unsigned long lastReinitAttemptMs = 0;
+
+// Cached last-good readings
+bool haveGoodSample = false;
+uint32_t lastRed = 0, lastGreen = 0, lastBlue = 0, lastIR = 0;
+uint16_t lastProx = 0;
+
 // ========= I2C helpers =========
 bool i2cWrite8(uint8_t reg, uint8_t val) {
   Wire.beginTransmission(I2C_ADDR);
@@ -114,9 +128,15 @@ bool i2cWrite8(uint8_t reg, uint8_t val) {
 bool i2cRead(uint8_t reg, uint8_t *buf, size_t len) {
   Wire.beginTransmission(I2C_ADDR);
   Wire.write(reg);
-  if (Wire.endTransmission(false) != 0) return false; // repeated start
+  if (Wire.endTransmission(false) != 0) {
+    lastReadError = true;
+    return false; // repeated start failed
+  }
   size_t n = Wire.requestFrom((int)I2C_ADDR, (int)len, (int)true);
-  if (n != len) return false;
+  if (n != len) {
+    lastReadError = true;
+    return false;
+  }
   for (size_t i = 0; i < len; ++i) buf[i] = Wire.read();
   return true;
 }
@@ -172,6 +192,13 @@ bool sensorInit() {
   return true;
 }
 
+void restartI2CBus() {
+  Wire.end();
+  delay(2);
+  Wire.begin(SDA_PIN, SCL_PIN);
+  Wire.setClock(400000);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -185,21 +212,24 @@ void setup() {
   uint8_t pid = 0;
   if (!sensorInit()) {
     Serial.println(F("Init failed: I2C write error"));
+    sensorOnline = false;
   } else if (!readPartID(pid)) {
     Serial.println(F("Init ok, but failed to read PART_ID"));
+    sensorOnline = false;
   } else {
     Serial.print(F("Init ok. PART_ID=0x"));
     Serial.println(pid, HEX);
+    sensorOnline = true;
   }
 }
 
 void loop() {
-  // Optional: check status to see if new data is ready
+  unsigned long now = millis();
+  lastReadError = false;
+
+  // Optional: status read (also helps detect I2C faults)
   uint8_t st = 0;
-  if (readStatus(st)) {
-    // bit0 = PS data ready, bit3 = LS data ready (per REV header)
-    // Not strictly required to gate reads; we’ll just read regardless.
-  }
+  readStatus(st);  // ignore contents; just looking for I2C error
 
   // Read values (LSB first, 20-bit for colors/IR; 11-bit for proximity)
   uint32_t red   = read20(REG_DATA_RED);
@@ -208,13 +238,70 @@ void loop() {
   uint32_t ir    = read20(REG_DATA_INFRARED);
   uint16_t prox  = read11(REG_PROXIMITY_DATA);
 
-  // Print as CSV-ish single line for easy logging/parsing
-  Serial.print(F("R:"));  Serial.print(red);
-  Serial.print(F(" G:")); Serial.print(green);
-  Serial.print(F(" B:")); Serial.print(blue);
-  Serial.print(F(" IR:"));Serial.print(ir);
-  Serial.print(F(" PROX:")); Serial.print(prox);
-  Serial.println();
+  // Heuristic "bad sample" detection:
+  bool allZero =
+    (red == 0 && green == 0 && blue == 0 && ir == 0 && prox == 0);
+  bool allMax =
+    (red == 0x003FFFFF && green == 0x003FFFFF &&
+     blue == 0x003FFFFF && ir == 0x003FFFFF &&
+     prox == 0x07FF);
+
+  bool goodSample = !lastReadError && !allZero && !allMax;
+
+  if (goodSample) {
+    if (!sensorOnline) {
+      Serial.println(F("Sensor back online"));
+    }
+    sensorOnline = true;
+
+    // Update cache
+    lastRed   = red;
+    lastGreen = green;
+    lastBlue  = blue;
+    lastIR    = ir;
+    lastProx  = prox;
+    haveGoodSample = true;
+
+    // Normal output
+    Serial.print(F("R:"));  Serial.print(red);
+    Serial.print(F(" G:")); Serial.print(green);
+    Serial.print(F(" B:")); Serial.print(blue);
+    Serial.print(F(" IR:"));Serial.print(ir);
+    Serial.print(F(" PROX:")); Serial.print(prox);
+    Serial.println();
+  } else {
+    // Mark offline
+    if (sensorOnline) {
+      Serial.println(F("Sensor offline or bad sample"));
+    }
+    sensorOnline = false;
+
+    // Try to recover at most every 500 ms
+    if (now - lastReinitAttemptMs >= 500) {
+      lastReinitAttemptMs = now;
+
+      // Restart I2C bus and re-init sensor
+      restartI2CBus();
+      uint8_t pid = 0;
+      if (sensorInit() && readPartID(pid)) {
+        Serial.print(F("Sensor reinitialized. PART_ID=0x"));
+        Serial.println(pid, HEX);
+        sensorOnline = true;
+      }
+    }
+
+    // While offline: print last good values if we have them; otherwise zeros
+    if (haveGoodSample) {
+      Serial.print(F("[OFFLINE] R:"));  Serial.print(lastRed);
+      Serial.print(F(" G:"));          Serial.print(lastGreen);
+      Serial.print(F(" B:"));          Serial.print(lastBlue);
+      Serial.print(F(" IR:"));         Serial.print(lastIR);
+      Serial.print(F(" PROX:"));       Serial.print(lastProx);
+      Serial.println();
+    } else {
+      Serial.println(F("R:0 G:0 B:0 IR:0 PROX:0"));
+    }
+  }
 
   delay(100); // ~10 Hz
 }
