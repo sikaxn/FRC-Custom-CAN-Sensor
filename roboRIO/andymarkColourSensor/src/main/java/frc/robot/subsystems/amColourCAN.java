@@ -111,6 +111,16 @@ public class amColourCAN {
         System.out.println("[amColourCAN] ESP32 Colour Sensor offline.");
       lastESPOnline = espOnline;
     }
+    
+    // ---- If ESP offline → zero all values ----
+    if (!espOnline) {
+        clear = 0;
+        red = 0;
+        green = 0;
+        blue = 0;
+        proximity = 0;
+        sensorGood = false;
+    }
 
     // ---- TX: reboot (one-shot) ----
     if (espRebootRequested) {

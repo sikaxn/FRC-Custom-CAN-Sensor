@@ -91,8 +91,8 @@ bool initializeSensor()
   if (!safeWriteReg(ENABLE_REG, 0x01)) return false;
   delay(10);
   if (!safeWriteReg(ENABLE_REG, 0x07)) return false;
-  if (!safeWriteReg(ATIME_REG,  0xDB)) return false;
-  if (!safeWriteReg(WTIME_REG,  0xFF)) return false;
+  if (!safeWriteReg(ATIME_REG,  0xFF)) return false;
+  if (!safeWriteReg(WTIME_REG,  0x00)) return false;
   if (!safeWriteReg(CONTROL_REG,0x02)) return false;
   if (!safeWriteReg(0x8E, 0x11)) return false;
   if (!safeWriteReg(CONTROL_REG,0x0F)) return false;
@@ -129,7 +129,7 @@ void TaskSensorRead(void *param)
     proximity = safeRead16(PDATA_REG);
 
     sensorGood = (clear | red | green | blue | proximity) != 0;
-
+    //Serial.println("[TaskSensorRead] read.");
     vTaskDelay(rate);
   }
 }
@@ -139,18 +139,24 @@ void TaskSensorRead(void *param)
 // --------------------------------------------------
 void TaskSerialPrint(void *param)
 {
-  const TickType_t rate = pdMS_TO_TICKS(200);
+  const TickType_t rate = pdMS_TO_TICKS(200);  // 100 Hz plotter
 
   while (1) {
-    if (sensorGood)
-      Serial.printf("[GOOD] C=%u R=%u G=%u B=%u P=%u\n",
-                    clear, red, green, blue, proximity);
-    else
-      Serial.println("[BAD] No sensor data");
+    int status = sensorGood ? 1 : 0;
+
+    // Serial Plotter requires plain numbers, space-separated
+    Serial.printf("%u %u %u %u %u %d\n",
+                  clear,
+                  red,
+                  green,
+                  blue,
+                  proximity,
+                  status);
 
     vTaskDelay(rate);
   }
 }
+
 
 // --------------------------------------------------
 // RTOS Task: CAN TX (20 Hz)
