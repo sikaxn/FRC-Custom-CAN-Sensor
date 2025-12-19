@@ -8,6 +8,10 @@ Video demo: https://www.youtube.com/watch?v=rKZOKIWVOAg
 
 Developed with wpilib 2025 and the latest firmware avaliable at the time for REV PDH and CTRE PDP.
 
+# Getting Started
+
+https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/900.-IronMaple-RFID-Battery-Tracking-Solution
+
 ## Android Companion APP and roboRIO Driver
 
 (new for preview firmware) https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/roboRIO/batteryReaderNew
@@ -57,6 +61,8 @@ A new usage record is created with voltage, date, etc all 0 because at this time
 Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Format.md)
 
 ## Wiring (legacy)
+
+Please refer to wiki Getting Started for the latest wiring.
 
 ![image](../../drawing/BatteryRFID_bb.png)
 
