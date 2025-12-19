@@ -74,9 +74,14 @@ Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Fo
 
 ##  **CAN Message Types in Use** 
 
-Please refer to comments in roboRIO driver.
+Please refer to comments in roboRIO driver for the latest CAN protocol.
 
 https://github.com/sikaxn/FRC-Custom-CAN-Sensor/blob/dev-board/roboRIO/batteryReaderNew/src/main/java/frc/robot/subsystems/batteryCAN.java
+
+Note these is only ESP32 <-> RIO protocol. For PDP / PDH -> ESP32 protocol, refer to wpilib code. ESP32 will not send frame to PDP / PDH. It only listen for it.
+
+CTRE PDP: https://github.com/wpilibsuite/allwpilib/blob/main/hal/src/main/native/athena/CTREPDP.cpp
+REV PDH: https://github.com/wpilibsuite/allwpilib/blob/main/hal/src/main/native/athena/rev/PDHFrames.h
 
 ##  **CAN Message Types in Use** (legacy)
 
