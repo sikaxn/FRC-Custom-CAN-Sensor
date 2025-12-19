@@ -14,7 +14,7 @@ Developed with wpilib 2025 and the latest firmware avaliable at the time for REV
 
 https://github.com/sikaxn/FRC-RFID-Battery-Reader/
 
-roboRIO Driver is only needed if you want to read battery data, or if your Power Distro device can not be connected to CAN (PDP 2.0). Energy usage monitoring is only supported with PDP 1.0 or PDH as roboRIO can not provide total current data.
+roboRIO Driver is only needed if you want to read battery data, or if your Power Distro device can not be connected to CAN (PDP 2.0). Auto energy usage monitoring is only supported with PDP 1.0 or PDH as roboRIO can not provide total current data. Alternatively, you could use roboRIO driver to update energy calculated by yourself.
 
 https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/main/roboRIO/batteryReader
 
@@ -56,7 +56,7 @@ A new usage record is created with voltage, date, etc all 0 because at this time
 
 Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Format.md)
 
-## Wiring
+## Wiring (legacy)
 
 ![image](../../drawing/BatteryRFID_bb.png)
 
@@ -72,7 +72,7 @@ Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Fo
 | **CAN TX**         | Transmit Line              | **GPIO 16** | Connected to CAN transceiver TX |
 | **CAN RX**         | Receive Line               | **GPIO 17** | Connected to CAN transceiver RX |
 
-##  **CAN Message Types in Use**
+##  **CAN Message Types in Use** (legacy)
 
 #### 1. **Heartbeat (robot status)** — `CAN ID = 0x01011840` rio -> ESP32
 
