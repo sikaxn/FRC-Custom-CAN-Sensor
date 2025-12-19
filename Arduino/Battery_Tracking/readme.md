@@ -72,6 +72,12 @@ Data is stored on Mifare Classic 1K card are NDEF formatted json. [Docs](JSON_Fo
 | **CAN TX**         | Transmit Line              | **GPIO 16** | Connected to CAN transceiver TX |
 | **CAN RX**         | Receive Line               | **GPIO 17** | Connected to CAN transceiver RX |
 
+##  **CAN Message Types in Use** 
+
+Please refer to comments in roboRIO driver.
+
+https://github.com/sikaxn/FRC-Custom-CAN-Sensor/blob/dev-board/roboRIO/batteryReaderNew/src/main/java/frc/robot/subsystems/batteryCAN.java
+
 ##  **CAN Message Types in Use** (legacy)
 
 #### 1. **Heartbeat (robot status)** — `CAN ID = 0x01011840` rio -> ESP32
