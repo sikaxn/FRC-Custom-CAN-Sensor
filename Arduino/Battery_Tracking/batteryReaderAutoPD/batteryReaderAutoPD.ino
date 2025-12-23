@@ -583,11 +583,20 @@ void onCANMessage(const twai_message_t* msg) {
   uint8_t deviceNumber = id & 0x3F;
 
   // Route messages
-  if (apiID == BATTERY_STATUS_API_ID_1 || apiID == BATTERY_STATUS_API_ID_2 ||
-      apiID == RFID_META_API_ID_1 || apiID == RFID_META_API_ID_2 || apiID == RFID_META_API_ID_3) {
-    handleJavaCAN(*msg);
-    lastJavaMsgTime = millis();
-  } 
+  if (
+      (deviceNumber == DEVICE_NUMBER) &&
+      (
+        apiID == BATTERY_STATUS_API_ID_1 ||
+        apiID == BATTERY_STATUS_API_ID_2 ||
+        apiID == RFID_META_API_ID_1     ||
+        apiID == RFID_META_API_ID_2     ||
+        apiID == RFID_META_API_ID_3
+      )
+    )
+  {
+      handleJavaCAN(*msg);
+      lastJavaMsgTime = millis();
+  }
   else if (apiID == CTRE_PDP_API_VOLTAGE || apiID == CTRE_PDP_API_CURRENT ||
            apiID == REV_PDH_API_ID) {
     handlePD(*msg);
