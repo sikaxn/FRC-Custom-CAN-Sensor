@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BEST JSON Editor</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+
+  <!-- Page-specific layout tweaks (minimal + responsive). Keep this tiny. -->
+<link rel="stylesheet" href="../assets/best_json_editor.css" />
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <button class="back" onclick="nav.back()">← Back</button>
+      <h1>BEST Battery Tag JSON Editor</h1>
+    </div>
+
+    <div class="box">
+      <div class="toolbar-row">
+        <label>
+          Import JSON file:
+          <input type="file" id="fileInput" accept=".json">
+        </label>
+
+        <button id="demoBtn" class="btn">Load Demo</button>
+      </div>
+
+      <div id="metaFields" style="display:none;">
+        <h2>Metadata</h2>
+
+        <div class="form-grid">
+          <div class="field">
+            <label for="snInput">Serial Number (sn)</label>
+            <input type="text" id="snInput">
+          </div>
+
+          <div class="field">
+            <label for="fuInput">First Use (fu)</label>
+            <input type="datetime-local" id="fuInput">
+          </div>
+
+          <div class="field">
+            <label for="ccInput">Cycle Count (cc)</label>
+            <input type="number" id="ccInput" min="0">
+          </div>
+
+          <div class="field">
+            <label for="nInput">Note Type (n)</label>
+            <select id="nInput">
+              <option value="0">0 – Normal</option>
+              <option value="1">1 – Practice Only</option>
+              <option value="2">2 – Scrap</option>
+              <option value="3">3 – Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="recordsSection" style="display:none;">
+        <h2>Usage Log Array ("u")</h2>
+
+        <div class="btn-row">
+          <button id="addRecordBtn" class="btn">Add Record</button>
+          <span id="recordWarning" class="warn" style="display:none;">
+            ⚠️ Max 13 records allowed! Edit ok but export disabled.
+          </span>
+        </div>
+
+        <div class="table-wrap">
+          <table id="recordsTable">
+            <thead>
+              <tr>
+                <th>ID (i)</th>
+                <th>Power-on Time (t)</th>
+                <th>Device Type (d)</th>
+                <th>Energy (kJ, e)</th>
+                <th>Min Voltage (v)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="exportSection" style="display:none;">
+        <h2>Export</h2>
+
+        <div class="btn-row">
+          <button id="previewBtn" class="btn">Preview JSON</button>
+          <button id="downloadBtn" class="btn">Download JSON</button>
+        </div>
+
+        <textarea id="outputArea" rows="10"></textarea>
+      </div>
+    </div>
+  </div>
+
+<script>
+let dataObj = null;
+const MAX_RECORDS = 13;
+const fileInput = document.getElementById('fileInput');
+const demoBtn = document.getElementById('demoBtn');
+const snInput = document.getElementById('snInput');
+const fuInput = document.getElementById('fuInput');
+const ccInput = document.getElementById('ccInput');
+const nInput = document.getElementById('nInput');
+const addRecordBtn = document.getElementById('addRecordBtn');
+const recordsTableBody = document.querySelector('#recordsTable tbody');
+const recordWarning = document.getElementById('recordWarning');
+const previewBtn = document.getElementById('previewBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const outputArea = document.getElementById('outputArea');
+const metaFields = document.getElementById('metaFields');
+const recordsSection = document.getElementById('recordsSection');
+const exportSection = document.getElementById('exportSection');
+
+fileInput.addEventListener('change', handleFileImport);
+demoBtn.addEventListener('click', loadDemoJSON);
+
+function handleFileImport(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const obj = JSON.parse(e.target.result);
+      if (!obj.sn || !obj.fu || obj.cc === undefined || obj.n === undefined || !Array.isArray(obj.u)) {
+        alert("Invalid BEST JSON structure.");
+        return;
+      }
+      dataObj = obj;
+      populateUI();
+    } catch (err) {
+      alert("Error parsing JSON: " + err);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- DEMO GENERATOR ---------- */
+function loadDemoJSON() {
+  const sn = makeDemoSN();
+  const fu = makeRandomFUwithinLastYearYYMMDDHHMM();
+  const demo = makeDemoJSON(sn, fu);
+  dataObj = demo;
+  populateUI();
+}
+
+function makeDemoSN() {
+  const n = Math.floor(Math.random() * 1000);
+  return `DEMO-${String(n).padStart(3,'0')}`;
+}
+function makeRandomFUwithinLastYearYYMMDDHHMM() {
+  const now = new Date();
+  const past = new Date(now.getTime() - Math.random() * 365*24*3600*1000);
+  return formatDateYYMMDDHHMM(past.toISOString());
+}
+function makeDemoJSON(sn, fu) {
+  const startNumber = Math.floor(Math.random()*20)+1;
+  const recordCount = Math.floor(Math.random()*4)+2;
+  const usage = [];
+  let lastDate = new Date();
+  let lastD = 0;
+  for (let i=0;i<recordCount;i++) {
+    const advanceDays = Math.floor(Math.random()*20)+1;
+    const advanceMinutes = Math.floor(Math.random()*24*60);
+    const d = new Date(lastDate.getTime() + (advanceDays*24*60 + advanceMinutes)*60000);
+    lastDate = d;
+    let dVal = Math.floor(Math.random()*2)+1;
+    if (lastD === 2 && dVal === 2) dVal = 1;
+    lastD = dVal;
+    usage.push({
+      i: startNumber + i,
+      t: formatDateYYMMDDHHMM(d.toISOString()),
+      d: dVal,
+      e: Math.floor(Math.random()*490)+10,
+      v: Math.floor(Math.random()*7)+7
+    });
+  }
+  return {
+    sn: sn,
+    fu: fu,
+    cc: Math.floor(Math.random()*10)+1,
+    n: Math.floor(Math.random()*3),
+    u: usage
+  };
+}
+
+/* ---------- UI ---------- */
+function populateUI() {
+  metaFields.style.display = 'block';
+  recordsSection.style.display = 'block';
+  exportSection.style.display = 'block';
+  snInput.value = dataObj.sn;
+  fuInput.value = parseDateToLocal(dataObj.fu);
+  ccInput.value = dataObj.cc;
+  nInput.value = dataObj.n;
+  refreshRecordsTable();
+}
+
+function refreshRecordsTable() {
+  recordsTableBody.innerHTML = '';
+  dataObj.u.sort((a,b)=>b.i - a.i);
+  const total = dataObj.u.length;
+
+  dataObj.u.forEach((record, idx) => {
+    const isTop = idx === 0;
+    const tVal = record.t === "0000000000" ? "" : parseDateToLocal(record.t);
+    const dateNA = record.t === "0000000000";
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${isTop ? `<input type="number" class="rec-i" value="${record.i}" min="${total}" title="Edit max ID">` : record.i}</td>
+        <td>
+        <div class="time-cell">
+            <input type="datetime-local" value="${tVal}" class="rec-t" ${dateNA?"disabled":""}>
+            <label class="dateNA"><input type="checkbox" class="rec-na" ${dateNA?"checked":""}> N/A</label>
+        </div>
+        </td>
+
+      <td>
+        <select class="rec-d">
+          <option value="1" ${record.d==1?'selected':''}>1 – Robot</option>
+          <option value="2" ${record.d==2?'selected':''}>2 – Charger</option>
+        </select>
+      </td>
+      <td><input type="number" value="${record.e||0}" class="rec-e" min="0"></td>
+      <td><input type="number" value="${record.v||0}" class="rec-v" min="0" step="any"></td>
+      <td><button class="btn delRecBtn">Delete</button></td>
+    `;
+    const delBtn = tr.querySelector('.delRecBtn');
+    delBtn.addEventListener('click', ()=>deleteRecord(record.i));
+    const naCheck = tr.querySelector('.rec-na');
+    const tInput = tr.querySelector('.rec-t');
+    naCheck.addEventListener('change', ()=>{
+      if(naCheck.checked){ tInput.disabled=true; tInput.value=""; }
+      else { tInput.disabled=false; tInput.value=new Date().toISOString().slice(0,16); }
+    });
+    if(isTop){ tr.querySelector('.rec-i').addEventListener('change',ev=>updateMaxId(ev.target.value)); }
+    recordsTableBody.appendChild(tr);
+  });
+  const tooMany = total>MAX_RECORDS;
+  recordWarning.style.display = tooMany?'inline':'none';
+  previewBtn.disabled = tooMany;
+  downloadBtn.disabled = tooMany;
+}
+
+function updateMaxId(newVal){
+  newVal=parseInt(newVal);
+  if(isNaN(newVal))return;
+  const total=dataObj.u.length;
+  if(newVal<total){alert(`Invalid ID: must be ≥ ${total}`);refreshRecordsTable();return;}
+  dataObj.u.sort((a,b)=>b.i-a.i);
+  for(let i=0;i<dataObj.u.length;i++){dataObj.u[i].i=newVal-i;}
+  refreshRecordsTable();
+}
+
+function deleteRecord(i){
+  dataObj.u=dataObj.u.filter(r=>r.i!==i);
+  dataObj.u.sort((a,b)=>b.i-a.i);
+  const maxId=dataObj.u.length>0?Math.max(...dataObj.u.map(r=>r.i)):0;
+  for(let j=0;j<dataObj.u.length;j++){dataObj.u[j].i=maxId-j;}
+  refreshRecordsTable();
+}
+
+addRecordBtn.addEventListener('click',()=>{
+  const newIndex=dataObj.u.length>0?Math.max(...dataObj.u.map(r=>r.i))+1:1;
+  dataObj.u.push({i:newIndex,t:"0000000000",d:1,e:0,v:0});
+  refreshRecordsTable();
+});
+
+function updateFromUI(){
+  dataObj.sn=snInput.value.trim();
+  dataObj.fu=formatDateYYMMDDHHMM(fuInput.value);
+  dataObj.cc=Number(ccInput.value);
+  dataObj.n=Number(nInput.value);
+  const rows=recordsTableBody.querySelectorAll('tr');
+  rows.forEach((tr,idx)=>{
+    const rec=dataObj.u[idx];
+    const iInput=tr.querySelector('.rec-i');
+    if(iInput)rec.i=parseInt(iInput.value)||rec.i;
+    const tInput=tr.querySelector('.rec-t');
+    const naCheck=tr.querySelector('.rec-na');
+    rec.t=naCheck.checked?"0000000000":formatDateYYMMDDHHMM(tInput.value);
+    rec.d=Number(tr.querySelector('.rec-d').value);
+    rec.e=Number(tr.querySelector('.rec-e').value);
+    rec.v=Number(tr.querySelector('.rec-v').value);
+  });
+}
+
+previewBtn.addEventListener('click',()=>{
+  updateFromUI();
+  outputArea.value=JSON.stringify(dataObj,null,2);
+});
+
+downloadBtn.addEventListener('click',()=>{
+  updateFromUI();
+  const jsonStr=JSON.stringify(dataObj,null,2);
+  const blob=new Blob([jsonStr],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=(dataObj.sn||"battery")+".json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+/* ---------- Date helpers ---------- */
+function parseDateToLocal(yyMMddHHmm){
+  if(!yyMMddHHmm||yyMMddHHmm.length!==10||yyMMddHHmm==="0000000000")return"";
+  const fullYear=2000+parseInt(yyMMddHHmm.slice(0,2));
+  const mo=yyMMddHHmm.slice(2,4);
+  const d=yyMMddHHmm.slice(4,6);
+  const hh=yyMMddHHmm.slice(6,8);
+  const mm=yyMMddHHmm.slice(8,10);
+  return `${fullYear}-${mo}-${d}T${hh}:${mm}`;
+}
+function formatDateYYMMDDHHMM(localStr){
+  if(!localStr)return"0000000000";
+  const d=new Date(localStr);
+  if(isNaN(d.getTime()))return"0000000000";
+  const yy=String(d.getFullYear()%100).padStart(2,'0');
+  const mo=String(d.getMonth()+1).padStart(2,'0');
+  const da=String(d.getDate()).padStart(2,'0');
+  const hh=String(d.getHours()).padStart(2,'0');
+  const mi=String(d.getMinutes()).padStart(2,'0');
+  return `${yy}${mo}${da}${hh}${mi}`;
+}
+</script>
+
+</body>
+</html>

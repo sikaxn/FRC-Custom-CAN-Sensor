@@ -1,0 +1,184 @@
+/* =========================================================
+   BEST JSON Editor – Page-specific layout & responsiveness
+   ========================================================= */
+
+/* Toolbar row (file import + demo) */
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.toolbar-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+/* Metadata form grid */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+/* Two columns on wide windows */
+@media (min-width: 900px) {
+  .form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 14px;
+}
+
+/* Inputs */
+input[type="text"],
+input[type="number"],
+input[type="datetime-local"],
+select,
+textarea {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  background: #fff;
+}
+
+/* ================================
+   Usage Log table: responsive
+   ================================ */
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;     /* scroll only if truly needed */
+  border-radius: 10px;
+}
+
+/* Make the table adapt to window width */
+#recordsTable {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 12px;
+  background: #fff;
+  table-layout: auto;   /* allow columns to grow/shrink naturally */
+}
+
+/* Cell defaults */
+#recordsTable th,
+#recordsTable td {
+  border: 1px solid #ccc;
+  padding: 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+/* Allow wrapping in body cells so controls don't get clipped */
+#recordsTable td {
+  white-space: normal;
+}
+
+/* Keep header labels neat */
+#recordsTable th {
+  background: #f0f0f0;
+  white-space: nowrap;
+}
+
+/* Minimum sizes so controls stay usable */
+#recordsTable .rec-i {            /* ID input: show digits + spinner */
+  min-width: 120px;
+}
+
+#recordsTable .rec-e,
+#recordsTable .rec-v {            /* Energy / Voltage */
+  min-width: 110px;
+}
+
+#recordsTable .rec-d {            /* Device type */
+  min-width: 220px;
+  width: 100%;
+}
+
+#recordsTable .rec-d option {
+  white-space: normal;
+}
+
+#recordsTable .rec-t {            /* Datetime */
+  min-width: 220px;
+}
+
+#recordsTable .delRecBtn {        /* Delete button */
+  min-width: 90px;
+}
+
+/* Power-on Time cell layout: must match HTML wrapper <div class="time-cell"> */
+#recordsTable .time-cell {
+  display: flex;
+  flex-wrap: wrap;               /* wrap on small windows */
+  align-items: center;
+  gap: 10px;
+}
+
+.dateNA {
+  font-size: 12px;
+  color: #555;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;           /* never cut off "N/A" */
+  margin-left: 0;
+}
+
+#recordsTable .rec-na {
+  width: 16px;
+  height: 16px;
+}
+
+/* Button row helpers */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.btn {
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+/* Warnings */
+.warn {
+  color: #b00020;
+  font-weight: 700;
+}
+
+/* Export textarea */
+#outputArea {
+  width: 100%;
+  min-height: 220px;
+  height: 35vh;
+  max-height: 60vh;
+  resize: vertical;
+  margin-top: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco,
+               Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Section headings */
+h2 {
+  margin: 18px 0 10px;
+  font-size: 18px;
+}

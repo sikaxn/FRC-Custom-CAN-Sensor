@@ -1,0 +1,57 @@
+/* can_device_number.css
+   Page-specific fixes only.
+   Uses your global style.css for base look (btn, card, page, toolbar-row, etc.)
+   Key goal: terminal stays in a fixed-height container and scrolls internally. */
+
+/* Terminal wrapper prevents the page from growing */
+.terminal-container {
+  height: 240px;          /* adjust as needed */
+  max-height: 240px;
+  padding: 10px 12px;
+  overflow: hidden;       /* keep scroll inside the terminal element */
+  border: 1px solid #d0d0d0;
+  background: #f8f8f8;
+  border-radius: 8px;
+}
+
+/* Terminal itself scrolls */
+.terminal-container .terminal,
+.terminal-container #output {
+  display: block;
+  height: 100%;
+  max-height: 100%;
+  margin: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;  /* wrap long lines */
+  word-break: break-word; /* prevent horizontal overflow */
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+               "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* If your global style doesn't define a terminal look,
+   uncomment to give it a subtle framed console.
+   (Leave commented if style.css already styles .terminal / pre nicely.) */
+/*
+.terminal-container .terminal,
+.terminal-container #output {
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.22);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.35;
+  border-radius: 8px;
+}
+*/
+
+/* Optional: tighten spacing on this page only (without fighting global layout) */
+.canid-page .card {
+  margin-top: 14px;
+}
+
+.canid-page .subhead {
+  margin-bottom: 6px;
+}

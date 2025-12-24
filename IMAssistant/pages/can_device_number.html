@@ -1,0 +1,279 @@
+<!-- can_device_number.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CAN Device Number</title>
+
+  <!-- Use your global app style -->
+  <link rel="stylesheet" href="../assets/style.css" />
+
+  <!-- Optional: keep a tiny page-specific file if you want minor tweaks -->
+  <link rel="stylesheet" href="../assets/can_device_number.css" />
+</head>
+
+<body class="canid-page">
+  <main class="page">
+    <!-- Top bar: Back button + title -->
+    <div class="toolbar-row">
+      <button class="btn" id="btnBack" type="button">← Back</button>
+      <div style="flex: 1"></div>
+    </div>
+
+    <header class="header">
+      <h1>CAN Device Number</h1>
+      <p class="subhead">Close Arduino IDE / Serial Monitor<br>if you can't connect.</p>
+    </header>
+
+    <section class="card">
+      <div class="form-grid">
+        <div class="field">
+          <label for="deviceNumber">Device Number (0–63)</label>
+          <input
+            type="number"
+            id="deviceNumber"
+            min="0"
+            max="63"
+            inputmode="numeric"
+            placeholder="e.g. 33"
+          />
+        </div>
+      </div>
+
+      <div class="toolbar-row" style="margin-top: 12px;">
+        <button class="btn" id="btnSet" type="button">Send SET</button>
+        <button class="btn" id="btnSave" type="button">Send SAVE</button>
+        <button class="btn" id="btnGet" type="button">Send GET</button>
+        <button class="btn" id="btnTime" type="button">Sync Time</button>
+
+        <div style="flex: 1"></div>
+
+        <button class="btn btn-primary" id="btnConnect" type="button">🔌 Connect</button>
+        <button class="btn btn-danger" id="btnDisconnect" type="button">❌ Disconnect</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="toolbar-row" style="margin-bottom: 10px;">
+        <h2 style="margin: 0;">Terminal</h2>
+        <div style="flex: 1"></div>
+        <button class="btn" id="btnClear" type="button">Clear</button>
+      </div>
+
+      <div class="terminal-container">
+        <pre id="output" class="terminal" aria-live="polite"></pre>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // -----------------------------
+    // Web Serial state
+    // -----------------------------
+    let port, reader, writer;
+    let keepReading = false;
+
+    // -----------------------------
+    // Elements
+    // -----------------------------
+    const elDeviceNumber = document.getElementById("deviceNumber");
+    const elOutput = document.getElementById("output");
+
+    const btnBack = document.getElementById("btnBack");
+    const btnSet = document.getElementById("btnSet");
+    const btnSave = document.getElementById("btnSave");
+    const btnGet = document.getElementById("btnGet");
+    const btnTime = document.getElementById("btnTime");
+    const btnConnect = document.getElementById("btnConnect");
+    const btnDisconnect = document.getElementById("btnDisconnect");
+    const btnClear = document.getElementById("btnClear");
+
+    // -----------------------------
+    // Terminal print helper
+    // -----------------------------
+    function log(msg) {
+      if (msg === undefined || msg === null) return;
+      const line = String(msg);
+
+      // Print to terminal UI
+      elOutput.textContent += line + "\n";
+      elOutput.scrollTop = elOutput.scrollHeight;
+
+      // Mirror to DevTools console (useful in Electron)
+      console.log("[CANID]", line);
+    }
+
+    function setUiConnected(connected) {
+      btnConnect.disabled = connected;
+      btnDisconnect.disabled = !connected;
+
+      btnSet.disabled = !connected;
+      btnSave.disabled = !connected;
+      btnGet.disabled = !connected;
+      btnTime.disabled = !connected;
+
+      elDeviceNumber.disabled = !connected;
+    }
+
+    async function sendCommand(cmd) {
+      if (!writer) {
+        log("[WARN] Not connected");
+        return;
+      }
+      const textEncoder = new TextEncoder();
+      await writer.write(textEncoder.encode(cmd + "\n"));
+      log(">> " + cmd);
+    }
+
+    async function readLoop() {
+      reader = port.readable.getReader();
+      const textDecoder = new TextDecoder();
+      let buffer = "";
+
+      try {
+        while (keepReading) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          if (value) {
+            buffer += textDecoder.decode(value, { stream: true });
+            const lines = buffer.split(/\r?\n/);
+            buffer = lines.pop();
+
+            for (const line of lines) {
+              const s = line.trim();
+              if (s) log("<< " + s);
+            }
+          }
+        }
+      } catch (err) {
+        log("[ERROR] Read failed: " + err);
+      } finally {
+        try { reader.releaseLock(); } catch {}
+      }
+    }
+
+    async function connectSerial() {
+      if (!("serial" in navigator)) {
+        log("[ERROR] Web Serial API not available in this environment.");
+        return;
+      }
+
+      try {
+        // In Electron: your main process select-serial-port handler must supply a port.
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+
+        writer = port.writable.getWriter();
+        keepReading = true;
+
+        setUiConnected(true);
+        readLoop();
+
+        log("[INFO] Serial connected");
+        setTimeout(() => sendCommand("&CANID GET"), 250);
+      } catch (e) {
+        const name = e?.name || "";
+        const msg = String(e?.message || e);
+
+        // In Electron, if select-serial-port returns "" or nothing is available:
+        if (name === "NotFoundError" || msg.includes("No port selected")) {
+          log("[WARN] No serial port selected / available.");
+          return;
+        }
+
+        log("[ERROR] Failed to connect: " + msg);
+
+        // Only clean up if something partially opened
+        try { await disconnectSerial(true); } catch {}
+      }
+    }
+
+    // silent=true avoids printing "disconnected" during error cleanup
+    async function disconnectSerial(silent = false) {
+      keepReading = false;
+
+      try { if (reader) await reader.cancel(); } catch {}
+      try { if (writer) writer.releaseLock(); } catch {}
+      try { if (port) await port.close(); } catch {}
+
+      reader = undefined;
+      writer = undefined;
+      port = undefined;
+
+      setUiConnected(false);
+      if (!silent) log("[INFO] Serial disconnected");
+    }
+
+    function sendSet() {
+      const raw = elDeviceNumber.value;
+      const val = Number(raw);
+
+      if (raw === "" || Number.isNaN(val) || val < 0 || val > 63) {
+        alert("Please enter a valid number between 0 and 63");
+        return;
+      }
+      sendCommand(`&CANID SET ${val}`);
+    }
+
+    function sendSave() {
+      sendCommand("&CANID SAVE");
+    }
+
+    function sendGet() {
+      sendCommand("&CANID GET");
+    }
+
+    function sendSetTime() {
+      const now = new Date();
+
+      // UTC components
+      const yyyy = now.getUTCFullYear();
+      const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(now.getUTCDate()).padStart(2, "0");
+      const HH = String(now.getUTCHours()).padStart(2, "0");
+      const MM = String(now.getUTCMinutes()).padStart(2, "0");
+      const SS = String(now.getUTCSeconds()).padStart(2, "0");
+
+      const stamp = `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}`;
+      sendCommand("&SETTIME " + stamp);
+    }
+
+    // -----------------------------
+    // Events
+    // -----------------------------
+    btnBack.addEventListener("click", () => {
+      // Works with your ipcMain.handle("navigate", ...) setup
+      if (window.electronAPI?.navigate) {
+        window.electronAPI.navigate("home.html");
+      } else {
+        // Fallback if running in browser
+        history.back();
+      }
+    });
+
+    btnConnect.addEventListener("click", connectSerial);
+    btnDisconnect.addEventListener("click", () => disconnectSerial(false));
+
+    btnSet.addEventListener("click", sendSet);
+    btnSave.addEventListener("click", sendSave);
+    btnGet.addEventListener("click", sendGet);
+    btnTime.addEventListener("click", sendSetTime);
+
+    btnClear.addEventListener("click", () => {
+      elOutput.textContent = "";
+      console.clear?.();
+    });
+
+    elDeviceNumber.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !btnSet.disabled) sendSet();
+    });
+
+    // Start disconnected
+    setUiConnected(false);
+    log("[INFO] Ready. Click Connect.");
+  </script>
+</body>
+</html>

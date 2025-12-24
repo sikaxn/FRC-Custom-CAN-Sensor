@@ -1,0 +1,140 @@
+/* ===== Global ===== */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #ffffff;
+  color: #222;
+  padding: 30px;
+}
+
+/* ===== Header with Back Button ===== */
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.back {
+  margin-right: 16px;
+  padding: 6px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ===== Buttons ===== */
+button {
+  font-size: 16px;
+  padding: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #f5f5f5;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #eaeaea;
+}
+
+button:active {
+  background: #ddd;
+}
+
+/* ===== Layout helpers ===== */
+.container {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.box {
+  background: #f4f4f4;
+  padding: 20px;
+  border-radius: 10px;
+}
+
+/* ===== Page-specific helpers ===== */
+.menu button {
+  width: 100%;
+  margin-bottom: 12px;
+  font-size: 18px;
+}
+
+
+/* ---------- Usage table: make controls usable ---------- */
+
+/* Ensure the ID number input shows digits + spinner */
+#recordsTable .rec-i {
+  width: 120px;
+  min-width: 120px;
+}
+
+/* Energy + voltage number fields */
+#recordsTable .rec-e,
+#recordsTable .rec-v {
+  width: 110px;
+  min-width: 110px;
+}
+
+/* Make the time column layout stable (datetime + N/A checkbox) */
+#recordsTable td:nth-child(2) {
+  min-width: 360px; /* enough for datetime + checkbox label */
+}
+
+/* Lay out datetime + N/A as a row that won't clip */
+#recordsTable td:nth-child(2) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Datetime input sizing */
+#recordsTable .rec-t {
+  width: 220px;
+  min-width: 220px;
+}
+
+/* Make the N/A label fully visible */
+#recordsTable .dateNA {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 0;     /* we already have gap */
+  white-space: nowrap;
+  min-width: 72px;    /* ensures "N/A" doesn't get cut */
+}
+
+/* Checkbox itself: don’t let it shrink */
+#recordsTable .rec-na {
+  width: 16px;
+  height: 16px;
+}
+
+/* Device type select already handled, but ensure it can't shrink too far */
+#recordsTable .rec-d {
+  min-width: 220px;
+  width: 220px;
+}
+
+/* Delete button so it doesn't collapse */
+#recordsTable .delRecBtn {
+  min-width: 90px;
+}
+
+/* Give the whole table a larger minimum width so columns don't crush */
+table {
+  min-width: 1050px; /* was 820px */
+}
