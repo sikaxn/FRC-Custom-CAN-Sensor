@@ -1,20 +1,258 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8" />
-  <title>Update Firmware</title>
-  <link rel="stylesheet" href="../assets/style.css" />
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <button class="back" onclick="nav.back()">← Back</button>
-      <h1>Update Firmware</h1>
+  <head>
+    <meta charset="utf-8" />
+    <title>Flash Firmware - ESP Web Tools</title>
+    <link rel="stylesheet" href="../assets/style.css" />
+
+    <style>
+      #status-msg {
+        margin: 8px 0;
+        font-weight: bold;
+        color: darkred;
+      }
+
+      #repo-status {
+        margin: 8px 0;
+        font-weight: bold;
+        color: green;
+      }
+
+      .markdown img {
+        max-width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .markdown {
+        max-width: 100%;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="header">
+        <button class="back" id="btnBack" type="button">Back</button>
+        <h1>Flash Firmware</h1>
+      </div>
+
+      <div class="box">
+        <label for="firmware-type">Select Firmware:</label>
+        <select id="firmware-type" disabled>
+          <option>Loading firmware list...</option>
+        </select>
+        <div id="repo-status"></div>
+        <div id="status-msg"></div>
+
+        <br /><br />
+
+        <div id="addressable-group" style="display:none;">
+          <label for="can-id">Select CAN ID:</label>
+          <select id="can-id"></select>
+        </div>
+
+        <br /><br />
+
+        <div style="color: darkred; font-weight: bold;">
+          Please hold <code>IO0</code> while clicking flash.<br />
+          Close Arduino IDE if serial port is busy.
+        </div>
+
+        <br />
+
+        <button id="btnRepoManager" type="button">Repo Manager</button>
+
+        <br /><br />
+
+        <esp-web-install-button id="flash-button">
+          <span slot="unsupported">
+            WebSerial not supported in this environment.
+          </span>
+        </esp-web-install-button>
+
+        <br /><br />
+      </div>
     </div>
 
-    <div class="box">
-      <p>[Placeholder] Firmware update UI goes here.</p>
-    </div>
-  </div>
-</body>
+    <!-- Marked via local node_modules -->
+    <script src="../node_modules/marked/marked.min.js"></script>
+
+    <!-- ESP Web Tools via local node_modules -->
+    <script type="module">
+      import "../node_modules/esp-web-tools/dist/web/install-button.js";
+
+      const btnBack = document.getElementById("btnBack");
+      btnBack?.addEventListener("click", () => {
+        if (window.nav?.back) {
+          window.nav.back();
+        } else {
+          window.location.href = "home.html";
+        }
+      });
+
+      const firmwareType = document.getElementById("firmware-type");
+      const canIdSelect = document.getElementById("can-id");
+      const addressableGroup = document.getElementById("addressable-group");
+      const button = document.getElementById("flash-button");
+      const repoStatusMsg = document.getElementById("repo-status");
+      const statusMsg = document.getElementById("status-msg");
+      const btnRepoManager = document.getElementById("btnRepoManager");
+
+      const mdUp = document.createElement("div");
+      const mdDown = document.createElement("div");
+      mdUp.className = "markdown";
+      mdDown.className = "markdown";
+      button.before(mdUp);
+      button.after(mdDown);
+
+      let firmwareDefs = [];
+      let cacheBaseUrl = "";
+      let activeRepo = null;
+
+      const resolveUrl = (p) => {
+        if (!cacheBaseUrl) return "";
+        return new URL(p, cacheBaseUrl).toString();
+      };
+
+      function setStatus(msg, color = "darkred") {
+        statusMsg.textContent = msg || "";
+        statusMsg.style.color = color;
+      }
+
+      function setRepoStatus(msg, color = "green") {
+        repoStatusMsg.textContent = msg || "";
+        repoStatusMsg.style.color = color;
+      }
+
+      function setCanIds(ids) {
+        const list = ids?.length ? ids : [1, 2, 3, 4, 5, 6, 7, 8];
+        canIdSelect.innerHTML = list
+          .map(i => `<option value="${i}">CAN ID ${i}</option>`)
+          .join("");
+      }
+
+      function manifestFor(def) {
+        if (def.manifest) return resolveUrl(def.manifest);
+        if (def.manifestTemplate) {
+          return resolveUrl(
+            def.manifestTemplate.replace("{CAN_ID}", canIdSelect.value)
+          );
+        }
+        return "";
+      }
+
+      async function loadMarkdown(path, target) {
+        target.innerHTML = "";
+        if (!path) return;
+        try {
+          const res = await fetch(resolveUrl(path));
+          target.innerHTML = marked.parse(await res.text());
+        } catch (e) {
+          target.innerHTML = `<div style="color:red;">Failed to load ${path}</div>`;
+        }
+      }
+
+      async function updateUI() {
+        const def = firmwareDefs.find(f => f.id === firmwareType.value);
+        if (!def) return;
+
+        const needsCan =
+          def.needsCanId ||
+          def.manifestTemplate?.includes("{CAN_ID}");
+
+        addressableGroup.style.display = needsCan ? "block" : "none";
+
+        const manifest = manifestFor(def);
+        if (manifest) {
+          button.setAttribute("manifest", manifest);
+          setStatus("");
+        } else {
+          button.removeAttribute("manifest");
+          setStatus("No manifest available for this firmware.");
+        }
+
+        await loadMarkdown(def.markdown_up, mdUp);
+        await loadMarkdown(def.markdown_down, mdDown);
+      }
+
+      function bindEvents() {
+        firmwareType.onchange = updateUI;
+        canIdSelect.onchange = updateUI;
+      }
+
+      async function loadCachedFirmwareList() {
+        firmwareType.disabled = true;
+        firmwareDefs = [];
+        mdUp.innerHTML = "";
+        mdDown.innerHTML = "";
+        setRepoStatus("");
+
+        if (!window.repo?.getActive) {
+          setStatus("Repo API not available.");
+          return;
+        }
+
+        activeRepo = await window.repo.getActive();
+        if (!activeRepo) {
+          setStatus("No repo configured.");
+          return;
+        }
+
+        cacheBaseUrl = activeRepo.cacheBaseUrl;
+        const cached = await window.repo.getCachedFirmwareList(activeRepo.id);
+        if (!cached?.data?.firmwares?.length) {
+          setStatus("No cached firmware list. Open Repo Manager to fetch.");
+          setRepoStatus("Using cached firmware list: none");
+          return;
+        }
+
+        firmwareDefs = cached.data.firmwares;
+        firmwareType.innerHTML = firmwareDefs
+          .map((f) => `<option value="${f.id}">${f.label}</option>`)
+          .join("");
+        firmwareType.disabled = false;
+
+        setCanIds(firmwareDefs[0]?.canIds);
+        bindEvents();
+        await updateUI();
+
+        const repoLabel = activeRepo.name || activeRepo.baseUrl;
+        setRepoStatus(`Using cached firmware list: ${repoLabel}`, "green");
+      }
+
+      async function checkForUpdates() {
+        if (!window.repo?.checkForUpdate || !activeRepo) return;
+        const result = await window.repo.checkForUpdate(activeRepo.id);
+        if (result?.changed) {
+          const yes = confirm("Firmware list changed. Refresh cache now?");
+          if (!yes) return;
+          setStatus("Refreshing cache...", "#555");
+          const refresh = await window.repo.refresh(activeRepo.id);
+          if (refresh.ok) {
+            await loadCachedFirmwareList();
+          } else {
+            setStatus(refresh.error || "Refresh failed.");
+          }
+        }
+      }
+
+      async function init() {
+        await loadCachedFirmwareList();
+        await checkForUpdates();
+      }
+
+      init();
+
+      btnRepoManager?.addEventListener("click", () => {
+        if (window.nav?.go) {
+          window.nav.go("repo_manager.html");
+        } else {
+          window.location.href = "repo_manager.html";
+        }
+      });
+    </script>
+  </body>
 </html>

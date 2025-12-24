@@ -9,6 +9,17 @@
   <div class="container menu">
     <h1>IM Assistant</h1>
 
+    <div class="box" style="margin-bottom: 20px;">
+      <h2>COM Port</h2>
+      <select id="port-select" style="width: 100%; padding: 10px;"></select>
+      <div style="margin-top: 10px;">
+        <button id="btnRefreshPorts" type="button">Refresh Ports</button>
+      </div>
+      <div style="margin-top: 8px; color: #555; font-size: 14px;">
+        Applies to firmware flashing and CAN ID config.
+      </div>
+    </div>
+
     <button onclick="nav.go('update_firmware.html')">
       Update Firmware
     </button>
@@ -21,5 +32,94 @@
       BEST Battery Tag JSON Editor
     </button>
   </div>
+
+  <script>
+    const portSelect = document.getElementById("port-select");
+    const btnRefreshPorts = document.getElementById("btnRefreshPorts");
+    let portList = [];
+
+    function portMatches(pref, port) {
+      if (!pref) return false;
+      if (pref.serialNumber && port.serialNumber) {
+        return pref.serialNumber === port.serialNumber;
+      }
+      if (pref.path && port.path) {
+        return pref.path === port.path;
+      }
+      if (pref.vendorId && pref.productId && port.vendorId && port.productId) {
+        return (
+          pref.vendorId === port.vendorId && pref.productId === port.productId
+        );
+      }
+      return false;
+    }
+
+    function portLabel(port) {
+      const parts = [];
+      if (port.path) parts.push(port.path);
+      if (port.friendlyName) {
+        parts.push(port.friendlyName);
+      } else if (port.manufacturer) {
+        parts.push(port.manufacturer);
+      } else if (port.pnpId) {
+        parts.push(port.pnpId);
+      }
+      return parts.join(" - ") || "Unknown port";
+    }
+
+    async function loadPorts() {
+      if (!window.serial?.listPorts) {
+        return;
+      }
+      try {
+        portList = await window.serial.listPorts();
+        const preferred = await window.serial.getPreferred();
+
+        portSelect.innerHTML = "";
+        const optAuto = document.createElement("option");
+        optAuto.value = "";
+        optAuto.textContent = "None";
+        portSelect.appendChild(optAuto);
+
+        portList.forEach((port, idx) => {
+          const opt = document.createElement("option");
+          opt.value = String(idx);
+          opt.textContent = portLabel(port);
+          portSelect.appendChild(opt);
+        });
+
+        let selectedIndex = 0;
+        if (preferred) {
+          const matchIndex = portList.findIndex((p) => portMatches(preferred, p));
+          if (matchIndex >= 0) selectedIndex = matchIndex + 1;
+        }
+        portSelect.selectedIndex = selectedIndex;
+      }
+      catch {}
+    }
+
+    portSelect.addEventListener("change", async () => {
+      if (portSelect.value === "") {
+        await window.serial.clearPreferred();
+        return;
+      }
+      const idx = Number(portSelect.value);
+      const selected = portList[idx];
+      if (!selected) return;
+      await window.serial.setPreferred({
+        path: selected.path || "",
+        serialNumber: selected.serialNumber || "",
+        displayName: selected.displayName || "",
+        vendorId: selected.vendorId || "",
+        productId: selected.productId || "",
+        usbVendorId: selected.usbVendorId || "",
+        usbProductId: selected.usbProductId || "",
+      });
+    });
+
+    btnRefreshPorts.addEventListener("click", loadPorts);
+
+    loadPorts();
+  </script>
 </body>
 </html>

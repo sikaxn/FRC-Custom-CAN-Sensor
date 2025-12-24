@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Repo Manager</title>
+    <link rel="stylesheet" href="../assets/style.css" />
+    <style>
+      .repo-row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        margin-bottom: 12px;
+      }
+
+      .repo-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .field {
+        margin-bottom: 12px;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+      }
+
+      #status {
+        margin-bottom: 12px;
+        font-weight: bold;
+      }
+
+      .warning {
+        color: darkred;
+        font-weight: bold;
+        margin-bottom: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <button class="back" id="btnBack" type="button">Back</button>
+        <h1>Repo Manager</h1>
+      </div>
+
+      <div class="box">
+        <div class="warning">
+          Security warning: only add repos you trust. Firmware and scripts are
+          downloaded from these URLs and run on your hardware.
+        </div>
+        <div id="status"></div>
+        <div id="error-details"></div>
+        <div id="repo-list"></div>
+
+        <button id="btnClearAll" type="button">Clear All Caches</button>
+        <br /><br />
+
+        <hr />
+
+        <h2>Add Repo</h2>
+        <div class="field">
+          <label for="repo-url">Repo URL</label>
+          <input id="repo-url" type="text" placeholder="https://example.com/firmware/" />
+        </div>
+        <div class="field">
+          <label for="repo-name">Display name (optional)</label>
+          <input id="repo-name" type="text" placeholder="My Repo" />
+        </div>
+        <button id="btnAdd" type="button">Add Repo</button>
+      </div>
+    </div>
+
+    <script>
+      const btnBack = document.getElementById("btnBack");
+      const repoList = document.getElementById("repo-list");
+      const statusEl = document.getElementById("status");
+      const errorDetails = document.getElementById("error-details");
+      const repoUrl = document.getElementById("repo-url");
+      const repoName = document.getElementById("repo-name");
+      const btnAdd = document.getElementById("btnAdd");
+      const btnClearAll = document.getElementById("btnClearAll");
+
+      function setStatus(msg, color = "darkred") {
+        statusEl.textContent = msg || "";
+        statusEl.style.color = color;
+        if (errorDetails) errorDetails.innerHTML = "";
+      }
+
+      btnBack.addEventListener("click", () => {
+        if (window.history.length > 1) {
+          window.history.back();
+        } else if (window.nav?.back) {
+          window.nav.back();
+        } else {
+          window.location.href = "home.html";
+        }
+      });
+
+      async function refreshList() {
+        const state = await window.repo.getState();
+        repoList.innerHTML = "";
+        const canRemove = state.repos.length > 1;
+
+        for (const repo of state.repos) {
+          const row = document.createElement("div");
+          row.className = "repo-row";
+
+          const title = document.createElement("div");
+          title.textContent =
+            repo.name || repo.baseUrl;
+          row.appendChild(title);
+
+          const url = document.createElement("div");
+          url.textContent = repo.baseUrl;
+          row.appendChild(url);
+
+          const meta = document.createElement("div");
+          const fetched = repo.lastFetchedAt ? `Last sync: ${repo.lastFetchedAt}` : "Not synced yet";
+          const active = repo.id === state.activeRepoId ? " (active)" : "";
+          meta.textContent = fetched + active;
+          row.appendChild(meta);
+
+          const actions = document.createElement("div");
+          actions.className = "repo-actions";
+
+          const btnUse = document.createElement("button");
+          btnUse.textContent = "Use";
+          btnUse.disabled = repo.id === state.activeRepoId;
+          btnUse.onclick = async () => {
+            await window.repo.setActive(repo.id);
+            await refreshList();
+          };
+          actions.appendChild(btnUse);
+
+          const btnRefresh = document.createElement("button");
+          btnRefresh.textContent = "Refresh Cache";
+          btnRefresh.onclick = async () => {
+            setStatus("Refreshing cache...", "#555");
+            const result = await window.repo.refresh(repo.id);
+            if (result.ok) {
+              const errCount = result.errors?.length || 0;
+              setStatus(errCount ? `Refreshed with ${errCount} errors.` : "Cache refreshed.", errCount ? "darkred" : "green");
+              if (errCount && errorDetails) {
+                const list = document.createElement("ul");
+                result.errors.forEach((err) => {
+                  const li = document.createElement("li");
+                  li.textContent = err;
+                  list.appendChild(li);
+                });
+                errorDetails.appendChild(list);
+              }
+            } else {
+              setStatus(result.error || "Refresh failed.");
+            }
+            await refreshList();
+          };
+          actions.appendChild(btnRefresh);
+
+          const btnClear = document.createElement("button");
+          btnClear.textContent = "Clear Cache";
+          btnClear.onclick = async () => {
+            if (!confirm("Clear cached files for this repo?")) return;
+            setStatus("Clearing cache...", "#555");
+            const result = await window.repo.clearCache(repo.id);
+            if (result.ok) {
+              setStatus("Cache cleared.", "green");
+            } else {
+              setStatus(result.error || "Clear cache failed.");
+            }
+          };
+          actions.appendChild(btnClear);
+
+          const btnRemove = document.createElement("button");
+          btnRemove.textContent = "Remove";
+          btnRemove.disabled = !canRemove;
+          btnRemove.onclick = async () => {
+            if (!confirm("Remove this repo?")) return;
+            await window.repo.remove(repo.id);
+            await refreshList();
+          };
+          actions.appendChild(btnRemove);
+
+          row.appendChild(actions);
+          repoList.appendChild(row);
+        }
+      }
+
+      btnAdd.addEventListener("click", async () => {
+        const url = repoUrl.value.trim();
+        if (!url) {
+          setStatus("Please enter a repo URL.");
+          return;
+        }
+        try {
+          const result = await window.repo.add(url, repoName.value.trim());
+          if (result.ok) {
+            repoUrl.value = "";
+            repoName.value = "";
+            setStatus("Repo added.", "green");
+            await refreshList();
+          } else {
+            setStatus("Failed to add repo.");
+          }
+        } catch (err) {
+          setStatus(String(err));
+        }
+      });
+
+      btnClearAll.addEventListener("click", async () => {
+        if (!confirm("Clear all cached repos?")) return;
+        setStatus("Clearing all caches...", "#555");
+        const result = await window.repo.clearAllCaches();
+        if (result.ok) {
+          setStatus("All caches cleared.", "green");
+        } else {
+          setStatus(result.error || "Clear all caches failed.");
+        }
+      });
+
+      refreshList();
+    </script>
+  </body>
+</html>
