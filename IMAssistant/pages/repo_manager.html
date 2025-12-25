@@ -43,6 +43,40 @@
         font-weight: bold;
         margin-bottom: 16px;
       }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+      }
+
+      .modal.open {
+        display: flex;
+      }
+
+      .modal-card {
+        background: #fff;
+        border-radius: 10px;
+        padding: 16px;
+        width: min(420px, 90vw);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+      }
+
+      .modal-card h5 {
+        margin: 0 0 10px;
+        font-size: 16px;
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 12px;
+      }
     </style>
   </head>
   <body>
@@ -79,6 +113,22 @@
       </div>
     </div>
 
+    <div class="modal" id="privacy-modal" role="dialog" aria-modal="true" aria-labelledby="privacy-title">
+      <div class="modal-card">
+        <h5 id="privacy-title">Privacy Policy</h5>
+        <div>
+          This repo uses https://studenttechsupport.com/customcanespfw/
+        </div>
+        <div style="margin-top: 8px;">
+          Do you want to continue and fetch from this repo?
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="privacy-no">No</button>
+          <button type="button" id="privacy-yes">Yes</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       const btnBack = document.getElementById("btnBack");
       const repoList = document.getElementById("repo-list");
@@ -88,6 +138,9 @@
       const repoName = document.getElementById("repo-name");
       const btnAdd = document.getElementById("btnAdd");
       const btnClearAll = document.getElementById("btnClearAll");
+      const privacyModal = document.getElementById("privacy-modal");
+      const privacyYes = document.getElementById("privacy-yes");
+      const privacyNo = document.getElementById("privacy-no");
 
       function setStatus(msg, color = "darkred") {
         statusEl.textContent = msg || "";
@@ -104,6 +157,27 @@
           window.location.href = "home.html";
         }
       });
+
+      function openPrivacyPrompt() {
+        return new Promise((resolve) => {
+          privacyModal.classList.add("open");
+          const onYes = () => {
+            cleanup();
+            resolve(true);
+          };
+          const onNo = () => {
+            cleanup();
+            resolve(false);
+          };
+          const cleanup = () => {
+            privacyModal.classList.remove("open");
+            privacyYes.removeEventListener("click", onYes);
+            privacyNo.removeEventListener("click", onNo);
+          };
+          privacyYes.addEventListener("click", onYes);
+          privacyNo.addEventListener("click", onNo);
+        });
+      }
 
       async function refreshList() {
         const state = await window.repo.getState();
@@ -144,6 +218,13 @@
           const btnRefresh = document.createElement("button");
           btnRefresh.textContent = "Refresh Cache";
           btnRefresh.onclick = async () => {
+            if (repo.baseUrl === "https://studenttechsupport.com/customcanespfw/") {
+              const proceed = await openPrivacyPrompt();
+              if (!proceed) {
+                setStatus("Refresh cancelled.");
+                return;
+              }
+            }
             setStatus("Refreshing cache...", "#555");
             const result = await window.repo.refresh(repo.id);
             if (result.ok) {

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const fsp = fs.promises;
@@ -297,7 +297,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 900,
     height: 650,
-    //autoHideMenuBar: true,      // hide toolbar on Windows
+    autoHideMenuBar: true,      // hide toolbar on Windows
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -540,5 +540,12 @@ ipcMain.handle("serial:setPreferred", async (_event, port) => {
 ipcMain.handle("serial:clearPreferred", async () => {
   serialPrefs.preferred = null;
   await saveSerialPrefs();
+  return { ok: true };
+});
+ipcMain.handle("shell:openExternal", async (_event, url) => {
+  if (!url) return { ok: false };
+  const textUrl = String(url);
+  if (!/^https?:/i.test(textUrl)) return { ok: false };
+  await shell.openExternal(textUrl);
   return { ok: true };
 });

@@ -36,6 +36,7 @@
     <div class="container">
       <div class="header">
         <button class="back" id="btnBack" type="button">Back</button>
+        <button class="back" id="btnRepoManager" type="button">Repo Manager</button>
         <h1>Flash Firmware</h1>
       </div>
 
@@ -62,10 +63,6 @@
         </div>
 
         <br />
-
-        <button id="btnRepoManager" type="button">Repo Manager</button>
-
-        <br /><br />
 
         <esp-web-install-button id="flash-button">
           <span slot="unsupported">
@@ -245,6 +242,7 @@
       }
 
       init();
+
 
       btnRepoManager?.addEventListener("click", () => {
         if (window.nav?.go) {

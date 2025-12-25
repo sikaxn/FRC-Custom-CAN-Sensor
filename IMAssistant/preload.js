@@ -25,3 +25,26 @@ contextBridge.exposeInMainWorld("serial", {
   setPreferred: (port) => ipcRenderer.invoke("serial:setPreferred", port),
   clearPreferred: () => ipcRenderer.invoke("serial:clearPreferred"),
 });
+
+contextBridge.exposeInMainWorld("shell", {
+  openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a");
+    if (!link) return;
+    const href = link.getAttribute("href");
+    if (!href) return;
+    let url;
+    try {
+      url = new URL(href, window.location.href);
+    } catch {
+      return;
+    }
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      event.preventDefault();
+      ipcRenderer.invoke("shell:openExternal", url.toString());
+    }
+  });
+});

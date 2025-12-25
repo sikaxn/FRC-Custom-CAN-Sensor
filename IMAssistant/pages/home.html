@@ -6,19 +6,8 @@
   <link rel="stylesheet" href="../assets/style.css" />
 </head>
 <body>
-  <div class="container menu">
+  <div class="container menu" style="padding-bottom: 90px;">
     <h1>IM Assistant</h1>
-
-    <div class="box" style="margin-bottom: 20px;">
-      <h2>COM Port</h2>
-      <select id="port-select" style="width: 100%; padding: 10px;"></select>
-      <div style="margin-top: 10px;">
-        <button id="btnRefreshPorts" type="button">Refresh Ports</button>
-      </div>
-      <div style="margin-top: 8px; color: #555; font-size: 14px;">
-        Applies to firmware flashing and CAN ID config.
-      </div>
-    </div>
 
     <button onclick="nav.go('update_firmware.html')">
       Update Firmware
@@ -31,6 +20,15 @@
     <button onclick="nav.go('best_json_editor.html')">
       BEST Battery Tag JSON Editor
     </button>
+  </div>
+
+  <div style="position: fixed; left: 0; right: 0; bottom: 0; background: #f4f4f4; border-top: 1px solid #ddd; padding: 10px 20px;">
+    <div class="container" style="display: flex; align-items: center; gap: 10px;">
+      <strong style="min-width: 80px;">COM Port</strong>
+      <select id="port-select" style="flex: 1; padding: 8px;"></select>
+      <button id="btnRefreshPorts" type="button">Refresh</button>
+      <span style="color: #555; font-size: 12px;">Applies to firmware flashing and CAN ID config.</span>
+    </div>
   </div>
 
   <script>
