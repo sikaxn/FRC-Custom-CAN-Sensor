@@ -46,6 +46,7 @@
         <button class="btn" id="btnSave" type="button">Send SAVE</button>
         <button class="btn" id="btnGet" type="button">Send GET</button>
         <button class="btn" id="btnTime" type="button">Sync Time</button>
+        <button class="btn" id="btnReset" type="button">Reset ESP32</button>
 
         <div style="flex: 1"></div>
 
@@ -86,6 +87,7 @@
     const btnSave = document.getElementById("btnSave");
     const btnGet = document.getElementById("btnGet");
     const btnTime = document.getElementById("btnTime");
+    const btnReset = document.getElementById("btnReset");
     const btnConnect = document.getElementById("btnConnect");
     const btnDisconnect = document.getElementById("btnDisconnect");
     const btnClear = document.getElementById("btnClear");
@@ -113,6 +115,7 @@
       btnSave.disabled = !connected;
       btnGet.disabled = !connected;
       btnTime.disabled = !connected;
+      btnReset.disabled = !connected;
 
       elDeviceNumber.disabled = !connected;
     }
@@ -241,6 +244,21 @@
       sendCommand("&SETTIME " + stamp);
     }
 
+    async function resetEsp32() {
+      if (!port) {
+        log("[WARN] Not connected");
+        return;
+      }
+      try {
+        await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        await port.setSignals({ dataTerminalReady: true, requestToSend: true });
+        log("[INFO] Reset signal toggled");
+      } catch (err) {
+        log("[ERROR] Reset failed: " + err);
+      }
+    }
+
     // -----------------------------
     // Events
     // -----------------------------
@@ -261,6 +279,7 @@
     btnSave.addEventListener("click", sendSave);
     btnGet.addEventListener("click", sendGet);
     btnTime.addEventListener("click", sendSetTime);
+    btnReset.addEventListener("click", resetEsp32);
 
     btnClear.addEventListener("click", () => {
       elOutput.textContent = "";
