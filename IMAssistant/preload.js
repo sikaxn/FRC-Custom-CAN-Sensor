@@ -17,6 +17,11 @@ contextBridge.exposeInMainWorld("repo", {
   clearAllCaches: () => ipcRenderer.invoke("repo:clearAllCaches"),
   getCachedFirmwareList: (id) =>
     ipcRenderer.invoke("repo:getCachedFirmwareList", id),
+  onFetchLog: (handler) => {
+    const listener = (_event, message) => handler(message);
+    ipcRenderer.on("repo:fetchLog", listener);
+    return () => ipcRenderer.removeListener("repo:fetchLog", listener);
+  },
 });
 
 contextBridge.exposeInMainWorld("serial", {

@@ -38,6 +38,21 @@
         font-weight: bold;
       }
 
+      #fetch-log {
+        background: #0f1412;
+        color: #a6f1c0;
+        border-radius: 8px;
+        padding: 12px;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.4;
+        height: 180px;
+        overflow: auto;
+        white-space: pre-wrap;
+        border: 1px solid #1d3527;
+        margin-bottom: 16px;
+      }
+
       .warning {
         color: darkred;
         font-weight: bold;
@@ -92,6 +107,7 @@
           downloaded from these URLs and run on your hardware.
         </div>
         <div id="status"></div>
+        <pre id="fetch-log" aria-live="polite"></pre>
         <div id="error-details"></div>
         <div id="repo-list"></div>
 
@@ -133,6 +149,7 @@
       const btnBack = document.getElementById("btnBack");
       const repoList = document.getElementById("repo-list");
       const statusEl = document.getElementById("status");
+      const fetchLog = document.getElementById("fetch-log");
       const errorDetails = document.getElementById("error-details");
       const repoUrl = document.getElementById("repo-url");
       const repoName = document.getElementById("repo-name");
@@ -146,6 +163,22 @@
         statusEl.textContent = msg || "";
         statusEl.style.color = color;
         if (errorDetails) errorDetails.innerHTML = "";
+      }
+
+      function appendFetchLog(message) {
+        const line = message || "";
+        const nearBottom =
+          fetchLog.scrollTop + fetchLog.clientHeight >= fetchLog.scrollHeight - 8;
+        fetchLog.textContent += line + "\n";
+        if (nearBottom) {
+          fetchLog.scrollTop = fetchLog.scrollHeight;
+        }
+      }
+
+      if (window.repo?.onFetchLog) {
+        window.repo.onFetchLog((message) => {
+          appendFetchLog(message);
+        });
       }
 
       btnBack.addEventListener("click", () => {
@@ -225,6 +258,7 @@
                 return;
               }
             }
+            fetchLog.textContent = "";
             setStatus("Refreshing cache...", "#555");
             const result = await window.repo.refresh(repo.id);
             if (result.ok) {

@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, shell, Menu } = require("electron");
 const path = require("path");
+const { spawn } = require("child_process");
 const fs = require("fs");
 const fsp = fs.promises;
 const crypto = require("crypto");
@@ -42,6 +43,12 @@ function cacheBaseUrl(repoId) {
   return pathToFileURL(dir).toString();
 }
 
+function emitRepoFetchLog(message) {
+  if (mainWindow?.webContents) {
+    mainWindow.webContents.send("repo:fetchLog", message);
+  }
+}
+
 async function clearRepoCache(repoId) {
   const dir = repoCacheDir(repoId);
   await fsp.rm(dir, { recursive: true, force: true });
@@ -49,6 +56,51 @@ async function clearRepoCache(repoId) {
 
 async function clearAllRepoCaches() {
   await fsp.rm(CACHE_ROOT(), { recursive: true, force: true });
+}
+
+async function resetAppDataAndQuit() {
+  const userDataDir = app.getPath("userData");
+  const scriptPath = path.join(__dirname, "scripts", "reset-userdata.ps1");
+  const tempUserData = path.join(app.getPath("temp"), "imassistant-reset");
+  const tempScriptPath = path.join(
+    app.getPath("temp"),
+    "imassistant-reset-userdata.ps1"
+  );
+  try {
+    if (process.platform === "win32") {
+      app.setPath("userData", tempUserData);
+      try {
+        const scriptText = await fsp.readFile(scriptPath, "utf8");
+        await fsp.writeFile(tempScriptPath, scriptText);
+      } catch (err) {
+        console.warn("[reset] failed to stage reset script:", err);
+      }
+      const child = spawn(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          tempScriptPath,
+          "-UserDataDir",
+          userDataDir,
+          "-Pid",
+          String(process.pid),
+          "-ExePath",
+          process.execPath,
+        ],
+        { detached: true, stdio: "ignore" }
+      );
+      child.unref();
+    } else {
+      await fsp.rm(userDataDir, { recursive: true, force: true });
+    }
+  } catch (err) {
+    console.warn("[reset] failed to clear userData:", err);
+  } finally {
+    app.exit(0);
+  }
 }
 
 async function loadRepoState() {
@@ -202,6 +254,7 @@ async function downloadToCache(baseUrl, repoDir, targetUrl) {
     throw new Error(`Refusing to write outside cache: ${resolvedPath}`);
   }
   await fsp.mkdir(path.dirname(destPath), { recursive: true });
+  emitRepoFetchLog(`GET ${resolved}`);
   const res = await fetch(resolved);
   if (!res.ok) throw new Error(`Failed to fetch ${resolved}: ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
@@ -415,6 +468,13 @@ function buildMenu() {
         },
         { type: "separator" },
         {
+          label: "Reset and Clear All (Quit)",
+          click: () => {
+            void resetAppDataAndQuit();
+          },
+        },
+        { type: "separator" },
+        {
           label: "Actual Size",
           accelerator: "CmdOrCtrl+0",
           click: () => mainWindow?.webContents.setZoomLevel(0),
@@ -557,6 +617,7 @@ ipcMain.handle("repo:refresh", async (_event, id) => {
 
   try {
     const listUrl = new URL("firmwarelist.json", repo.baseUrl).toString();
+    emitRepoFetchLog(`GET ${listUrl}`);
     const { text, hash } = await fetchTextWithHash(listUrl);
     await fsp.writeFile(path.join(repoDir, "firmwarelist.json"), text);
 
