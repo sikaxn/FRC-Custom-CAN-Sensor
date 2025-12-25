@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const fsp = fs.promises;
@@ -13,12 +13,15 @@ try {
 
 let mainWindow;
 let serialPrefs = { preferred: null };
+let uiPrefs = { autoHideMenuBar: true };
 
 const DEFAULT_REPO_URL = "https://studenttechsupport.com/customcanespfw/";
 const REPO_STATE_FILE = () => path.join(app.getPath("userData"), "repos.json");
 const CACHE_ROOT = () => path.join(app.getPath("userData"), "repo-cache");
 const SERIAL_PREFS_FILE = () =>
   path.join(app.getPath("userData"), "serial.json");
+const UI_PREFS_FILE = () =>
+  path.join(app.getPath("userData"), "ui.json");
 
 function normalizeBaseUrl(url) {
   const u = new URL(url);
@@ -76,6 +79,20 @@ async function loadSerialPrefs() {
 async function saveSerialPrefs() {
   await fsp.mkdir(app.getPath("userData"), { recursive: true });
   await fsp.writeFile(SERIAL_PREFS_FILE(), JSON.stringify(serialPrefs, null, 2));
+}
+
+async function loadUiPrefs() {
+  try {
+    const raw = await fsp.readFile(UI_PREFS_FILE(), "utf8");
+    uiPrefs = JSON.parse(raw);
+  } catch {
+    uiPrefs = { autoHideMenuBar: true };
+  }
+}
+
+async function saveUiPrefs() {
+  await fsp.mkdir(app.getPath("userData"), { recursive: true });
+  await fsp.writeFile(UI_PREFS_FILE(), JSON.stringify(uiPrefs, null, 2));
 }
 
 function portMatches(pref, port) {
@@ -297,7 +314,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 900,
     height: 650,
-    autoHideMenuBar: true,      // hide toolbar on Windows
+    autoHideMenuBar: uiPrefs.autoHideMenuBar,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -352,10 +369,69 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, "pages", "home.html"));
 }
 
+function buildMenu() {
+  const template = [
+    {
+      label: "IM Assistant",
+      submenu: [
+        {
+          label: "Reload",
+          accelerator: "CmdOrCtrl+R",
+          click: () => mainWindow?.reload(),
+        },
+        {
+          label: "Exit",
+          accelerator: "Alt+F4",
+          click: () => app.quit(),
+        },
+        { type: "separator" },
+        {
+          label: "Help",
+          click: () => shell.openExternal("https://studenttechsupport.com/support"),
+        },
+        {
+          label: "Privacy",
+          click: () => shell.openExternal("https://studenttechsupport.com/privacy"),
+        },
+      ],
+    },
+    {
+      label: "Debug",
+      submenu: [
+        {
+          label: "Dev Tools",
+          accelerator: "CmdOrCtrl+Shift+I",
+          click: () => mainWindow?.webContents.toggleDevTools(),
+        },
+        {
+          label: "Reload",
+          accelerator: "CmdOrCtrl+R",
+          click: () => mainWindow?.reload(),
+        },
+        {
+          label: "Force Reload",
+          accelerator: "CmdOrCtrl+Shift+R",
+          click: () => mainWindow?.webContents.reloadIgnoringCache(),
+        },
+        { type: "separator" },
+        {
+          label: "Actual Size",
+          accelerator: "CmdOrCtrl+0",
+          click: () => mainWindow?.webContents.setZoomLevel(0),
+        },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 app.whenReady().then(async () => {
   await ensureRepoState();
   await loadSerialPrefs();
+  await loadUiPrefs();
   createWindow();
+  buildMenu();
 });
 
 app.on("window-all-closed", () => {
@@ -540,6 +616,19 @@ ipcMain.handle("serial:setPreferred", async (_event, port) => {
 ipcMain.handle("serial:clearPreferred", async () => {
   serialPrefs.preferred = null;
   await saveSerialPrefs();
+  return { ok: true };
+});
+ipcMain.handle("ui:getPrefs", async () => {
+  return uiPrefs;
+});
+
+ipcMain.handle("ui:setAutoHideMenuBar", async (_event, value) => {
+  uiPrefs.autoHideMenuBar = Boolean(value);
+  await saveUiPrefs();
+  if (mainWindow) {
+    mainWindow.setAutoHideMenuBar(uiPrefs.autoHideMenuBar);
+    mainWindow.setMenuBarVisibility(!uiPrefs.autoHideMenuBar);
+  }
   return { ok: true };
 });
 ipcMain.handle("shell:openExternal", async (_event, url) => {

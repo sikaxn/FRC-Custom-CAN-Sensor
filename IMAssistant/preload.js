@@ -26,6 +26,12 @@ contextBridge.exposeInMainWorld("serial", {
   clearPreferred: () => ipcRenderer.invoke("serial:clearPreferred"),
 });
 
+contextBridge.exposeInMainWorld("ui", {
+  getPrefs: () => ipcRenderer.invoke("ui:getPrefs"),
+  setAutoHideMenuBar: (value) =>
+    ipcRenderer.invoke("ui:setAutoHideMenuBar", value),
+});
+
 contextBridge.exposeInMainWorld("shell", {
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
 });

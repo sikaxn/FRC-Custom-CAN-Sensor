@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="../assets/style.css" />
 </head>
 <body>
-  <div class="container menu" style="padding-bottom: 90px;">
+  <div class="container menu" style="padding-bottom: 110px;">
     <h1>IM Assistant</h1>
 
     <button onclick="nav.go('update_firmware.html')">
@@ -23,10 +23,14 @@
   </div>
 
   <div style="position: fixed; left: 0; right: 0; bottom: 0; background: #f4f4f4; border-top: 1px solid #ddd; padding: 10px 20px;">
-    <div class="container" style="display: flex; align-items: center; gap: 10px;">
+    <div class="container" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
       <strong style="min-width: 80px;">COM Port</strong>
-      <select id="port-select" style="flex: 1; padding: 8px;"></select>
+      <select id="port-select" style="flex: 1; min-width: 180px; padding: 8px;"></select>
       <button id="btnRefreshPorts" type="button">Refresh</button>
+      <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px;">
+        <input type="checkbox" id="toggleMenuBar" />
+        Show menu bar
+      </label>
       <span style="color: #555; font-size: 12px;">Applies to firmware flashing and CAN ID config.</span>
     </div>
   </div>
@@ -34,6 +38,7 @@
   <script>
     const portSelect = document.getElementById("port-select");
     const btnRefreshPorts = document.getElementById("btnRefreshPorts");
+    const toggleMenuBar = document.getElementById("toggleMenuBar");
     let portList = [];
 
     function portMatches(pref, port) {
@@ -118,6 +123,19 @@
     btnRefreshPorts.addEventListener("click", loadPorts);
 
     loadPorts();
+
+    async function loadUiPrefs() {
+      if (!window.ui?.getPrefs) return;
+      const prefs = await window.ui.getPrefs();
+      toggleMenuBar.checked = !prefs.autoHideMenuBar;
+    }
+
+    toggleMenuBar.addEventListener("change", async () => {
+      if (!window.ui?.setAutoHideMenuBar) return;
+      await window.ui.setAutoHideMenuBar(!toggleMenuBar.checked);
+    });
+
+    loadUiPrefs();
   </script>
 </body>
 </html>
