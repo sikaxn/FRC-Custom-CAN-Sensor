@@ -119,6 +119,11 @@
         statusMsg.style.color = color;
       }
 
+      function setStatusHtml(html, color = "darkred") {
+        statusMsg.innerHTML = html || "";
+        statusMsg.style.color = color;
+      }
+
       function setRepoStatus(msg, color = "green") {
         repoStatusMsg.textContent = msg || "";
         repoStatusMsg.style.color = color;
@@ -201,7 +206,9 @@
         cacheBaseUrl = activeRepo.cacheBaseUrl;
         const cached = await window.repo.getCachedFirmwareList(activeRepo.id);
         if (!cached?.data?.firmwares?.length) {
-          setStatus("No cached firmware list. Open Repo Manager to fetch.");
+          setStatusHtml(
+            'No cached firmware list. <a href="repo_manager.html">Open Repo Manager</a> to fetch.'
+          );
           setRepoStatus("Using cached firmware list: none");
           return;
         }
@@ -252,5 +259,6 @@
         }
       });
     </script>
-  </body>
+    <script src="../assets/lockdown.js"></script>
+</body>
 </html>

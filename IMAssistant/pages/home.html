@@ -8,6 +8,7 @@
 <body>
   <div class="container menu" style="padding-bottom: 110px;">
     <h1>IM Assistant</h1>
+    <div id="app-version" style="font-size: 12px; color: #666; margin-top: -6px;">Version: loading...</div>
 
     <button onclick="nav.go('update_firmware.html')">
       Update Firmware
@@ -29,9 +30,9 @@
       <button id="btnRefreshPorts" type="button">Refresh</button>
       <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px;">
         <input type="checkbox" id="toggleMenuBar" />
-        Show menu bar
+        Show menu bar (debug)
       </label>
-      <span style="color: #555; font-size: 12px;">Applies to firmware flashing and CAN ID config.</span>
+      <span style="color: #555; font-size: 12px;">If you're experiencing connection issues, check if another app (like Arduino IDE) is using the serial port.</span>
     </div>
   </div>
 
@@ -125,9 +126,9 @@
     loadPorts();
 
     async function loadUiPrefs() {
-      if (!window.ui?.getPrefs) return;
-      const prefs = await window.ui.getPrefs();
-      toggleMenuBar.checked = !prefs.autoHideMenuBar;
+      if (!window.ui?.setAutoHideMenuBar) return;
+      toggleMenuBar.checked = false;
+      await window.ui.setAutoHideMenuBar(true);
     }
 
     toggleMenuBar.addEventListener("change", async () => {
@@ -136,6 +137,28 @@
     });
 
     loadUiPrefs();
+
+    async function loadVersion() {
+      if (!window.app?.getVersion) return;
+      const el = document.getElementById("app-version");
+      if (!el) return;
+      try {
+        const version = await window.app.getVersion();
+        const isExperimental = /b$/i.test(version);
+        if (isExperimental) {
+          el.style.color = "#c00";
+          el.textContent = `Version: ${version} (experimental build)`;
+        } else {
+          el.style.color = "#666";
+          el.textContent = `Version: ${version}`;
+        }
+      } catch {
+        el.textContent = "Version: unknown";
+      }
+    }
+
+    loadVersion();
   </script>
+  <script src="../assets/lockdown.js"></script>
 </body>
 </html>

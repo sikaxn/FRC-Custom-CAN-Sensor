@@ -4,6 +4,7 @@
 }
 
 html, body {
+  user-select: none;
   margin: 0;
   padding: 0;
   height: 100%;
@@ -137,4 +138,10 @@ button:active {
 /* Give the whole table a larger minimum width so columns don't crush */
 table {
   min-width: 1050px; /* was 820px */
+}
+
+
+/* Disable selection globally; re-enable for inputs and terminal output */
+input, textarea, select, [contenteditable="true"], [contenteditable=""], .terminal, .terminal * {
+  user-select: text;
 }

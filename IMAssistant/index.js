@@ -457,6 +457,12 @@ function buildMenu() {
           click: () => mainWindow?.webContents.toggleDevTools(),
         },
         {
+          label: "Open AppData Folder",
+          click: () => {
+            void shell.openPath(app.getPath("userData"));
+          },
+        },
+        {
           label: "Reload",
           accelerator: "CmdOrCtrl+R",
           click: () => mainWindow?.reload(),
@@ -496,6 +502,10 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+ipcMain.handle("app:getVersion", () => {
+  return app.getVersion();
 });
 
 ipcMain.handle("navigate", (_event, page) => {

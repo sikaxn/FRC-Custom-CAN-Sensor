@@ -1,5 +1,10 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+contextBridge.exposeInMainWorld("app", {
+  getVersion: () => ipcRenderer.invoke("app:getVersion"),
+});
+
+
 contextBridge.exposeInMainWorld("nav", {
   go: (page) => ipcRenderer.invoke("navigate", page),
   back: () => ipcRenderer.invoke("go-back"),
