@@ -208,6 +208,8 @@ void setup() {
   Serial.begin(115200);
   while (!Serial);
 
+  Serial.printf("IM Battery Tracking");
+
   //CAN ID init
   EEPROM.begin(8);  // allocate small EEPROM space
 
