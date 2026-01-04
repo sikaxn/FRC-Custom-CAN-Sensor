@@ -237,7 +237,9 @@ struct AmSample {
 
 static AmSample gAmSample = {0,0,0,0,0,false,false};
 static bool amI2cOffline = false;
-static uint32_t lastAmI2cRecovery = 0;
+static bool amSensorOnline = false;
+static bool amLastReadError = false;
+static uint32_t lastAmReinitAttemptMs = 0;
 static portMUX_TYPE amSampleMux = portMUX_INITIALIZER_UNLOCKED;
 
 // ===================================================================
@@ -338,8 +340,19 @@ bool amSafeWriteReg(uint8_t reg, uint8_t value)
   Wire.write(value);
   bool ok = (Wire.endTransmission() == 0);
   i2cGive();
-  if (!ok) amI2cOffline = true;
+  if (!ok) {
+    amI2cOffline = true;
+    amLastReadError = true;
+  }
   return ok;
+}
+
+static bool amWriteRegLocked(uint8_t reg, uint8_t value)
+{
+  Wire.beginTransmission(AM_I2C_ADDR);
+  Wire.write(reg);
+  Wire.write(value);
+  return (Wire.endTransmission() == 0);
 }
 
 uint16_t amSafeRead16(uint8_t reg)
@@ -349,12 +362,14 @@ uint16_t amSafeRead16(uint8_t reg)
   Wire.write(reg);
   if (Wire.endTransmission(false) != 0) {
     amI2cOffline = true;
+    amLastReadError = true;
     i2cGive();
     return 0;
   }
   Wire.requestFrom(AM_I2C_ADDR, 2);
   if (Wire.available() != 2) {
     amI2cOffline = true;
+    amLastReadError = true;
     i2cGive();
     return 0;
   }
@@ -378,21 +393,39 @@ bool amInitializeSensor()
   return true;
 }
 
-void amTryI2cRecovery()
+static bool amInitializeSensorLocked()
+{
+  if (!amWriteRegLocked(AM_ENABLE_REG, 0x01)) return false;
+  delay(10);
+  if (!amWriteRegLocked(AM_ENABLE_REG, 0x07)) return false;
+  if (!amWriteRegLocked(AM_ATIME_REG,  0xFF)) return false;
+  if (!amWriteRegLocked(AM_WTIME_REG,  0x00)) return false;
+  if (!amWriteRegLocked(AM_CONTROL_REG,0x02)) return false;
+  if (!amWriteRegLocked(0x8E, 0x11)) return false;
+  if (!amWriteRegLocked(AM_CONTROL_REG,0x0F)) return false;
+  delay(200);
+  return true;
+}
+
+bool amTryI2cRecovery()
 {
   uint32_t now = millis();
-  if (amI2cOffline && (now - lastAmI2cRecovery > 3000)) {
-    lastAmI2cRecovery = now;
-    if (!i2cTake(pdMS_TO_TICKS(100))) {
-      return;
-    }
-    restartI2CBusLocked();
-    bool ok = amInitializeSensor();
-    i2cGive();
-    if (ok) {
-      amI2cOffline = false;
-    }
+  if (!amI2cOffline) return false;
+  if (now - lastAmReinitAttemptMs < 500) return false;
+  lastAmReinitAttemptMs = now;
+
+  if (!i2cTake(pdMS_TO_TICKS(100))) {
+    return false;
   }
+  restartI2CBusLocked();
+  bool ok = amInitializeSensorLocked();
+  i2cGive();
+  if (ok) {
+    amI2cOffline = false;
+    amSensorOnline = true;
+    return true;
+  }
+  return false;
 }
 
 // ===================================================================
@@ -545,42 +578,99 @@ void TaskRevSensorRead(void *pvParameters)
 void TaskAmSensorRead(void *param)
 {
   const TickType_t rate = pdMS_TO_TICKS(5);
-  while (1) {
-    amTryI2cRecovery();
+  static uint8_t badFrameCount = 0;
+  static bool haveGoodSample = false;
 
+  while (1) {
+    if (amTryI2cRecovery()) {
+      badFrameCount = 0;
+      haveGoodSample = false;
+    }
+
+    amLastReadError = false;
     AmSample temp;
     temp.clear     = amSafeRead16(AM_CDATA_REG);
     temp.red       = amSafeRead16(AM_RDATA_REG);
     temp.green     = amSafeRead16(AM_GDATA_REG);
     temp.blue      = amSafeRead16(AM_BDATA_REG);
     temp.prox      = amSafeRead16(AM_PDATA_REG);
-    temp.sensorGood = (temp.clear | temp.red | temp.green | temp.blue | temp.prox) != 0;
-    temp.haveSample = true;
+
+    bool allZero = (temp.clear == 0 && temp.red == 0 && temp.green == 0 &&
+                    temp.blue == 0 && temp.prox == 0);
+    bool allMax  = (temp.clear == 0xFFFF && temp.red == 0xFFFF && temp.green == 0xFFFF &&
+                    temp.blue == 0xFFFF && temp.prox == 0xFFFF);
+
+    bool good = !amLastReadError && !allZero && !allMax;
+
+    if (good) {
+      badFrameCount = 0;
+      amI2cOffline = false;
+      amSensorOnline = true;
+      haveGoodSample = true;
+
+      temp.sensorGood = true;
+      temp.haveSample = true;
+
+      portENTER_CRITICAL(&amSampleMux);
+      gAmSample = temp;
+      portEXIT_CRITICAL(&amSampleMux);
+
+      vTaskDelay(rate);
+      continue;
+    }
+
+    badFrameCount++;
+
+    if (badFrameCount < 3 && !haveGoodSample) {
+      vTaskDelay(rate);
+      continue;
+    }
+
+    amI2cOffline = true;
+    amSensorOnline = false;
+    haveGoodSample = false;
 
     portENTER_CRITICAL(&amSampleMux);
-    gAmSample = temp;
+    gAmSample.clear = 0;
+    gAmSample.red = 0;
+    gAmSample.green = 0;
+    gAmSample.blue = 0;
+    gAmSample.prox = 0;
+    gAmSample.sensorGood = false;
+    gAmSample.haveSample = false;
     portEXIT_CRITICAL(&amSampleMux);
+
+    amTryI2cRecovery();
 
     vTaskDelay(rate);
   }
 }
 
 // ===================================================================
-// RTOS TASK: SERIAL PRINT (200 ms)
+// RTOS TASK: SERIAL PLOTTER (200 ms)
+//  Format: AM(clear r g b prox good) REV(r g b ir prox online)
 // ===================================================================
 void TaskSerialPrint(void *param)
 {
   const TickType_t rate = pdMS_TO_TICKS(200);
 
   while (1) {
-    AmSample s;
+    AmSample am;
+    RevSample rev;
+
     portENTER_CRITICAL(&amSampleMux);
-    s = gAmSample;
+    am = gAmSample;
     portEXIT_CRITICAL(&amSampleMux);
 
-    Serial.printf("%u %u %u %u %u %d\n",
-                  s.clear, s.red, s.green, s.blue, s.prox,
-                  s.sensorGood ? 1 : 0);
+    portENTER_CRITICAL(&revSampleMux);
+    rev = gRevSample;
+    portEXIT_CRITICAL(&revSampleMux);
+
+    Serial.printf("%u %u %u %u %u %d %u %u %u %u %u %d\n",
+                  am.clear, am.red, am.green, am.blue, am.prox,
+                  am.sensorGood ? 1 : 0,
+                  rev.red, rev.green, rev.blue, rev.ir, rev.prox,
+                  rev.online ? 1 : 0);
 
     vTaskDelay(rate);
   }
@@ -836,6 +926,9 @@ void setup()
   if (!amInitializeSensor()) {
     Serial.println("[AM] Boot in OFFLINE mode.");
     amI2cOffline = true;
+    amSensorOnline = false;
+  } else {
+    amSensorOnline = true;
   }
 
   initCAN();
