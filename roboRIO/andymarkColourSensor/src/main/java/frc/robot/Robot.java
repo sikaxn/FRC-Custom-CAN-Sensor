@@ -2,48 +2,66 @@ package frc.robot;
 
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.subsystems.REVColourCAN;
 import frc.robot.subsystems.amColourCAN;
 
 public class Robot extends TimedRobot {
 
-  private amColourCAN colourCAN;
-  private boolean lastRebootButton = false;
+  private REVColourCAN revColourCAN;
+  private amColourCAN amColourCAN;
+  private boolean lastRevRebootButton = false;
+  private boolean lastAmRebootButton = false;
 
   @Override
   public void robotInit() {
-    colourCAN = new amColourCAN(33);
+    revColourCAN = new REVColourCAN(33);
+    amColourCAN = new amColourCAN(33);
 
     // Prepare dashboard fields
-    SmartDashboard.putBoolean("Colour_Reboot", false);
-    SmartDashboard.putBoolean("ESP Status", colourCAN.getESPState());
-
+    SmartDashboard.putBoolean("REV_Reboot", false);
+    SmartDashboard.putBoolean("AM_Reboot", false);
+    SmartDashboard.putBoolean("REV_ESP_Status", revColourCAN.getESPState());
+    SmartDashboard.putBoolean("AM_ESP_Status", amColourCAN.getESPState());
 
   }
 
   @Override
   public void robotPeriodic() {
 
-    // --------- COLOUR SENSOR DISPLAY ----------
-    SmartDashboard.putNumber("Colour_Clear", colourCAN.getClear());
-    SmartDashboard.putNumber("Colour_Red", colourCAN.getRed());
-    SmartDashboard.putNumber("Colour_Green", colourCAN.getGreen());
-    SmartDashboard.putNumber("Colour_Blue", colourCAN.getBlue());
-    SmartDashboard.putNumber("Colour_Prox", colourCAN.getProximity());
-    SmartDashboard.putBoolean("Colour_Good", colourCAN.getStatus());
-    SmartDashboard.putBoolean("ESP Status", colourCAN.getESPState());
-    // --------- REBOOT BUTTON ----------
-    boolean rebootButton = SmartDashboard.getBoolean("Colour_Reboot", false);
+    // --------- REV COLOUR SENSOR DISPLAY ----------
+    SmartDashboard.putNumber("REV_IR", revColourCAN.getIR());
+    SmartDashboard.putNumber("REV_Red", revColourCAN.getRed());
+    SmartDashboard.putNumber("REV_Green", revColourCAN.getGreen());
+    SmartDashboard.putNumber("REV_Blue", revColourCAN.getBlue());
+    SmartDashboard.putNumber("REV_Prox", revColourCAN.getProximity());
+    SmartDashboard.putBoolean("REV_Good", revColourCAN.getESPState());
+    SmartDashboard.putBoolean("REV_ESP_Status", revColourCAN.getESPState());
+    // --------- AM COLOUR SENSOR DISPLAY ----------
+    SmartDashboard.putNumber("AM_Clear", amColourCAN.getClear());
+    SmartDashboard.putNumber("AM_Red", amColourCAN.getRed());
+    SmartDashboard.putNumber("AM_Green", amColourCAN.getGreen());
+    SmartDashboard.putNumber("AM_Blue", amColourCAN.getBlue());
+    SmartDashboard.putNumber("AM_Prox", amColourCAN.getProximity());
+    SmartDashboard.putBoolean("AM_Good", amColourCAN.getStatus());
+    SmartDashboard.putBoolean("AM_ESP_Status", amColourCAN.getESPState());
+
+    // --------- REBOOT BUTTONS ----------
+    boolean revRebootButton = SmartDashboard.getBoolean("REV_Reboot", false);
+    boolean amRebootButton = SmartDashboard.getBoolean("AM_Reboot", false);
 
     // Rising edge detect
-    if (rebootButton && !lastRebootButton) {
-      if (colourCAN != null) {
-        colourCAN.requestReboot();
-      }
+    if (revRebootButton && !lastRevRebootButton) {
+      revColourCAN.requestReboot();
     }
-    lastRebootButton = rebootButton;
+    if (amRebootButton && !lastAmRebootButton) {
+      amColourCAN.requestReboot();
+    }
+    lastRevRebootButton = revRebootButton;
+    lastAmRebootButton = amRebootButton;
 
     // Always reset dashboard button (one-shot)
-    SmartDashboard.putBoolean("Colour_Reboot", false);
+    SmartDashboard.putBoolean("REV_Reboot", false);
+    SmartDashboard.putBoolean("AM_Reboot", false);
   }
 
   @Override
