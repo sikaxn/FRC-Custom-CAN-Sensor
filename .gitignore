@@ -10,3 +10,4 @@ pcb/nz/fp-info-cache
 pcb/archive/~$factory-fw-flash.pptx
 pcb/CAD-Resources/~$demo_backplate.SLDDRW
 /pcb/full-demo-fw/build
+*.DS_Store

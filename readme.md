@@ -93,7 +93,7 @@ This project is **for demo and under work**. Faulty CAN frame could bring entire
 This project use **AI generated content**. 
 
 ---
-# Demos:
+# What's in this repository:
 
 1. [Arduino Mega] Digital Analog bi-directional ([Docs](Arduino/readme.md) / [Arduino Firmware](Arduino/Digital_Analog/) / [roboRIO](roboRIO/can-test/) / [RIO Simulator](scripts/ADrioSIm.py))
 2. [Arduino Mega] REV Colour sensor  ([Docs](Arduino/readme.md) / [Arduino Firmware](Arduino/REVColourSensorV3/) / [roboRIO](roboRIO/can-test/)) (this share the same roboRIO code with the first one)
@@ -103,6 +103,9 @@ This project use **AI generated content**.
 6. [ESP32] Battery Tracking System ([Arduino Firmware](Arduino/Battery_Tracking/batteryReaderAutoPD/) / [roboRIO](roboRIO/batteryReader/) / [Android APP](https://github.com/sikaxn/FRC-RFID-Battery-Reader) / [Docs](Arduino/Battery_Tracking/readme.md))
 7. [ESP32] ToF using 4 VL53L1X ([Docs](Arduino/ToF/readme.md) / [Arduino Firmware](Arduino/ToF/laserCANx4/) / [roboRIO](roboRIO/ToF/) / [UITool](scripts/ToFReaderROI.py) / [ROI Calculator Tool](scripts/TofRIOCalc.py))
 8. [ESP32] Addressable LED Controller ([Arduino Firmware](Arduino/addressableLED/) / [roboRIO](roboRIO/addressableLED/))
+9. [ESP32] Battery Tracking ([Arduino Firmware](Arduino/Battery_Tracking/) / [roboRIO](roboRIO/batteryReaderNew/)) / [Docs](https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/900.-IronMaple-RFID-Battery-Tracking-Solution)
+10. [ESP32] Battery Tracking LF ([Arduino Firmware](Arduino/Battery_Tracking_LF/) / [roboRIO](roboRIO/batteryReaderLF/)) / [Docs](Arduino/Battery_Tracking_LF/readme.md)
+11. [ESP32] REV and Andymark Colour sensor ([Arduino Firmware](Arduino/REVAMColourSensor/) / [roboRIO](roboRIO/andymarkColourSensor/)) / [Docs](https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/920.-REV---Andymark-Colour-sensor-to-CAN-interface)
 
 ---
 
