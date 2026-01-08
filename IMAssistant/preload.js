@@ -51,6 +51,11 @@ contextBridge.exposeInMainWorld("smartcard", {
     ipcRenderer.invoke("smartcard:prepareNewCard", readerHint),
 });
 
+contextBridge.exposeInMainWorld("bestjson", {
+  setPayload: (payload) => ipcRenderer.invoke("bestjson:setPayload", payload),
+  getPayload: () => ipcRenderer.invoke("bestjson:getPayload"),
+});
+
 contextBridge.exposeInMainWorld("shell", {
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
 });

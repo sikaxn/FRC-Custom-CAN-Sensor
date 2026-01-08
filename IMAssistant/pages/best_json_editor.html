@@ -89,7 +89,8 @@
 
         <div class="btn-row">
           <button id="previewBtn" class="btn">Preview JSON</button>
-          <button id="downloadBtn" class="btn">Download JSON</button>
+          <button id="saveBtn" class="btn">Save JSON</button>
+          <button id="sendToTagBtn" class="btn">Send to Tag Tool</button>
         </div>
 
         <textarea id="outputArea" rows="10"></textarea>
@@ -99,7 +100,7 @@
 
 <script>
 let dataObj = null;
-const MAX_RECORDS = 13;
+const MAX_RECORDS = 14;
 const fileInput = document.getElementById('fileInput');
 const demoBtn = document.getElementById('demoBtn');
 const snInput = document.getElementById('snInput');
@@ -110,7 +111,8 @@ const addRecordBtn = document.getElementById('addRecordBtn');
 const recordsTableBody = document.querySelector('#recordsTable tbody');
 const recordWarning = document.getElementById('recordWarning');
 const previewBtn = document.getElementById('previewBtn');
-const downloadBtn = document.getElementById('downloadBtn');
+const saveBtn = document.getElementById('saveBtn');
+const sendToTagBtn = document.getElementById('sendToTagBtn');
 const outputArea = document.getElementById('outputArea');
 const metaFields = document.getElementById('metaFields');
 const recordsSection = document.getElementById('recordsSection');
@@ -126,7 +128,7 @@ function handleFileImport(evt) {
   reader.onload = e => {
     try {
       const obj = JSON.parse(e.target.result);
-      if (!obj.sn || !obj.fu || obj.cc === undefined || obj.n === undefined || !Array.isArray(obj.u)) {
+      if (!isValidBestJson(obj)) {
         alert("Invalid BEST JSON structure.");
         return;
       }
@@ -243,7 +245,8 @@ function refreshRecordsTable() {
   const tooMany = total>MAX_RECORDS;
   recordWarning.style.display = tooMany?'inline':'none';
   previewBtn.disabled = tooMany;
-  downloadBtn.disabled = tooMany;
+  saveBtn.disabled = tooMany;
+  sendToTagBtn.disabled = tooMany;
 }
 
 function updateMaxId(newVal){
@@ -291,12 +294,15 @@ function updateFromUI(){
 
 previewBtn.addEventListener('click',()=>{
   updateFromUI();
-  outputArea.value=JSON.stringify(dataObj,null,2);
+  const jsonStr=JSON.stringify(dataObj,null,2);
+  outputArea.value=jsonStr;
+  storeExport(jsonStr);
 });
 
-downloadBtn.addEventListener('click',()=>{
+saveBtn.addEventListener('click',()=>{
   updateFromUI();
   const jsonStr=JSON.stringify(dataObj,null,2);
+  storeExport(jsonStr);
   const blob=new Blob([jsonStr],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -306,6 +312,17 @@ downloadBtn.addEventListener('click',()=>{
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+});
+
+sendToTagBtn.addEventListener('click',()=>{
+  updateFromUI();
+  const jsonStr=JSON.stringify(dataObj,null,2);
+  storeExport(jsonStr);
+  if (window.nav?.go) {
+    window.nav.go("rfid_tag_tools.html");
+  } else {
+    window.location.href = "rfid_tag_tools.html";
+  }
 });
 
 /* ---------- Date helpers ---------- */
@@ -329,6 +346,42 @@ function formatDateYYMMDDHHMM(localStr){
   const mi=String(d.getMinutes()).padStart(2,'0');
   return `${yy}${mo}${da}${hh}${mi}`;
 }
+
+function storeExport(jsonStr) {
+  if (!window.bestjson?.setPayload) return;
+  try {
+    window.bestjson.setPayload(jsonStr);
+  } catch {}
+}
+
+function isValidBestJson(obj) {
+  return obj &&
+    obj.sn &&
+    obj.fu &&
+    obj.cc !== undefined &&
+    obj.n !== undefined &&
+    Array.isArray(obj.u);
+}
+
+function loadFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const payload = params.get("payload");
+  if (!payload) return;
+  try {
+    const decoded = decodeURIComponent(payload);
+    const obj = JSON.parse(decoded);
+    if (!isValidBestJson(obj)) {
+      alert("Invalid BEST JSON structure.");
+      return;
+    }
+    dataObj = obj;
+    populateUI();
+  } catch (err) {
+    alert("Error parsing payload JSON: " + err);
+  }
+}
+
+loadFromQuery();
 </script>
 
   <script src="../assets/lockdown.js"></script>

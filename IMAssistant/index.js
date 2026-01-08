@@ -33,6 +33,7 @@ try {
 let mainWindow;
 let serialPrefs = { preferred: null };
 let uiPrefs = { autoHideMenuBar: true };
+let bestJsonPayload = "";
 
 const DEFAULT_REPO_URL = "https://studenttechsupport.com/customcanespfw/";
 const REPO_STATE_FILE = () => path.join(app.getPath("userData"), "repos.json");
@@ -1214,6 +1215,15 @@ ipcMain.handle("smartcard:prepareNewCard", async (_event, readerHint = "") => {
     await writeNdefReady(card);
     return { ok: true };
   });
+});
+
+ipcMain.handle("bestjson:setPayload", async (_event, payload) => {
+  bestJsonPayload = String(payload ?? "");
+  return { ok: true };
+});
+
+ipcMain.handle("bestjson:getPayload", async () => {
+  return { ok: true, payload: bestJsonPayload };
 });
 ipcMain.handle("shell:openExternal", async (_event, url) => {
   if (!url) return { ok: false };

@@ -4,6 +4,10 @@ const btnCopyUid = document.getElementById("btnCopyUid");
 const btnReadNdef = document.getElementById("btnReadNdef");
 const btnWriteNdef = document.getElementById("btnWriteNdef");
 const btnPrepareCard = document.getElementById("btnPrepareCard");
+const btnOpenBatteryReader = document.getElementById("btnOpenBatteryReader");
+const btnOpenBestJson = document.getElementById("btnOpenBestJson");
+const btnOpenFile = document.getElementById("btnOpenFile");
+const btnSaveFile = document.getElementById("btnSaveFile");
 const readerStatus = document.getElementById("readerStatus");
 const ndefText = document.getElementById("ndefText");
 const ndefStatus = document.getElementById("ndefStatus");
@@ -19,7 +23,15 @@ const actionButtons = [
   btnReadNdef,
   btnWriteNdef,
   btnPrepareCard,
+  btnOpenBatteryReader,
+  btnOpenBestJson,
+  btnOpenFile,
+  btnSaveFile,
 ];
+
+const openFileInput = document.createElement("input");
+openFileInput.type = "file";
+openFileInput.accept = ".json,.txt";
 
 function setBusy(isBusy, message = "") {
   document.body.classList.toggle("busy", isBusy);
@@ -179,3 +191,67 @@ btnPrepareCard?.addEventListener("click", async () => {
     setBusy(false);
   }
 });
+
+btnOpenBestJson?.addEventListener("click", () => {
+  const payload = ndefText ? ndefText.value : "";
+  const encoded = encodeURIComponent(payload || "");
+  const target = `best_json_editor.html?payload=${encoded}`;
+  if (window.nav?.go && !target.includes("?")) {
+    window.nav.go(target);
+  } else {
+    window.location.href = target;
+  }
+});
+
+btnOpenBatteryReader?.addEventListener("click", () => {
+  if (window.nav?.go) {
+    window.nav.go("rfid_battery_tag_reader.html");
+  } else {
+    window.location.href = "rfid_battery_tag_reader.html";
+  }
+});
+
+btnOpenFile?.addEventListener("click", () => {
+  openFileInput.value = "";
+  openFileInput.click();
+});
+
+openFileInput.addEventListener("change", (evt) => {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = String(e.target.result || "");
+    if (ndefText) ndefText.value = text;
+    if (ndefStatus) ndefStatus.textContent = `Loaded file: ${file.name}`;
+  };
+  reader.readAsText(file);
+});
+
+btnSaveFile?.addEventListener("click", () => {
+  const text = ndefText ? ndefText.value : "";
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "ndef.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  if (ndefStatus) ndefStatus.textContent = "Saved NDEF text to ndef.json";
+});
+
+async function loadBestJsonPayload() {
+  if (!window.bestjson?.getPayload) return;
+  try {
+    const result = await window.bestjson.getPayload();
+    const payload = result?.payload || "";
+    if (payload && ndefText && !ndefText.value) {
+      ndefText.value = payload;
+      if (ndefStatus) ndefStatus.textContent = "Loaded BEST JSON into NDEF text.";
+    }
+  } catch {}
+}
+
+loadBestJsonPayload();
