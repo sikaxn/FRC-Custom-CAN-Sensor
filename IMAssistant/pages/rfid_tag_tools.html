@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RFID Tag Tools</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+  <style>
+    .dialog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+    }
+
+    .dialog-overlay.open {
+      display: flex;
+    }
+
+    .dialog-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      width: min(420px, 92vw);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #555;
+      min-height: 18px;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #c8c8c8;
+      border-top-color: #666;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .busy .spinner {
+      display: inline-block;
+    }
+
+    .busy .box button {
+      opacity: 0.6;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <button class="back" id="btnBack" type="button">Back</button>
+      <h1>RFID Tag Tools</h1>
+    </div>
+
+    <div class="box">
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button id="btnReaderStatus" type="button">Reader Status + UID</button>
+        <button id="btnReadNdef" type="button">Read NDEF Text</button>
+        <button id="btnWriteNdef" type="button">Write NDEF Text</button>
+        <button id="btnPrepareCard" type="button">Prepare New Card</button>
+      </div>
+      <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <div id="readerStatus" style="font-size: 12px; color: #555;"></div>
+        <button id="btnCopyUid" type="button" style="display: none;">Copy UID</button>
+      </div>
+      <div class="progress-row" id="progressRow">
+        <div class="spinner" id="progressSpinner" aria-hidden="true"></div>
+        <div id="progressText"></div>
+      </div>
+      <div id="ndefStatus" style="margin-top: 10px; font-size: 12px; color: #555;"></div>
+
+      <label for="ndefText" style="display: block; margin-top: 12px;">NDEF Text</label>
+      <textarea id="ndefText" rows="8" style="width: 100%;"></textarea>
+    </div>
+  </div>
+
+  <div class="dialog-overlay" id="prepareDialog" role="dialog" aria-modal="true" aria-labelledby="prepare-title">
+    <div class="dialog-card">
+      <h3 id="prepare-title" style="margin: 0 0 8px;">Prepare New Card</h3>
+      <div>This will wipe and re-key the tag, then write a "ready" NDEF record.</div>
+      <div style="margin-top: 8px;">Continue?</div>
+      <div class="dialog-actions">
+        <button id="prepareCancel" type="button">Cancel</button>
+        <button id="prepareConfirm" type="button">Prepare</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./rfid_tag_tools.js"></script>
+  <script src="../assets/lockdown.js"></script>
+</body>
+</html>

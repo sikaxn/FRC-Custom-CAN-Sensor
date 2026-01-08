@@ -19,7 +19,8 @@
   "dependencies": {
     "esp-web-tools": "^10.1.1",
     "marked": "^15.0.0",
-    "serialport": "^12.0.0"
+    "serialport": "^12.0.0",
+    "smartcard": "^3.7.0"
   },
   "build": {
     "appId": "com.yourname.imassistant",

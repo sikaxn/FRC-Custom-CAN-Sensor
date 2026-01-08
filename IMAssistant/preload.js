@@ -42,6 +42,15 @@ contextBridge.exposeInMainWorld("ui", {
     ipcRenderer.invoke("ui:setAutoHideMenuBar", value),
 });
 
+contextBridge.exposeInMainWorld("smartcard", {
+  getStatus: () => ipcRenderer.invoke("smartcard:getStatus"),
+  readNdefText: (readerHint) => ipcRenderer.invoke("smartcard:readNdefText", readerHint),
+  writeNdefText: (text, readerHint) =>
+    ipcRenderer.invoke("smartcard:writeNdefText", text, readerHint),
+  prepareNewCard: (readerHint) =>
+    ipcRenderer.invoke("smartcard:prepareNewCard", readerHint),
+});
+
 contextBridge.exposeInMainWorld("shell", {
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
 });

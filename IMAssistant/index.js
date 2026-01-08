@@ -11,6 +11,24 @@ try {
 } catch {
   SerialPort = null;
 }
+let Context;
+let SCARD_SHARE_SHARED;
+let SCARD_PROTOCOL_T0;
+let SCARD_PROTOCOL_T1;
+let SCARD_LEAVE_CARD;
+let smartcardLoadError = "";
+try {
+  ({
+    Context,
+    SCARD_SHARE_SHARED,
+    SCARD_PROTOCOL_T0,
+    SCARD_PROTOCOL_T1,
+    SCARD_LEAVE_CARD,
+  } = require("smartcard"));
+} catch (err) {
+  Context = null;
+  smartcardLoadError = String(err);
+}
 
 let mainWindow;
 let serialPrefs = { preferred: null };
@@ -188,6 +206,407 @@ function portMatches(pref, port) {
     }
   }
   return false;
+}
+
+const NDEF_KEY = Buffer.from([0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7]);
+const FFFF_KEY = Buffer.from([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
+const A0_KEY = Buffer.from([0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5]);
+const ZERO_KEY = Buffer.from([0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+
+const KEYS_TO_LOAD = [
+  { slot: 0, key: NDEF_KEY },
+  { slot: 1, key: FFFF_KEY },
+];
+
+const COMMON_KEYS = [FFFF_KEY, A0_KEY, NDEF_KEY, ZERO_KEY];
+
+const AUTH_ORDER = [
+  { keyType: 0x60, slot: 0 },
+  { keyType: 0x60, slot: 1 },
+  { keyType: 0x61, slot: 0 },
+  { keyType: 0x61, slot: 1 },
+];
+
+const START_BLOCK = 4;
+const END_BLOCK = 63;
+
+function apduLoadKeyToSlot(slot, key6) {
+  if (!key6 || key6.length !== 6) throw new Error("Key must be 6 bytes");
+  return [0xff, 0x82, 0x00, slot & 0xff, 0x06, ...key6];
+}
+
+function apduAuthenticateBlock(blockNumber, keyType, keySlot) {
+  return [
+    0xff,
+    0x86,
+    0x00,
+    0x00,
+    0x05,
+    0x01,
+    0x00,
+    blockNumber & 0xff,
+    keyType & 0xff,
+    keySlot & 0xff,
+  ];
+}
+
+function apduReadBlock(blockNumber) {
+  return [0xff, 0xb0, 0x00, blockNumber & 0xff, 0x10];
+}
+
+function apduUpdateBlock(blockNumber, data16) {
+  if (!data16 || data16.length !== 16) throw new Error("Data must be 16 bytes");
+  return [0xff, 0xd6, 0x00, blockNumber & 0xff, 0x10, ...data16];
+}
+
+function apduGetUid() {
+  return [0xff, 0xca, 0x00, 0x00, 0x00];
+}
+
+function isSectorTrailer(blockNumber) {
+  return blockNumber % 4 === 3;
+}
+
+function parseResponse(buffer) {
+  if (!buffer || buffer.length < 2) {
+    return { data: Buffer.alloc(0), sw1: 0x00, sw2: 0x00 };
+  }
+  const sw1 = buffer[buffer.length - 2];
+  const sw2 = buffer[buffer.length - 1];
+  const data = buffer.slice(0, -2);
+  return { data, sw1, sw2 };
+}
+
+async function transmit(card, apdu) {
+  const response = await card.transmit(Buffer.from(apdu), {
+    autoGetResponse: true,
+  });
+  return parseResponse(response);
+}
+
+function requireOk(sw1, sw2, step) {
+  if (sw1 !== 0x90 || sw2 !== 0x00) {
+    throw new Error(`${step} failed, SW=${sw1.toString(16)}${sw2.toString(16)}`);
+  }
+}
+
+async function loadKeys(card) {
+  for (const { slot, key } of KEYS_TO_LOAD) {
+    const { sw1, sw2 } = await transmit(card, apduLoadKeyToSlot(slot, key));
+    requireOk(sw1, sw2, `LOAD_KEY slot ${slot}`);
+  }
+}
+
+async function loadKey(card, key, slot = 0x00) {
+  const { sw1, sw2 } = await transmit(card, apduLoadKeyToSlot(slot, key));
+  return sw1 === 0x90 && sw2 === 0x00;
+}
+
+async function authBlock(card, block, keyType, key, slot = 0x00) {
+  const loaded = await loadKey(card, key, slot);
+  if (!loaded) return false;
+  const { sw1, sw2 } = await transmit(card, apduAuthenticateBlock(block, keyType, slot));
+  return sw1 === 0x90 && sw2 === 0x00;
+}
+
+async function tryAuth(card, block) {
+  for (const key of COMMON_KEYS) {
+    const ok = await authBlock(card, block, 0x60, key, 0x00);
+    if (ok) return { keyType: 0x60, key };
+  }
+  for (const key of COMMON_KEYS) {
+    const ok = await authBlock(card, block, 0x61, key, 0x00);
+    if (ok) return { keyType: 0x61, key };
+  }
+  return { keyType: null, key: null };
+}
+
+async function writeBlock(card, block, data16) {
+  const { sw1, sw2 } = await transmit(card, apduUpdateBlock(block, data16));
+  return sw1 === 0x90 && sw2 === 0x00;
+}
+
+function pickReader(readers, hint = "") {
+  if (!readers || readers.length === 0) return null;
+  const needle = String(hint || "").toLowerCase();
+  if (needle) {
+    const match = readers.find((r) => r.name.toLowerCase().includes(needle));
+    if (match) return match;
+  }
+  const acr = readers.find((r) => r.name.toLowerCase().includes("acr122"));
+  if (acr) return acr;
+  const acs = readers.find((r) => r.name.toLowerCase().includes("acs"));
+  if (acs) return acs;
+  return readers[0];
+}
+
+async function withCard(readerHint, handler) {
+  if (!Context) throw new Error("smartcard module not available");
+  const ctx = new Context();
+  if (!ctx.isValid) throw new Error("PC/SC context invalid");
+  const readers = ctx.listReaders();
+  const reader = pickReader(readers, readerHint);
+  if (!reader) {
+    ctx.close();
+    throw new Error("No PC/SC readers found");
+  }
+
+  let card;
+  try {
+    card = await reader.connect(
+      SCARD_SHARE_SHARED,
+      SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1
+    );
+    const result = await handler(card, reader);
+    card.disconnect(SCARD_LEAVE_CARD);
+    return result;
+  } finally {
+    try {
+      if (card?.connected) card.disconnect(SCARD_LEAVE_CARD);
+    } catch {}
+    ctx.close();
+  }
+}
+
+async function tryAuthThenRead(card, block) {
+  for (const { keyType, slot } of AUTH_ORDER) {
+    const auth = await transmit(card, apduAuthenticateBlock(block, keyType, slot));
+    if (auth.sw1 === 0x90 && auth.sw2 === 0x00) {
+      const read = await transmit(card, apduReadBlock(block));
+      if (read.sw1 === 0x90 && read.sw2 === 0x00 && read.data.length === 16) {
+        return read.data;
+      }
+    }
+  }
+  return null;
+}
+
+async function readUserArea(card) {
+  const chunks = [];
+  for (let blk = START_BLOCK; blk <= END_BLOCK; blk += 1) {
+    if (isSectorTrailer(blk)) continue;
+    const data = await tryAuthThenRead(card, blk);
+    if (!data) throw new Error(`Auth/read failed at block ${blk}`);
+    chunks.push(data);
+  }
+  return Buffer.concat(chunks);
+}
+
+function findNdefValue(data) {
+  let i = 0;
+  while (i < data.length) {
+    const t = data[i];
+    if (t === 0x00) {
+      i += 1;
+      continue;
+    }
+    if (t === 0xfe) break;
+    if (i + 1 >= data.length) break;
+    let length;
+    let vstart;
+    let hdr;
+    if (data[i + 1] !== 0xff) {
+      length = data[i + 1];
+      vstart = i + 2;
+      hdr = 2;
+    } else {
+      if (i + 3 >= data.length) break;
+      length = (data[i + 2] << 8) | data[i + 3];
+      vstart = i + 4;
+      hdr = 4;
+    }
+    if (t === 0x03) {
+      return { offset: vstart, length };
+    }
+    i += hdr + length;
+  }
+  throw new Error("NDEF TLV (0x03) not found");
+}
+
+function parseFirstRecord(ndefValue) {
+  if (ndefValue.length < 3) throw new Error("NDEF too short");
+  const hdr = ndefValue[0];
+  const tnf = hdr & 0x07;
+  const sr = (hdr >> 4) & 1;
+  const il = (hdr >> 3) & 1;
+  let idx = 1;
+  const tlen = ndefValue[idx];
+  idx += 1;
+  let plen;
+  if (sr) {
+    plen = ndefValue[idx];
+    idx += 1;
+  } else {
+    if (idx + 4 > ndefValue.length) throw new Error("Truncated NDEF length");
+    plen = ndefValue.readUInt32BE(idx);
+    idx += 4;
+  }
+  let idlen = 0;
+  if (il) {
+    if (idx >= ndefValue.length) throw new Error("Truncated NDEF id length");
+    idlen = ndefValue[idx];
+    idx += 1;
+  }
+  if (idx + tlen > ndefValue.length) throw new Error("Truncated NDEF type");
+  const type = ndefValue.slice(idx, idx + tlen);
+  idx += tlen + idlen;
+  if (idx + plen > ndefValue.length) throw new Error("Truncated NDEF payload");
+  const payload = ndefValue.slice(idx, idx + plen);
+  return { tnf, type, payload };
+}
+
+function decodeTextRecordPayload(payload) {
+  if (!payload || payload.length === 0) return "";
+  const status = payload[0];
+  const isUtf16 = (status & 0x80) !== 0;
+  const langLen = status & 0x3f;
+  if (1 + langLen > payload.length) {
+    return payload.toString("utf8");
+  }
+  const textBytes = payload.slice(1 + langLen);
+  return textBytes.toString(isUtf16 ? "utf16le" : "utf8");
+}
+
+function buildTextRecordPayload(text, lang = "en") {
+  const langBytes = Buffer.from(lang, "ascii").slice(0, 32);
+  const textBytes = Buffer.from(text, "utf8");
+  const status = langBytes.length & 0x3f;
+  return Buffer.concat([Buffer.from([status]), langBytes, textBytes]);
+}
+
+function buildTextRecord(text, lang = "en") {
+  const payload = buildTextRecordPayload(text, lang);
+  const type = Buffer.from("T", "ascii");
+  if (payload.length >= 256) {
+    const header = Buffer.from([0xc1, type.length]);
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(payload.length);
+    return Buffer.concat([header, len, type, payload]);
+  }
+  return Buffer.concat([
+    Buffer.from([0xd1, type.length, payload.length]),
+    type,
+    payload,
+  ]);
+}
+
+function wrapTlv(ndefMessage) {
+  if (ndefMessage.length < 0xff) {
+    return Buffer.concat([
+      Buffer.from([0x03, ndefMessage.length]),
+      ndefMessage,
+      Buffer.from([0xfe]),
+    ]);
+  }
+  const len = Buffer.alloc(2);
+  len.writeUInt16BE(ndefMessage.length);
+  return Buffer.concat([
+    Buffer.from([0x03, 0xff]),
+    len,
+    ndefMessage,
+    Buffer.from([0xfe]),
+  ]);
+}
+
+async function writeUserAreaWithTlv(card, tlv) {
+  const blocks = [];
+  for (let blk = START_BLOCK; blk <= END_BLOCK; blk += 1) {
+    if (!isSectorTrailer(blk)) blocks.push(blk);
+  }
+  const capacity = blocks.length * 16;
+  if (tlv.length > capacity) {
+    throw new Error(`NDEF too large (${tlv.length} > ${capacity})`);
+  }
+  const buf = Buffer.concat([tlv, Buffer.alloc(capacity - tlv.length, 0x00)]);
+  for (let i = 0; i < blocks.length; i += 1) {
+    const blk = blocks[i];
+    const chunk = buf.slice(i * 16, i * 16 + 16);
+    let wrote = false;
+    for (const { keyType, slot } of AUTH_ORDER) {
+      const auth = await transmit(card, apduAuthenticateBlock(blk, keyType, slot));
+      if (auth.sw1 === 0x90 && auth.sw2 === 0x00) {
+        const write = await transmit(card, apduUpdateBlock(blk, chunk));
+        if (write.sw1 === 0x90 && write.sw2 === 0x00) {
+          wrote = true;
+          break;
+        }
+      }
+    }
+    if (!wrote) throw new Error(`Write failed at block ${blk}`);
+  }
+}
+
+function trailerBlock(sector) {
+  return sector * 4 + 3;
+}
+
+async function wipeSector(card, sector) {
+  const tblock = trailerBlock(sector);
+  const { keyType, key } = await tryAuth(card, tblock);
+  if (!keyType) {
+    return { ok: false, error: `Cannot auth sector ${sector}` };
+  }
+
+  for (let i = 0; i < 3; i += 1) {
+    const blk = sector * 4 + i;
+    if (blk === 0) continue;
+    const ok = await authBlock(card, blk, keyType, key, 0x00);
+    if (!ok) continue;
+    await writeBlock(card, blk, Buffer.alloc(16, 0x00));
+  }
+
+  const trailer = Buffer.concat([
+    NDEF_KEY,
+    Buffer.from([0xff, 0x07, 0x80, 0x69]),
+    Buffer.alloc(6, 0xff),
+  ]);
+  const tOk = await authBlock(card, tblock, keyType, key, 0x00);
+  if (!tOk) {
+    return { ok: false, error: `Cannot auth trailer ${tblock}` };
+  }
+  const wrote = await writeBlock(card, tblock, trailer);
+  if (!wrote) {
+    return { ok: false, error: `Failed to reset trailer ${tblock}` };
+  }
+  return { ok: true };
+}
+
+async function rebuildMad(card) {
+  const blk1 = Buffer.from([
+    0xd3, 0xf7, 0xd3, 0xf7, 0xd3, 0xf7, 0x03, 0xe1,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  ]);
+  const blk2 = Buffer.alloc(16, 0x00);
+  const pairs = [
+    { block: 1, data: blk1 },
+    { block: 2, data: blk2 },
+  ];
+  for (const { block, data } of pairs) {
+    const { keyType, key } = await tryAuth(card, block);
+    if (!keyType) continue;
+    const ok = await authBlock(card, block, keyType, key, 0x00);
+    if (!ok) continue;
+    await writeBlock(card, block, data);
+  }
+}
+
+async function writeNdefReady(card) {
+  const textPayload = buildTextRecord("ready", "en");
+  const tlv = wrapTlv(textPayload);
+  if (tlv.length > 48) {
+    throw new Error(`Ready TLV too large (${tlv.length} > 48)`);
+  }
+  const padded = Buffer.concat([tlv, Buffer.alloc(48 - tlv.length, 0x00)]);
+  for (let i = 0; i < 3; i += 1) {
+    const blk = 4 + i;
+    const { keyType, key } = await tryAuth(card, blk);
+    if (!keyType) throw new Error(`Auth failed block ${blk}`);
+    const ok = await authBlock(card, blk, keyType, key, 0x00);
+    if (!ok) throw new Error(`Re-auth failed block ${blk}`);
+    const chunk = padded.slice(i * 16, i * 16 + 16);
+    const wrote = await writeBlock(card, blk, chunk);
+    if (!wrote) throw new Error(`Write failed block ${blk}`);
+  }
 }
 
 async function ensureRepoState() {
@@ -701,6 +1120,100 @@ ipcMain.handle("ui:setAutoHideMenuBar", async (_event, value) => {
     mainWindow.setMenuBarVisibility(!uiPrefs.autoHideMenuBar);
   }
   return { ok: true };
+});
+ipcMain.handle("smartcard:getStatus", async () => {
+  if (!Context) {
+    return {
+      available: false,
+      readers: [],
+      uid: "",
+      lastError: smartcardLoadError || "smartcard module not available.",
+    };
+  }
+
+  const ctx = new Context();
+  if (!ctx.isValid) {
+    return {
+      available: false,
+      readers: [],
+      uid: "",
+      lastError: "PC/SC context invalid.",
+    };
+  }
+
+  let uid = "";
+  let lastError = "";
+  let readerNames = [];
+  try {
+    const readers = ctx.listReaders();
+    readerNames = readers.map((r) => r.name);
+    const reader = pickReader(readers);
+    if (reader) {
+      try {
+        const card = await reader.connect(
+          SCARD_SHARE_SHARED,
+          SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1
+        );
+        const { data, sw1, sw2 } = await transmit(card, apduGetUid());
+        if (sw1 === 0x90 && sw2 === 0x00) {
+          uid = data.toString("hex").toUpperCase();
+        }
+        card.disconnect(SCARD_LEAVE_CARD);
+      } catch (err) {
+        lastError = String(err);
+      }
+    }
+  } catch (err) {
+    lastError = String(err);
+  } finally {
+    ctx.close();
+  }
+
+  return {
+    available: true,
+    readers: readerNames,
+    uid,
+    lastError,
+  };
+});
+
+ipcMain.handle("smartcard:readNdefText", async (_event, readerHint = "") => {
+  return await withCard(readerHint, async (card) => {
+    await loadKeys(card);
+    const raw = await readUserArea(card);
+    const { offset, length } = findNdefValue(raw);
+    const value = raw.slice(offset, offset + length);
+    const { tnf, type, payload } = parseFirstRecord(value);
+    if (tnf === 0x01 && type.equals(Buffer.from("T"))) {
+      return { ok: true, text: decodeTextRecordPayload(payload) };
+    }
+    if (tnf === 0x02 && type.equals(Buffer.from("application/json"))) {
+      return { ok: true, text: payload.toString("utf8") };
+    }
+    return { ok: false, error: "Unsupported NDEF record type." };
+  });
+});
+
+ipcMain.handle("smartcard:writeNdefText", async (_event, payload, readerHint = "") => {
+  const text = String(payload ?? "");
+  return await withCard(readerHint, async (card) => {
+    await loadKeys(card);
+    const ndef = buildTextRecord(text, "en");
+    const tlv = wrapTlv(ndef);
+    await writeUserAreaWithTlv(card, tlv);
+    return { ok: true };
+  });
+});
+
+ipcMain.handle("smartcard:prepareNewCard", async (_event, readerHint = "") => {
+  return await withCard(readerHint, async (card) => {
+    for (let sector = 0; sector < 16; sector += 1) {
+      await wipeSector(card, sector);
+    }
+    await rebuildMad(card);
+    await writeNdefReady(card);
+    return { ok: true };
+  });
 });
 ipcMain.handle("shell:openExternal", async (_event, url) => {
   if (!url) return { ok: false };
