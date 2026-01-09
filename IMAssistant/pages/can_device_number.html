@@ -95,7 +95,7 @@
     // -----------------------------
     // Terminal print helper
     // -----------------------------
-    function log(msg) {
+    function termLog(msg) {
       if (msg === undefined || msg === null) return;
       const line = String(msg);
 
@@ -122,12 +122,12 @@
 
     async function sendCommand(cmd) {
       if (!writer) {
-        log("[WARN] Not connected");
+        termLog("[WARN] Not connected");
         return;
       }
       const textEncoder = new TextEncoder();
       await writer.write(textEncoder.encode(cmd + "\n"));
-      log(">> " + cmd);
+      termLog(">> " + cmd);
     }
 
     async function readLoop() {
@@ -147,12 +147,12 @@
 
             for (const line of lines) {
               const s = line.trim();
-              if (s) log("<< " + s);
+              if (s) termLog("<< " + s);
             }
           }
         }
       } catch (err) {
-        log("[ERROR] Read failed: " + err);
+        termLog("[ERROR] Read failed: " + err);
       } finally {
         try { reader.releaseLock(); } catch {}
       }
@@ -160,7 +160,7 @@
 
     async function connectSerial() {
       if (!("serial" in navigator)) {
-        log("[ERROR] Web Serial API not available in this environment.");
+        termLog("[ERROR] Web Serial API not available in this environment.");
         return;
       }
 
@@ -175,7 +175,7 @@
         setUiConnected(true);
         readLoop();
 
-        log("[INFO] Serial connected");
+        termLog("[INFO] Serial connected");
         setTimeout(() => sendCommand("&CANID GET"), 250);
       } catch (e) {
         const name = e?.name || "";
@@ -183,11 +183,11 @@
 
         // In Electron, if select-serial-port returns "" or nothing is available:
         if (name === "NotFoundError" || msg.includes("No port selected")) {
-          log("[WARN] No serial port selected / available.");
+          termLog("[WARN] No serial port selected / available.");
           return;
         }
 
-        log("[ERROR] Failed to connect: " + msg);
+        termLog("[ERROR] Failed to connect: " + msg);
 
         // Only clean up if something partially opened
         try { await disconnectSerial(true); } catch {}
@@ -207,7 +207,7 @@
       port = undefined;
 
       setUiConnected(false);
-      if (!silent) log("[INFO] Serial disconnected");
+      if (!silent) termLog("[INFO] Serial disconnected");
     }
 
     function sendSet() {
@@ -246,16 +246,16 @@
 
     async function resetEsp32() {
       if (!port) {
-        log("[WARN] Not connected");
+        termLog("[WARN] Not connected");
         return;
       }
       try {
         await port.setSignals({ dataTerminalReady: false, requestToSend: false });
         await new Promise((resolve) => setTimeout(resolve, 120));
         await port.setSignals({ dataTerminalReady: true, requestToSend: true });
-        log("[INFO] Reset signal toggled");
+        termLog("[INFO] Reset signal toggled");
       } catch (err) {
-        log("[ERROR] Reset failed: " + err);
+        termLog("[ERROR] Reset failed: " + err);
       }
     }
 
@@ -263,13 +263,11 @@
     // Events
     // -----------------------------
     btnBack.addEventListener("click", () => {
-      // Works with your ipcMain.handle("navigate", ...) setup
-      if (window.electronAPI?.navigate) {
-        window.electronAPI.navigate("home.html");
-      } else {
-        // Fallback if running in browser
-        history.back();
+      if (window.nav?.go) {
+        window.nav.go("home.html");
+        return;
       }
+      window.location.href = "home.html";
     });
 
     btnConnect.addEventListener("click", connectSerial);
@@ -292,7 +290,7 @@
 
     // Start disconnected
     setUiConnected(false);
-    log("[INFO] Ready. Click Connect.");
+    termLog("[INFO] Ready. Click Connect.");
   </script>
   <script src="../assets/lockdown.js"></script>
 </body>

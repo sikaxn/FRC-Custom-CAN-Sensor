@@ -1,8 +1,8 @@
 {
   "name": "imassistant",
-  "version": "1.0.0b",
+  "version": "1.0.1b",
   "description": "IM assistant allow you to update firmware and config IM dev boards.",
-  "license": "ISC",
+  "license": "GPL-3.0-only",
   "author": "",
   "type": "commonjs",
   "main": "index.js",
@@ -23,7 +23,7 @@
     "smartcard": "^3.7.0"
   },
   "build": {
-    "appId": "com.yourname.imassistant",
+    "appId": "com.ironmaple.imassistant",
     "productName": "IMAssistant",
     "icon": "assets/team_logo_square.ico",
     "win": {
