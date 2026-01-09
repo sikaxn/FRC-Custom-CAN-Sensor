@@ -254,7 +254,11 @@
     const piracyOk = document.getElementById("piracyOk");
 
     if (piracyNotice) {
-      piracyNotice.classList.add("open");
+      const seen = sessionStorage.getItem("piracy_notice_seen");
+      if (!seen) {
+        piracyNotice.classList.add("open");
+        sessionStorage.setItem("piracy_notice_seen", "1");
+      }
     }
 
     piracyOk?.addEventListener("click", () => {

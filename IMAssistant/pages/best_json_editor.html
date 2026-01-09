@@ -314,10 +314,10 @@ saveBtn.addEventListener('click',()=>{
   URL.revokeObjectURL(url);
 });
 
-sendToTagBtn.addEventListener('click',()=>{
+sendToTagBtn.addEventListener('click',async ()=>{
   updateFromUI();
   const jsonStr=JSON.stringify(dataObj,null,2);
-  storeExport(jsonStr);
+  await Promise.resolve(storeExport(jsonStr));
   window.location.href = "rfid_tag_tools.html?from=bestjson";
 });
 
@@ -346,7 +346,7 @@ function formatDateYYMMDDHHMM(localStr){
 function storeExport(jsonStr) {
   if (!window.bestjson?.setPayload) return;
   try {
-    window.bestjson.setPayload(jsonStr);
+    return window.bestjson.setPayload(jsonStr);
   } catch {}
 }
 
