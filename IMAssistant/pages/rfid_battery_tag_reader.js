@@ -128,6 +128,173 @@ function nowYyMMddHHmmUtc() {
   return `${yy}${mo}${da}${hh}${mm}`;
 }
 
+function formatPrintDate(tstr) {
+  if (!tstr || tstr === "0000000000") return "Date not available";
+  if (tstr.length < 10) return tstr;
+  const yy = tstr.slice(0, 2);
+  const mo = tstr.slice(2, 4);
+  const da = tstr.slice(4, 6);
+  const hh = tstr.slice(6, 8);
+  const mm = tstr.slice(8, 10);
+  return `20${yy}-${mo}-${da} ${hh}:${mm}`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function formatNowLocal() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${yyyy}-${mo}-${da} ${hh}:${mm}:${ss}`;
+}
+
+function renderUsageRows(usage, maxRows = 36) {
+  const rows = Array.isArray(usage) ? [...usage] : [];
+  rows.sort((a, b) => Number(b.i || 0) - Number(a.i || 0));
+  let visible = rows;
+  let extra = 0;
+  if (rows.length > maxRows) {
+    extra = rows.length - maxRows;
+    visible = rows.slice(0, maxRows);
+  }
+  const parts = visible.map((ent) => {
+    const i = ent?.i ?? 0;
+    const t = formatPrintDate(String(ent?.t || ""));
+    const d = Number(ent?.d || 0);
+    const device = d === 1 ? "Robot" : (d === 2 ? "Charger" : "Unknown");
+    const e = ent?.e ?? 0;
+    const v = ent?.v ?? 0;
+    const rowClass = d === 2 ? " class='charger-row'" : "";
+    return (
+      `<tr${rowClass}>` +
+      `<td class='num'>${escapeHtml(i)}</td>` +
+      `<td>${escapeHtml(t)}</td>` +
+      `<td>${escapeHtml(device)}</td>` +
+      `<td class='num'>${escapeHtml(e)}</td>` +
+      `<td class='num'>${escapeHtml(v)}</td>` +
+      `</tr>`
+    );
+  });
+  if (!parts.length) {
+    parts.push("<tr><td colspan='5' class='muted'>No usage records.</td></tr>");
+  }
+  if (extra) {
+    parts.push(`<tr><td colspan='5' class='muted'>(+${extra} more not shown)</td></tr>`);
+  }
+  return parts.join("\n");
+}
+
+function generatePrintHtml(doc, uid) {
+  const sn = String(doc?.sn || "");
+  const fu = formatPrintDate(String(doc?.fu || "0000000000"));
+  const cc = Number(doc?.cc || 0);
+  const n = Number(doc?.n || 0);
+  const noteLabel = (NOTE_LABELS[n]?.label) || "Normal";
+  const usage = Array.isArray(doc?.u) ? doc.u : [];
+  const totalReads = usage.filter((ent) => Number(ent?.d || 0) === 1).length;
+  const totalCharges = usage.filter((ent) => Number(ent?.d || 0) === 2).length;
+  const now = formatNowLocal();
+  return `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8" />
+<title>Battery Report ${escapeHtml(sn)}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --fg:#000;
+    --muted:#222;
+    --line:#000;
+    --bg:#fff;
+  }
+  * { box-sizing:border-box; }
+  html, body { background:var(--bg); color:var(--fg); }
+  body {
+    margin:24px;
+    font:12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+  h1 { margin:0 0 6px; font-size:16px; font-weight:700; }
+  h2 { margin:14px 0 6px; font-size:13px; font-weight:700; }
+  .grid {
+    display:grid;
+    grid-template-columns: 160px 1fr 120px 1fr;
+    gap:6px 10px;
+    padding:8px;
+    border:1px solid var(--line);
+  }
+  .k { color:var(--muted); text-align:right; }
+  .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { border-top:1px solid var(--line); padding:4px 6px; vertical-align:top; }
+  thead th { text-align:left; border-top:none; font-size:11px; font-weight:700; }
+  .num { text-align:right; font-variant-numeric: tabular-nums; }
+  .muted { color:#444; }
+  .foot { margin-top:8px; font-size:11px; color:#111; }
+  .charger-row { background:#000; color:#fff;}
+  @page {
+    size: letter;
+    margin: 0.5in;
+  }
+  @media print {
+    body { margin:0; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+<script>
+  window.addEventListener('load', function() {
+    setTimeout(function() { window.print(); }, 100);
+  });
+</script>
+</head>
+<body>
+  <h1>Battery Report</h1>
+  <div class="grid">
+    <div class="k">Serial Number (sn):</div><div class="code">${escapeHtml(sn)}</div>
+    <div class="k">UID:</div><div class="code">${escapeHtml(uid || "UNKNOWN")}</div>
+    <div class="k">First Use (fu):</div><div>${escapeHtml(fu)}</div>
+    <div class="k">Cycle Count (cc):</div><div class="code">${escapeHtml(cc)}</div>
+    <div class="k">Note (n):</div><div class="code">${escapeHtml(n)} бк ${escapeHtml(noteLabel)}</div>
+  </div>
+
+  <h2>Usage</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:48px">#</th>
+        <th style="width:160px">Time</th>
+        <th style="width:110px">Device</th>
+        <th class="num" style="width:90px">e</th>
+        <th class="num" style="width:90px">v</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${renderUsageRows(usage, 36)}
+    </tbody>
+  </table>
+
+  <h2>Stats</h2>
+  <div class="grid" style="grid-template-columns: 160px 1fr 160px 1fr;">
+    <div class="k">Robot records:</div><div class="code">${escapeHtml(totalReads)}</div>
+    <div class="k">Charger records:</div><div class="code">${escapeHtml(totalCharges)}</div>
+    <div class="k">Total records (u):</div><div class="code">${escapeHtml(usage.length)}</div>
+    <div class="k">Generated:</div><div>${escapeHtml(now)}</div>
+  </div>
+
+  <div class="foot">
+    This report only represents the data currently stored on the NFC tag.
+  </div>
+</body>
+</html>`;
+}
+
 function ensureSchema(obj) {
   const base = {
     sn: "",
@@ -401,27 +568,27 @@ btnSaveJson?.addEventListener("click", () => {
 });
 
 btnPrint?.addEventListener("click", () => {
-  const payload = currentDoc
-    ? JSON.stringify(ensureSchema(currentDoc), null, 2)
-    : (jsonText?.value || "");
-  if (!payload) {
+  let doc = null;
+  if (currentDoc) {
+    doc = ensureSchema(currentDoc);
+  } else if (jsonText?.value?.trim()) {
+    try {
+      doc = ensureSchema(JSON.parse(jsonText.value));
+    } catch {
+      setStatus(opStatus, "JSON parse failed. Fix JSON before printing.");
+      return;
+    }
+  }
+  if (!doc) {
     setStatus(opStatus, "Nothing to print.");
     return;
   }
-  const w = window.open("", "_blank");
-  if (!w) {
-    setStatus(opStatus, "Popup blocked.");
+  if (!window.printWindow?.open) {
+    setStatus(opStatus, "Print window not available.");
     return;
   }
-  w.document.write("<pre>" + payload.replace(/</g, "&lt;") + "</pre>");
-  w.document.close();
-  w.focus();
-  w.print();
-  w.close();
-  try {
-    const parsed = JSON.parse(payload);
-    logEvent("read", "print", ensureSchema(parsed));
-  } catch {}
+  window.printWindow.open(generatePrintHtml(doc, lastUid || "UNKNOWN"));
+  logEvent("read", "print", doc);
 });
 
 btnOpenJsonEditor?.addEventListener("click", () => {

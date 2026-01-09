@@ -867,11 +867,16 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, "pages", "home.html"));
 }
 
-function buildMenu() {
-  const template = [
+function buildAppMenuTemplate() {
+  return [
     {
       label: "IM Assistant",
       submenu: [
+        {
+          label: "Home",
+          click: () => mainWindow?.loadFile(path.join(__dirname, "pages", "home.html")),
+        },
+        { type: "separator" },
         {
           label: "Reload",
           accelerator: "CmdOrCtrl+R",
@@ -890,6 +895,31 @@ function buildMenu() {
         {
           label: "Privacy",
           click: () => shell.openExternal("https://studenttechsupport.com/privacy"),
+        },
+      ],
+    },
+    {
+      label: "Tools",
+      submenu: [
+        {
+          label: "Update Firmware",
+          click: () => mainWindow?.loadFile(path.join(__dirname, "pages", "update_firmware.html")),
+        },
+        {
+          label: "CAN Device Number Setting",
+          click: () => mainWindow?.loadFile(path.join(__dirname, "pages", "can_device_number.html")),
+        },
+        {
+          label: "RFID Battery Tag Reader",
+          click: () => mainWindow?.loadFile(path.join(__dirname, "pages", "rfid_battery_tag_reader.html")),
+        },
+        {
+          label: "RFID Tag Tools",
+          click: () => mainWindow?.loadFile(path.join(__dirname, "pages", "rfid_tag_tools.html")),
+        },
+        {
+          label: "BEST Battery Tag JSON Editor",
+          click: () => mainWindow?.loadFile(path.join(__dirname, "pages", "best_json_editor.html")),
         },
       ],
     },
@@ -933,8 +963,36 @@ function buildMenu() {
       ],
     },
   ];
+}
 
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+function buildMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate(buildAppMenuTemplate()));
+}
+
+function buildPrintMenu(showFull) {
+  const printMenu = {
+    label: "Print",
+    submenu: [
+      {
+        label: "Print",
+        accelerator: "CmdOrCtrl+P",
+        click: (_item, win) => {
+          win?.webContents.print({ printBackground: true });
+        },
+      },
+      {
+        label: "Exit",
+        accelerator: "Esc",
+        click: (_item, win) => win?.close(),
+      },
+    ],
+  };
+
+  if (!showFull) {
+    return Menu.buildFromTemplate([printMenu]);
+  }
+
+  return Menu.buildFromTemplate([printMenu, ...buildAppMenuTemplate()]);
 }
 
 app.whenReady().then(async () => {
@@ -1279,6 +1337,36 @@ ipcMain.handle("log:openFolder", async () => {
   await fsp.mkdir(LOG_DIR(), { recursive: true });
   await shell.openPath(LOG_DIR());
   return { ok: true, path: LOG_DIR() };
+});
+
+ipcMain.handle("print:open", async (_event, payload) => {
+  const html = String(payload?.html || "");
+  if (!html.trim()) return { ok: false, error: "Missing HTML" };
+  const tempRoot = await fsp.mkdtemp(path.join(app.getPath("temp"), "imassistant-print-"));
+  const filePath = path.join(tempRoot, "battery_report.html");
+  await fsp.writeFile(filePath, html, "utf8");
+
+  const win = new BrowserWindow({
+    width: 900,
+    height: 1100,
+    autoHideMenuBar: false,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  win.setMenu(buildPrintMenu(!uiPrefs.autoHideMenuBar));
+  win.setAutoHideMenuBar(false);
+  win.setMenuBarVisibility(true);
+  win.loadFile(filePath);
+
+  win.on("closed", async () => {
+    try {
+      await fsp.rm(tempRoot, { recursive: true, force: true });
+    } catch {}
+  });
+
+  return { ok: true };
 });
 ipcMain.handle("shell:openExternal", async (_event, url) => {
   if (!url) return { ok: false };

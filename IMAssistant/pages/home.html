@@ -227,9 +227,19 @@
       if (!window.smartcard?.getStatus) return;
       try {
         const result = await window.smartcard.getStatus();
-        const connected = result?.readers?.length > 0;
+        const readers = Array.isArray(result?.readers) ? result.readers : [];
+        const connected = readers.length > 0;
         if (rfidDot) rfidDot.style.background = connected ? "#0a0" : "#c00";
-        if (rfidText) rfidText.textContent = connected ? "RFID reader connected" : "RFID reader not found";
+        if (rfidText) {
+          if (connected) {
+            const name = readers[0];
+            rfidText.textContent = name
+              ? `RFID reader connected: ${name}`
+              : "RFID reader connected";
+          } else {
+            rfidText.textContent = "RFID reader not found";
+          }
+        }
       } catch {
         if (rfidDot) rfidDot.style.background = "#c00";
         if (rfidText) rfidText.textContent = "RFID reader not found";

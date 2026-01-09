@@ -61,6 +61,10 @@ contextBridge.exposeInMainWorld("log", {
   openFolder: () => ipcRenderer.invoke("log:openFolder"),
 });
 
+contextBridge.exposeInMainWorld("printWindow", {
+  open: (html) => ipcRenderer.invoke("print:open", { html }),
+});
+
 contextBridge.exposeInMainWorld("shell", {
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
 });
