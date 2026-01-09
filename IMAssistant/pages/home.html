@@ -4,10 +4,44 @@
   <meta charset="utf-8" />
   <title>IM Assistant</title>
   <link rel="stylesheet" href="../assets/style.css" />
+  <style>
+    .notice-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+
+    .notice-overlay.open {
+      display: flex;
+    }
+
+    .notice-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      width: min(520px, 92vw);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .notice-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
+  </style>
 </head>
 <body>
   <div class="container menu" style="padding-bottom: 110px;">
-    <h1>IM Assistant</h1>
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+      <img src="../assets/team_logo.png" alt="Team logo" style="height: 36px; width: auto;" />
+      <h1 style="margin: 0;">IM Assistant</h1>
+    </div>
     <div id="app-version" style="font-size: 12px; color: #666; margin-top: -6px;">Version: loading...</div>
 
     <button onclick="nav.go('update_firmware.html')">
@@ -18,17 +52,30 @@
       CAN Device Number Setting
     </button>
 
-    <button onclick="nav.go('best_json_editor.html')">
-      BEST Battery Tag JSON Editor
-    </button>
+    <div style="display: flex; gap: 6px; align-items: stretch; position: relative;">
+      <button style="flex: 1;" onclick="nav.go('rfid_battery_tag_reader.html')">
+        RFID Battery Tag Reader
+      </button>
+      <button id="rfidMenuToggle" type="button" style="width: 100px; font-size: 12px; white-space: nowrap;">Advanced</button>
+      <div id="rfidMenu" style="display: none; position: absolute; right: 0; top: 100%; margin-top: 6px; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); z-index: 5; min-width: 220px;">
+      <button style="width: 100%;" onclick="nav.go('best_json_editor.html')">BEST Battery Tag JSON Editor</button>
+      <button style="width: 100%; margin-top: 6px;" onclick="nav.go('rfid_tag_tools.html')">RFID Tag Tools</button>
+      <button id="openLogFolder" style="width: 100%; margin-top: 6px;" type="button">Open RFID Reader Log Folder</button>
+    </div>
+  </div>
+  </div>
 
-    <button onclick="nav.go('rfid_battery_tag_reader.html')">
-      RFID Battery Tag Reader
-    </button>
-
-    <button onclick="nav.go('rfid_tag_tools.html')">
-      RFID Tag Tools
-    </button>
+  <div class="notice-overlay" id="piracyNotice" role="dialog" aria-modal="true" aria-labelledby="piracy-title">
+    <div class="notice-card">
+      <div id="piracy-title" style="font-weight: bold; margin-bottom: 8px;">Notice</div>
+      <div>
+        This tool should never require payment. If you were charged for it, something is wrong. <br>本工具是免费的，如果你被收费了，很可能存在问题。<br>
+        Email: piracy@studenttechsupport.com
+      </div>
+      <div class="notice-actions">
+        <button id="piracyOk" type="button">OK</button>
+      </div>
+    </div>
   </div>
 
   <div style="position: fixed; left: 0; right: 0; bottom: 0; background: #f4f4f4; border-top: 1px solid #ddd; padding: 10px 20px;">
@@ -40,6 +87,10 @@
         <input type="checkbox" id="toggleMenuBar" />
         Show menu bar (debug)
       </label>
+      <span id="rfidStatus" style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; width: 100%;">
+        <span id="rfidDot" style="width: 8px; height: 8px; border-radius: 50%; background: #c00; display: inline-block;"></span>
+        <span id="rfidText" style="color: #555;">RFID reader not found</span>
+      </span>
       <span style="color: #555; font-size: 12px;">If you're experiencing connection issues, check if another app (like Arduino IDE) is using the serial port.</span>
     </div>
   </div>
@@ -48,6 +99,8 @@
     const portSelect = document.getElementById("port-select");
     const btnRefreshPorts = document.getElementById("btnRefreshPorts");
     const toggleMenuBar = document.getElementById("toggleMenuBar");
+    const rfidDot = document.getElementById("rfidDot");
+    const rfidText = document.getElementById("rfidText");
     let portList = [];
 
     function portMatches(pref, port) {
@@ -129,7 +182,10 @@
       });
     });
 
-    btnRefreshPorts.addEventListener("click", loadPorts);
+    btnRefreshPorts.addEventListener("click", () => {
+      loadPorts();
+      updateRfidStatus();
+    });
 
     loadPorts();
 
@@ -166,8 +222,58 @@
     }
 
     loadVersion();
+
+    async function updateRfidStatus() {
+      if (!window.smartcard?.getStatus) return;
+      try {
+        const result = await window.smartcard.getStatus();
+        const connected = result?.readers?.length > 0;
+        if (rfidDot) rfidDot.style.background = connected ? "#0a0" : "#c00";
+        if (rfidText) rfidText.textContent = connected ? "RFID reader connected" : "RFID reader not found";
+      } catch {
+        if (rfidDot) rfidDot.style.background = "#c00";
+        if (rfidText) rfidText.textContent = "RFID reader not found";
+      }
+    }
+
+    updateRfidStatus();
   </script>
   <script src="../assets/lockdown.js"></script>
+  <script>
+    const piracyNotice = document.getElementById("piracyNotice");
+    const piracyOk = document.getElementById("piracyOk");
+
+    if (piracyNotice) {
+      piracyNotice.classList.add("open");
+    }
+
+    piracyOk?.addEventListener("click", () => {
+      piracyNotice?.classList.remove("open");
+    });
+  </script>
+  <script>
+    const rfidMenuToggle = document.getElementById("rfidMenuToggle");
+    const rfidMenu = document.getElementById("rfidMenu");
+
+    rfidMenuToggle?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const isOpen = rfidMenu?.style.display === "block";
+      if (rfidMenu) rfidMenu.style.display = isOpen ? "none" : "block";
+    });
+
+    const openLogFolder = document.getElementById("openLogFolder");
+    openLogFolder?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (window.log?.openFolder) {
+        window.log.openFolder();
+      }
+      if (rfidMenu) rfidMenu.style.display = "none";
+    });
+
+    document.addEventListener("click", () => {
+      if (rfidMenu) rfidMenu.style.display = "none";
+    });
+  </script>
 </body>
 </html>
 

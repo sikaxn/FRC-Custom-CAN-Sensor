@@ -318,11 +318,7 @@ sendToTagBtn.addEventListener('click',()=>{
   updateFromUI();
   const jsonStr=JSON.stringify(dataObj,null,2);
   storeExport(jsonStr);
-  if (window.nav?.go) {
-    window.nav.go("rfid_tag_tools.html");
-  } else {
-    window.location.href = "rfid_tag_tools.html";
-  }
+  window.location.href = "rfid_tag_tools.html?from=bestjson";
 });
 
 /* ---------- Date helpers ---------- */

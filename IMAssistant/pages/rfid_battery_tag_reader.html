@@ -5,6 +5,65 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RFID Battery Tag Reader</title>
   <link rel="stylesheet" href="../assets/style.css" />
+  <style>
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 12px;
+      color: #555;
+      min-height: 18px;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #c8c8c8;
+      border-top-color: #666;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    .reading .spinner {
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .dialog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+    }
+
+    .dialog-overlay.open {
+      display: flex;
+    }
+
+    .dialog-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      width: min(520px, 92vw);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -14,7 +73,145 @@
     </div>
 
     <div class="box">
-      <p>Tools for reading RFID battery tags will appear here.</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button id="btnReadTag" type="button">Read Tag</button>
+        <button id="btnMockRobot" type="button">Mock Robot</button>
+        <button id="btnCharged" type="button">Charged</button>
+        <button id="btnSetStatus" type="button">Set Status</button>
+        <button id="btnInitNew" type="button">Init New</button>
+      </div>
+
+      <div style="margin-top: 10px; font-size: 12px; color: #555;">
+        <div id="readerStatus"></div>
+        <div id="uidStatus"></div>
+        <div id="opStatus"></div>
+        <div class="progress-row" id="progressRow">
+          <div class="spinner" id="progressSpinner" aria-hidden="true"></div>
+          <div id="progressText"></div>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px; border: 1px solid #e2e2e2; border-radius: 8px; padding: 10px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <label>SN
+            <input id="metaSn" type="text" style="width: 100%;" disabled />
+          </label>
+          <label>First Use (YYMMDDHHMM)
+            <input id="metaFu" type="text" style="width: 100%;" disabled />
+          </label>
+          <label>Cycle Count
+            <input id="metaCc" type="text" style="width: 100%;" disabled />
+          </label>
+          <label>Note (0-3)
+            <input id="metaNote" type="text" style="width: 100%;" disabled />
+          </label>
+        </div>
+        <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+          <div style="font-size: 12px;">UID: <span id="metaUid">--</span></div>
+          <div id="noteBadge" style="font-size: 12px; padding: 2px 8px; border-radius: 8px; background: #e5e7eb; color: #111827;">Note: -</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px;">
+        <div style="font-size: 12px; color: #555; margin-bottom: 6px;">Usage (most recent first)</div>
+        <div style="border: 1px solid #e2e2e2; border-radius: 8px; overflow: hidden;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: #f7f7f7; font-size: 12px;">
+                <th style="text-align: left; padding: 6px;">#</th>
+                <th style="text-align: left; padding: 6px;">Time</th>
+                <th style="text-align: left; padding: 6px;">Device</th>
+                <th style="text-align: left; padding: 6px;">e/v</th>
+              </tr>
+            </thead>
+            <tbody id="usageBody" style="font-size: 12px;"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px;">
+        <button id="btnToggleAdvanced" type="button">Show JSON & Advanced</button>
+      </div>
+
+      <div id="advancedBlock" style="display: none;">
+        <label for="jsonText" style="display: block; margin-top: 12px;">JSON</label>
+        <textarea id="jsonText" rows="10" style="width: 100%;"></textarea>
+
+        <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px;">
+          <button id="btnWriteTag" type="button">Write Tag</button>
+          <button id="btnLoadJson" type="button">Load JSON</button>
+          <button id="btnSaveJson" type="button">Save JSON</button>
+          <button id="btnPrint" type="button">Print</button>
+          <button id="btnOpenJsonEditor" type="button">Open in JSON Editor</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dialog-overlay" id="initDialog" role="dialog" aria-modal="true" aria-labelledby="init-title">
+    <div class="dialog-card">
+      <h3 id="init-title" style="margin: 0 0 8px;">Init New</h3>
+      <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+        <label style="display: flex; gap: 6px; align-items: center;">
+          <input type="radio" name="initMode" value="manual" checked />
+          Manual
+        </label>
+        <label style="display: flex; gap: 6px; align-items: center;">
+          <input type="radio" name="initMode" value="best" />
+          BEST Scheme
+        </label>
+      </div>
+
+      <div id="manualBlock">
+        <label>Serial Number (ASCII, max 8)
+          <input id="manualSn" type="text" style="width: 100%;" />
+        </label>
+      </div>
+
+      <div id="bestBlock" style="display: none;">
+        <label>Team Number (max 5 digits)
+          <input id="teamNumber" type="text" inputmode="numeric" style="width: 100%;" />
+        </label>
+        <div style="margin-top: 8px;">
+          <label>Battery Type</label>
+          <select id="batteryType" style="width: 100%;">
+            <option value="new">New</option>
+            <option value="old">Old</option>
+            <option value="special">Special</option>
+          </select>
+        </div>
+        <div id="batteryIdBlock" style="margin-top: 8px;">
+          <label id="batteryIdLabel">Battery ID (000-899)</label>
+          <input id="batteryId" type="text" inputmode="numeric" style="width: 100%;" />
+        </div>
+        <div id="specialNote" style="margin-top: 8px; color: #666; font-size: 12px; display: none;">
+          Special: Serial Number will end in 999.
+        </div>
+        <div style="margin-top: 8px; font-size: 12px; color: #666;">
+          BEST Battery ID Format: tttttnnn — team padded to 5, nnn = 000-899 (New), 900-998 (Old), 999 (Special).
+        </div>
+      </div>
+
+      <div id="previewText" style="margin-top: 10px; font-weight: 600;"></div>
+      <div class="dialog-actions">
+        <button id="initCancel" type="button">Cancel</button>
+        <button id="initConfirm" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="dialog-overlay" id="statusDialog" role="dialog" aria-modal="true" aria-labelledby="status-title">
+    <div class="dialog-card">
+      <h3 id="status-title" style="margin: 0 0 8px;">Set Status</h3>
+      <div style="display: grid; gap: 8px;">
+        <button type="button" data-status="0">0 = Normal</button>
+        <button type="button" data-status="1">1 = Practice Only</button>
+        <button type="button" data-status="2">2 = Scrap</button>
+        <button type="button" data-status="3">3 = Other</button>
+      </div>
+      <div class="dialog-actions">
+        <button id="statusCancel" type="button">Cancel</button>
+      </div>
     </div>
   </div>
 

@@ -56,6 +56,11 @@ contextBridge.exposeInMainWorld("bestjson", {
   getPayload: () => ipcRenderer.invoke("bestjson:getPayload"),
 });
 
+contextBridge.exposeInMainWorld("log", {
+  append: (payload) => ipcRenderer.invoke("log:append", payload),
+  openFolder: () => ipcRenderer.invoke("log:openFolder"),
+});
+
 contextBridge.exposeInMainWorld("shell", {
   openExternal: (url) => ipcRenderer.invoke("shell:openExternal", url),
 });

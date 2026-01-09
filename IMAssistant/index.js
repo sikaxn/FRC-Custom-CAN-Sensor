@@ -34,6 +34,8 @@ let mainWindow;
 let serialPrefs = { preferred: null };
 let uiPrefs = { autoHideMenuBar: true };
 let bestJsonPayload = "";
+const LOG_DIR = () => path.join(app.getPath("userData"), "logs");
+const LOG_FILE = () => path.join(LOG_DIR(), "log.json");
 
 const DEFAULT_REPO_URL = "https://studenttechsupport.com/customcanespfw/";
 const REPO_STATE_FILE = () => path.join(app.getPath("userData"), "repos.json");
@@ -164,6 +166,28 @@ async function loadUiPrefs() {
 async function saveUiPrefs() {
   await fsp.mkdir(app.getPath("userData"), { recursive: true });
   await fsp.writeFile(UI_PREFS_FILE(), JSON.stringify(uiPrefs, null, 2));
+}
+
+function logNowLocalMinute() {
+  const d = new Date();
+  const pad = (v) => String(v).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function logNowIsoSeconds() {
+  return new Date().toISOString().slice(0, 19);
+}
+
+async function appendLogEntry(entry) {
+  await fsp.mkdir(LOG_DIR(), { recursive: true });
+  let existing = [];
+  try {
+    const raw = await fsp.readFile(LOG_FILE(), "utf8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) existing = parsed;
+  } catch {}
+  existing.push(entry);
+  await fsp.writeFile(LOG_FILE(), JSON.stringify(existing, null, 2) + "\n");
 }
 
 function portMatches(pref, port) {
@@ -787,6 +811,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 900,
     height: 650,
+    icon: path.join(__dirname, "assets", "team_logo_square.ico"),
     autoHideMenuBar: uiPrefs.autoHideMenuBar,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -1224,6 +1249,36 @@ ipcMain.handle("bestjson:setPayload", async (_event, payload) => {
 
 ipcMain.handle("bestjson:getPayload", async () => {
   return { ok: true, payload: bestJsonPayload };
+});
+
+ipcMain.handle("log:append", async (_event, payload) => {
+  const type = String(payload?.type || "read").toLowerCase();
+  const op = String(payload?.op || "");
+  let data = payload?.data;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      data = { msg: String(data), time: logNowIsoSeconds() };
+    }
+  }
+  if (!data || typeof data !== "object") {
+    data = { msg: "", time: logNowIsoSeconds() };
+  }
+  const entry = {
+    time: logNowLocalMinute(),
+    type: type === "write" ? "write" : "read",
+    op,
+    data,
+  };
+  await appendLogEntry(entry);
+  return { ok: true };
+});
+
+ipcMain.handle("log:openFolder", async () => {
+  await fsp.mkdir(LOG_DIR(), { recursive: true });
+  await shell.openPath(LOG_DIR());
+  return { ok: true, path: LOG_DIR() };
 });
 ipcMain.handle("shell:openExternal", async (_event, url) => {
   if (!url) return { ok: false };

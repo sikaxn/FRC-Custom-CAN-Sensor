@@ -25,6 +25,7 @@
   "build": {
     "appId": "com.yourname.imassistant",
     "productName": "IMAssistant",
+    "icon": "assets/team_logo_square.ico",
     "win": {
       "target": [
         "dir",

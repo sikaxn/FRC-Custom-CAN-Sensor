@@ -242,16 +242,24 @@ btnSaveFile?.addEventListener("click", () => {
   if (ndefStatus) ndefStatus.textContent = "Saved NDEF text to ndef.json";
 });
 
+function cameFromBestJson() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("from") === "bestjson";
+}
+
 async function loadBestJsonPayload() {
   if (!window.bestjson?.getPayload) return;
   try {
     const result = await window.bestjson.getPayload();
     const payload = result?.payload || "";
-    if (payload && ndefText && !ndefText.value) {
+    if (payload && ndefText) {
       ndefText.value = payload;
       if (ndefStatus) ndefStatus.textContent = "Loaded BEST JSON into NDEF text.";
     }
   } catch {}
 }
 
-loadBestJsonPayload();
+if (ndefText) ndefText.value = "";
+if (cameFromBestJson()) {
+  loadBestJsonPayload();
+}
