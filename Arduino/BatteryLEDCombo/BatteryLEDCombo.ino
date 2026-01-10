@@ -27,7 +27,7 @@
 #define LED_B 14
 
 // Addressable LED Strip
-const uint16_t NUM_LEDS = 60;
+const uint16_t NUM_LEDS = 140;
 CRGB leds[NUM_LEDS];
 #define LED_DATA_PIN 16
 #define LED_BRIGHTNESS 128

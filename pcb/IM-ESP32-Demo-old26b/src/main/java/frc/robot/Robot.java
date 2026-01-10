@@ -1,0 +1,335 @@
+package frc.robot;
+
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.CAN;
+import com.ctre.phoenix6.hardware.TalonFX;
+import edu.wpi.first.hal.CANData;
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
+
+import frc.robot.subsystems.addressableLEDCAN;
+// import your batteryCAN class:
+import frc.robot.subsystems.batteryCAN; // adjust the package if different
+
+// NEW imports
+import edu.wpi.first.wpilibj.RobotController;
+import edu.wpi.first.wpilibj.Timer;
+import java.util.concurrent.ThreadLocalRandom;
+import edu.wpi.first.hal.LEDJNI; // NEW: radio LED control
+
+public class Robot extends TimedRobot {
+  // ----------------------------
+  // Addressable LED (your class)
+  // ----------------------------
+  private addressableLEDCAN leds;
+  private int lastMode = -1;
+  private int lastR = -1, lastG = -1, lastB = -1;
+  private int lastBrightness = -1, lastOnOff = -1;
+  private int lastParam0 = -1, lastParam1 = -1;
+  private boolean lastWritePixel = false;
+
+  // ----------------------------
+  // ESP32 CAN (FRC CAN framing)
+  // ----------------------------
+  private static final int API_TX_CONTROL = 0x185; // R,G,B,relay,0,0,0,0
+  private static final int API_RX_INPUTS  = 0x195; // ain_lo,ain_hi,btnA,btnB,0,0,0,0
+  private static final int API_RX_RESET   = 0x196; // reset_device,0,0,0,0,0,0,0
+
+  private static final int LEDS_DN  = 10; // your addressable LED device number
+  private static final int ESP32_DN = 9;  // ESP32 device number (matches ESP default)
+
+  private CAN espCan; // handle to ESP32 node (by device number)
+  private int lastEspR = -1, lastEspG = -1, lastEspB = -1;
+  private boolean lastEspRelay = false;
+
+  // === ADC calibration (V ≈ k0 + k1*adc + k2*adc^2) ===
+  private static final double ADC_K0 = 0.915434204;
+  private static final double ADC_K1 = 0.008560656043;
+  private static final double ADC_K2 = -0.000000358496267;
+
+  private static TalonFX m_motor;
+
+  // ----------------------------
+  // Battery CAN
+  // ----------------------------
+  private batteryCAN batteryCan;
+
+  // ----------------------------
+  // USER button & cached ESP inputs
+  // ----------------------------
+  private boolean prevUserButton = false;
+
+  // Cached inputs from ESP (0x195)
+  private int     cachedAin = -1;
+  private boolean cachedBtnAReleased = true;  // INPUT_PULLUP: 1 = released
+  private boolean cachedBtnBReleased = true;
+  private double  inputsLastUpdateS = 0.0;    // FPGA timestamp (seconds)
+
+  // NEW: keep previous states to do edge detection for A/B
+  private boolean prevBtnAReleased = true;
+  private boolean prevBtnBReleased = true;
+
+  // NEW: radio LED state mirror (0=off, 1=on)
+  private int radioLEDState = 0;
+
+  @Override
+  public void robotInit() {
+
+    m_motor = new TalonFX(0);
+
+    // ---- Addressable LEDs (existing UI) ----
+    leds = new addressableLEDCAN(LEDS_DN);
+
+    SmartDashboard.setDefaultNumber("LED Mode", 1);
+    SmartDashboard.setDefaultNumber("LED R", 255);
+    SmartDashboard.setDefaultNumber("LED G", 255);
+    SmartDashboard.setDefaultNumber("LED B", 255);
+    SmartDashboard.setDefaultNumber("LED Brightness", 128);
+    SmartDashboard.setDefaultNumber("LED OnOff", 1);
+    SmartDashboard.setDefaultNumber("LED Param0", 20);
+    SmartDashboard.setDefaultNumber("LED Param1", 20);
+
+    SmartDashboard.setDefaultNumber("LED Pixel Index", 0);
+    SmartDashboard.setDefaultNumber("LED Pixel R", 255);
+    SmartDashboard.setDefaultNumber("LED Pixel G", 0);
+    SmartDashboard.setDefaultNumber("LED Pixel B", 0);
+    SmartDashboard.setDefaultNumber("LED Pixel Brightness", 128);
+    SmartDashboard.setDefaultBoolean("LED Write Pixel", false);
+
+    // ---- ESP32 CAN UI ----
+    SmartDashboard.setDefaultNumber("ESP/R", 0);
+    SmartDashboard.setDefaultNumber("ESP/G", 0);
+    SmartDashboard.setDefaultNumber("ESP/B", 0);
+    SmartDashboard.setDefaultBoolean("ESP/Relay", false);
+    SmartDashboard.setDefaultBoolean("ESP/RequestReset", false);
+
+    SmartDashboard.putNumber("ESP/Analog", -1);
+    SmartDashboard.putString("ESP/ButtonA", "Unknown");
+    SmartDashboard.putString("ESP/ButtonB", "Unknown");
+    SmartDashboard.putNumber("ESP/ResetFlagSeen", 0);
+
+    // NEW: dashboard mirror for radio LED
+    SmartDashboard.putNumber("ESP/RadioLEDState", radioLEDState);
+
+    // Create CAN handle scoped to ESP32 DN
+    espCan = new CAN(ESP32_DN);
+
+    // ---- Battery CAN ----
+    batteryCan = new batteryCAN();
+  }
+
+  @Override
+  public void robotPeriodic() {
+    // Command scheduler (per your snippet)
+    CommandScheduler.getInstance().run();
+
+    // ===========================
+    // USER BUTTON → random RGB + relay toggle (existing NEW feature)
+    // ===========================
+    boolean userButton = RobotController.getUserButton(); // true while held
+    if (userButton && !prevUserButton) { // rising edge
+      int rr = ThreadLocalRandom.current().nextInt(0, 256);
+      int gg = ThreadLocalRandom.current().nextInt(0, 256);
+      int bb = ThreadLocalRandom.current().nextInt(0, 256);
+      boolean newRelay = !SmartDashboard.getBoolean("ESP/Relay", false);
+
+      // Drive the existing sender via dashboard fields
+      SmartDashboard.putNumber("ESP/R", rr);
+      SmartDashboard.putNumber("ESP/G", gg);
+      SmartDashboard.putNumber("ESP/B", bb);
+      SmartDashboard.putBoolean("ESP/Relay", newRelay);
+    }
+    prevUserButton = userButton;
+
+    // ===========================
+    // Addressable LED section
+    // ===========================
+    int mode       = (int) SmartDashboard.getNumber("LED Mode", 1);
+    int r          = (int) SmartDashboard.getNumber("LED R", 255);
+    int g          = (int) SmartDashboard.getNumber("LED G", 255);
+    int b          = (int) SmartDashboard.getNumber("LED B", 255);
+    int brightness = (int) SmartDashboard.getNumber("LED Brightness", 128);
+    int onOff      = (int) SmartDashboard.getNumber("LED OnOff", 1);
+    int param0     = (int) SmartDashboard.getNumber("LED Param0", 20);
+    int param1     = (int) SmartDashboard.getNumber("LED Param1", 20);
+
+    boolean changed =
+        mode       != lastMode       ||
+        r          != lastR          ||
+        g          != lastG          ||
+        b          != lastB          ||
+        brightness != lastBrightness ||
+        onOff      != lastOnOff      ||
+        param0     != lastParam0     ||
+        param1     != lastParam1;
+
+    if (changed) {
+      leds.sendGeneralCommand(mode, r, g, b, brightness, onOff, param0, param1);
+      lastMode       = mode;
+      lastR          = r;
+      lastG          = g;
+      lastB          = b;
+      lastBrightness = brightness;
+      lastOnOff      = onOff;
+      lastParam0     = param0;
+      lastParam1     = param1;
+    }
+
+    boolean writePixel = SmartDashboard.getBoolean("LED Write Pixel", false);
+    if (writePixel && !lastWritePixel) {
+      int index = (int) SmartDashboard.getNumber("LED Pixel Index", 0);
+      int pr    = (int) SmartDashboard.getNumber("LED Pixel R", 255);
+      int pg    = (int) SmartDashboard.getNumber("LED Pixel G", 0);
+      int pb    = (int) SmartDashboard.getNumber("LED Pixel B", 0);
+      int pbrig = (int) SmartDashboard.getNumber("LED Pixel Brightness", 128);
+
+      leds.sendPixelWrite(index, pr, pg, pb, 0, pbrig, 0); // w=0, slot=0
+      SmartDashboard.putBoolean("LED Write Pixel", false); // auto-reset trigger
+    }
+    lastWritePixel = writePixel;
+
+    // ===========================
+    // ESP32 CAN section
+    // ===========================
+    int er = (int) SmartDashboard.getNumber("ESP/R", 0);
+    int eg = (int) SmartDashboard.getNumber("ESP/G", 0);
+    int eb = (int) SmartDashboard.getNumber("ESP/B", 0);
+    boolean erelay = SmartDashboard.getBoolean("ESP/Relay", false);
+
+    boolean espChanged = er != lastEspR || eg != lastEspG || eb != lastEspB || erelay != lastEspRelay;
+    if (espChanged) {
+      // Send 0x185 : [R,G,B,relay,0,0,0,0]
+      byte[] data = new byte[8];
+      data[0] = (byte) (er & 0xFF);
+      data[1] = (byte) (eg & 0xFF);
+      data[2] = (byte) (eb & 0xFF);
+      data[3] = (byte) (erelay ? 1 : 0);
+      try {
+        espCan.writePacket(data, API_TX_CONTROL);
+      } catch (Exception e) {
+        System.err.println("[ESP32] write 0x185 failed: " + e.getMessage());
+      }
+      lastEspR = er; lastEspG = eg; lastEspB = eb; lastEspRelay = erelay;
+    }
+
+    // One-shot reset request if toggled
+    if (SmartDashboard.getBoolean("ESP/RequestReset", false)) {
+      byte[] rdata = new byte[8];
+      rdata[0] = 1;
+      try {
+        espCan.writePacket(rdata, API_RX_RESET); // ESP reboots on data[0]==1
+      } catch (Exception e) {
+        System.err.println("[ESP32] write 0x196 (reset) failed: " + e.getMessage());
+      }
+      SmartDashboard.putBoolean("ESP/RequestReset", false);
+    }
+
+    // ===========================
+    // Read ESP32 inputs (0x195) — always publish; map A/B to radio LED (NEW)
+    // ===========================
+    {
+      CANData in = new CANData();
+
+      // Drain all NEW packets this loop to keep cache fresh
+      while (espCan.readPacketNew(API_RX_INPUTS, in)) {
+        if (in.length >= 4) {
+          int ain = ((in.data[1] & 0xFF) << 8) | (in.data[0] & 0xFF);
+          boolean btnAReleased = (in.data[2] & 0xFF) != 0; // 1=released (INPUT_PULLUP)
+          boolean btnBReleased = (in.data[3] & 0xFF) != 0;
+
+          cachedAin = ain;
+          cachedBtnAReleased = btnAReleased;
+          cachedBtnBReleased = btnBReleased;
+          inputsLastUpdateS = Timer.getFPGATimestamp();
+        }
+      }
+
+      // Edge detection for button A/B (press = transition to "not released")
+      boolean aPressedEdge = !cachedBtnAReleased && prevBtnAReleased;
+      boolean bPressedEdge = !cachedBtnBReleased && prevBtnBReleased;
+
+      if (aPressedEdge) {
+        // Button A: turn radio LED ON
+        radioLEDState = 1;
+        try {
+          LEDJNI.setRadioLEDState(radioLEDState);
+        } catch (Throwable t) {
+          System.err.println("[RadioLED] set ON failed: " + t.getMessage());
+        }
+        SmartDashboard.putNumber("ESP/RadioLEDState", radioLEDState);
+      }
+      if (bPressedEdge) {
+        // Button B: turn radio LED OFF
+        radioLEDState = 0;
+        try {
+          LEDJNI.setRadioLEDState(radioLEDState);
+        } catch (Throwable t) {
+          System.err.println("[RadioLED] set OFF failed: " + t.getMessage());
+        }
+        SmartDashboard.putNumber("ESP/RadioLEDState", radioLEDState);
+      }
+
+      // Update previous states for next loop
+      prevBtnAReleased = cachedBtnAReleased;
+      prevBtnBReleased = cachedBtnBReleased;
+
+      // Always publish from cache so values update even with no fresh frame
+      if (cachedAin >= 0) {
+        double vRead = ADC_K0 + ADC_K1 * cachedAin + ADC_K2 * (cachedAin * (double)cachedAin);
+        SmartDashboard.putNumber("ESP/Voltage", vRead);
+        SmartDashboard.putNumber("ESP/Analog",  cachedAin);
+      } else {
+        SmartDashboard.putNumber("ESP/Voltage", -1);
+        SmartDashboard.putNumber("ESP/Analog",  -1);
+      }
+
+      SmartDashboard.putString("ESP/ButtonA", cachedBtnAReleased ? "Released" : "Pressed");
+      SmartDashboard.putString("ESP/ButtonB", cachedBtnBReleased ? "Released" : "Pressed");
+
+      // Optional freshness metrics
+      double ageMs = (Timer.getFPGATimestamp() - inputsLastUpdateS) * 1000.0;
+      SmartDashboard.putNumber("ESP/InputsAgeMs", ageMs);
+      SmartDashboard.putBoolean("ESP/InputsStale", ageMs > 500.0);
+    }
+
+    // Read NEW 0x196 (reset flag)
+    CANData reset = new CANData();
+    if (espCan.readPacketNew(API_RX_RESET, reset)) {
+      int flag = (reset.length >= 1) ? (reset.data[0] & 0xFF) : 0;
+      SmartDashboard.putNumber("ESP/ResetFlagSeen", flag);
+    }
+
+    // ===========================
+    // Battery CAN section
+    // ===========================
+    if (batteryCan != null && batteryCan.valid) {
+      SmartDashboard.putString("Battery SN", batteryCan.serialNumber);
+      SmartDashboard.putString(
+          "Battery First Use (UTC)",
+          String.format("%04d-%02d-%02d",
+              batteryCan.firstUseYear,
+              batteryCan.firstUseMonth,
+              batteryCan.firstUseDay
+          )
+      );
+      SmartDashboard.putString("Battery Note", batteryCan.noteText);
+      SmartDashboard.putNumber("Battery Cycle Count", batteryCan.cycleCount);
+    } else {
+      SmartDashboard.putString("Battery SN", "INVALID");
+      SmartDashboard.putString("Battery First Use (UTC)", "0000-00-00");
+      SmartDashboard.putString("Battery Note", "INVALID");
+      SmartDashboard.putNumber("Battery Cycle Count", 0);
+    }
+  }
+
+  @Override public void autonomousInit() {}
+  @Override public void autonomousPeriodic() {}
+  @Override public void teleopInit() {}
+  @Override public void teleopPeriodic() {}
+  @Override public void disabledInit() {}
+  @Override public void disabledPeriodic() {}
+  @Override public void testInit() {}
+  @Override public void testPeriodic() {}
+  @Override public void simulationInit() {}
+  @Override public void simulationPeriodic() {}
+}
