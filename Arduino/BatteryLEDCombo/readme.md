@@ -4,6 +4,7 @@ This is work in progress
 
 This firmware will combine all those function in the end. it is still in the work.
 
+![image](../../drawing/BatteryLEDCombo_bb.png)
 
 # Driver
 
