@@ -9,6 +9,8 @@ extern CRGB leds[];
 extern uint16_t NUM_LEDS;
 
 static uint16_t modeFrame = 0;
+static int16_t bouncePos = 0;
+static int8_t bounceDir = 1;
 
 void runCurrentMode() {
   switch (canMode) {
@@ -69,6 +71,27 @@ void runCurrentMode() {
         modeRefresh = false;
       }
       modeFrame = fastBlinking(CRGB{canR, canG, canB}, canParam0, modeFrame);
+      break;
+    }
+
+    case 8: { // single pixel wipe
+      if (modeRefresh) {
+        modeFrame = 0;
+        modeRefresh = false;
+      }
+      uint16_t length = (uint16_t)canParam1 + 1;
+      modeFrame = singlePixelWipeStep(CRGB{canR, canG, canB}, canParam0, modeFrame, length);
+      break;
+    }
+
+    case 9: { // single pixel bounce
+      if (modeRefresh) {
+        bouncePos = 0;
+        bounceDir = 1;
+        modeRefresh = false;
+      }
+      uint16_t length = (uint16_t)canParam1 + 1;
+      bouncePos = (int16_t)singlePixelBounceStep(CRGB{canR, canG, canB}, canParam0, bouncePos, bounceDir, length);
       break;
     }
 
