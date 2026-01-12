@@ -17,9 +17,9 @@ https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/roboRIO/batteryRe
 | GPIO 4 | CAN TX (to CAN transceiver TXD)         |
 | GPIO 5 | CAN RX (from CAN transceiver RXD)       |
 | GPIO 16 | LED Strip Data Pin                     |
-| GPIO 15 | RGB LED R                              |
-| GPIO 13 | RGB LED G                              |
-| GPIO 14 | RGB LED B                              |
+| GPIO 15 | RGB LED R (battery tracking diag light) |
+| GPIO 13 | RGB LED G (battery tracking diag light) |
+| GPIO 14 | RGB LED B (battery tracking diag light) |
 | GPIO 32 | RC522 Reader 1 SS (ss_pin1)            |
 | GPIO 33 | RC522 Reader 2 SS (ss_pin2)            |
 | GPIO 22 | RC522 RST (shared between readers)     |
