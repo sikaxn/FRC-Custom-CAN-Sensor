@@ -4,7 +4,7 @@
 #include <Arduino.h>    // for delay(), uint8_t, uint16_t
 #include <FastLED.h>    // for CRGB, fill_solid(), CHSV, FastLED.show()
 
-extern const uint16_t NUM_LEDS;
+extern uint16_t NUM_LEDS;
 extern       CRGB   leds[];
 
 // Share brightness variable

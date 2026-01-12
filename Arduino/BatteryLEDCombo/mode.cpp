@@ -6,7 +6,7 @@ extern volatile bool canOnOff;
 
 extern volatile bool modeRefresh;
 extern CRGB leds[];
-extern const uint16_t NUM_LEDS;
+extern uint16_t NUM_LEDS;
 
 static uint16_t modeFrame = 0;
 

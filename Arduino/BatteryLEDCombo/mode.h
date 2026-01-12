@@ -6,7 +6,7 @@ void runCurrentMode();
 
 // Expose shared state for all mode logic
 extern CRGB leds[];
-extern const uint16_t NUM_LEDS;
+extern uint16_t NUM_LEDS;
 extern volatile uint8_t canMode;
 extern volatile uint8_t canR, canG, canB, canBrig;
 extern volatile bool canOnOff;

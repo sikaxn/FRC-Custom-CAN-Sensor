@@ -27,10 +27,11 @@
 #define LED_B 14
 
 // Addressable LED Strip
-const uint16_t NUM_LEDS = 140;
-CRGB leds[NUM_LEDS];
+const uint16_t DEFAULT_NUM_LEDS = 140;
+uint16_t NUM_LEDS = DEFAULT_NUM_LEDS;
+CRGB leds[DEFAULT_NUM_LEDS];
 #define LED_DATA_PIN 16
-#define LED_BRIGHTNESS 128
+#define LED_BRIGHTNESS 255
 #define LED_TYPE WS2812B
 #define LED_COLOR_ORDER GRB
 
@@ -64,6 +65,7 @@ const int EEPROM_ADDR_DEVICE_NUM = 0;
 #define GENERAL_API         0x350
 #define CUSTOM_PATTERN_API  0x351  // through 0x358
 #define ESP_FEEDBACK_API    0x359
+#define API_TOTAL_PIXEL_COUNT 0x360
 
 // CTRE PDP
 #define CTRE_PDP_TYPE_ID     0x08
@@ -351,7 +353,7 @@ void setup() {
   }
 
   // === FastLED Setup ===
-  FastLED.addLeds<LED_TYPE, LED_DATA_PIN, LED_COLOR_ORDER>(leds, NUM_LEDS)
+  FastLED.addLeds<LED_TYPE, LED_DATA_PIN, LED_COLOR_ORDER>(leds, DEFAULT_NUM_LEDS)
          .setCorrection(TypicalLEDStrip);
   FastLED.setBrightness(LED_BRIGHTNESS);
 
@@ -700,6 +702,7 @@ void onCANMessage(const twai_message_t* msg) {
       (deviceNumber == DEVICE_NUMBER || deviceNumber == 0) &&
       (
           apiID == GENERAL_API ||
+          apiID == API_TOTAL_PIXEL_COUNT ||
           (apiID >= CUSTOM_PATTERN_API &&
           apiID <  CUSTOM_PATTERN_API + 8)
       )
@@ -745,6 +748,16 @@ void handleLEDCan(const twai_message_t& msg) {
       canMode = newMode;
     }
     modeRefresh = true;
+  } else if (api == API_TOTAL_PIXEL_COUNT) {
+    uint16_t newCount = ((uint16_t)msg.data[0] << 8) | (uint16_t)msg.data[1];
+    if (newCount > DEFAULT_NUM_LEDS) {
+      newCount = DEFAULT_NUM_LEDS;
+    }
+    if (newCount != NUM_LEDS) {
+      NUM_LEDS = newCount;
+      Serial.printf("[LED] Total pixels -> %u\n", NUM_LEDS);
+      modeRefresh = true;
+    }
   } else if (api >= CUSTOM_PATTERN_API && api < CUSTOM_PATTERN_API + 8) {
     customSeen = true;
     customPix  = (msg.data[0] << 8) | msg.data[1];
