@@ -11,6 +11,9 @@ extern uint16_t NUM_LEDS;
 static uint16_t modeFrame = 0;
 static int16_t bouncePos = 0;
 static int8_t bounceDir = 1;
+static int16_t centerBounceOffset = 0;
+static int8_t centerBounceDir = 1;
+static int16_t centerWipeOffset = 0;
 
 void runCurrentMode() {
   switch (canMode) {
@@ -114,6 +117,73 @@ void runCurrentMode() {
       }
       uint16_t length = (uint16_t)canParam1 + 1;
       bouncePos = (int16_t)singlePixelBounceStep(CRGB{canR, canG, canB}, canParam0, bouncePos, bounceDir, length);
+      break;
+    }
+
+    case 12: { // center wipe
+      if (modeRefresh) {
+        centerWipeOffset = 0;
+        modeRefresh = false;
+      }
+      uint16_t length = (uint16_t)canParam1 + 1;
+      centerWipeOffset = (int16_t)centerWipeStep(CRGB{canR, canG, canB}, canParam0, centerWipeOffset, length);
+      break;
+    }
+
+    case 13: { // center wipe no reset
+      if (modeRefresh) {
+        modeRefresh = false;
+      }
+      uint16_t length = (uint16_t)canParam1 + 1;
+      centerWipeOffset = (int16_t)centerWipeStep(CRGB{canR, canG, canB}, canParam0, centerWipeOffset, length);
+      break;
+    }
+
+    case 14: { // center bounce
+      if (modeRefresh) {
+        centerBounceOffset = 0;
+        centerBounceDir = 1;
+        modeRefresh = false;
+      }
+      uint16_t length = (uint16_t)canParam1 + 1;
+      centerBounceOffset = (int16_t)centerBounceStep(CRGB{canR, canG, canB}, canParam0, centerBounceOffset, centerBounceDir, length);
+      break;
+    }
+
+    case 15: { // center bounce no reset
+      if (modeRefresh) {
+        modeRefresh = false;
+      }
+      uint16_t length = (uint16_t)canParam1 + 1;
+      centerBounceOffset = (int16_t)centerBounceStep(CRGB{canR, canG, canB}, canParam0, centerBounceOffset, centerBounceDir, length);
+      break;
+    }
+
+    case 16: { // alternating blocks no reset
+      if (modeRefresh) {
+        modeRefresh = false;
+      }
+      uint8_t delayMs = (uint8_t)(255 - canParam0);
+      if (delayMs == 0) {
+        delayMs = 1;
+      }
+      modeFrame = alternatingBlockStep(CRGB{canR, canG, canB}, delayMs, modeFrame, canParam1);
+      break;
+    }
+
+    case 17: { // alternating block fade no reset
+      if (modeRefresh) {
+        modeRefresh = false;
+      }
+      modeFrame = alternatingBlockFadeStep(CRGB{canR, canG, canB}, canParam0, modeFrame, canParam1);
+      break;
+    }
+
+    case 18: { // alternating block fade no reset
+      if (modeRefresh) {
+        modeRefresh = false;
+      }
+      modeFrame = alternatingBlockFadeStep(CRGB{canR, canG, canB}, canParam0, modeFrame, canParam1);
       break;
     }
 
