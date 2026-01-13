@@ -241,6 +241,86 @@ uint16_t alternatingBlockFadeStep(const CRGB& color, uint8_t delayMs, uint16_t f
   return frame + 1;
 }
 
+void powerOnSequenceStep(uint8_t& phase, uint32_t& phaseStartMs) {
+  uint32_t now = millis();
+  uint32_t elapsed = now - phaseStartMs;
+
+  switch (phase) {
+    case 0: { // fade up to full white in 3s
+      if (elapsed >= 3000) {
+        elapsed = 3000;
+        phase = 1;
+        phaseStartMs = now;
+      }
+      uint8_t level = (uint8_t)((elapsed * 128UL) / 3000UL);
+      CRGB c = CRGB(level, level, level);
+      fill_solid(leds, NUM_LEDS, c);
+      FastLED.show();
+      break;
+    }
+    case 1: { // hold white 3s
+      fill_solid(leds, NUM_LEDS, CRGB(128, 128, 128));
+      FastLED.show();
+      if (elapsed >= 3000) {
+        phase = 2;
+        phaseStartMs = now;
+      }
+      break;
+    }
+    case 2: { // red 1s
+      fill_solid(leds, NUM_LEDS, CRGB::Red);
+      FastLED.show();
+      if (elapsed >= 1000) {
+        phase = 3;
+        phaseStartMs = now;
+      }
+      break;
+    }
+    case 3: { // green 1s
+      fill_solid(leds, NUM_LEDS, CRGB::Green);
+      FastLED.show();
+      if (elapsed >= 1000) {
+        phase = 4;
+        phaseStartMs = now;
+      }
+      break;
+    }
+    case 4: { // blue 1s
+      fill_solid(leds, NUM_LEDS, CRGB::Blue);
+      FastLED.show();
+      if (elapsed >= 1000) {
+        phase = 5;
+        phaseStartMs = now;
+      }
+      break;
+    }
+    case 5: { // off 1s
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.show();
+      if (elapsed >= 1000) {
+        phase = 6;
+        phaseStartMs = now;
+      }
+      break;
+    }
+    case 6: { // first 3 pixels: R, G, B every 1s
+      uint8_t step = (uint8_t)((elapsed / 1000) % 3);
+      CRGB c = (step == 0) ? CRGB::Red : (step == 1) ? CRGB::Green : CRGB::Blue;
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      uint16_t count = NUM_LEDS < 3 ? NUM_LEDS : 3;
+      for (uint16_t i = 0; i < count; i++) {
+        leds[i] = c;
+      }
+      FastLED.show();
+      break;
+    }
+    default:
+      phase = 0;
+      phaseStartMs = now;
+      break;
+  }
+}
+
 uint16_t rainbowStep(uint8_t delayMs, uint16_t j) {
   for (uint16_t i = 0; i < NUM_LEDS; i++) {
     leds[i] = CHSV((i * 256 / NUM_LEDS + j) & 255, 255, canBrig);

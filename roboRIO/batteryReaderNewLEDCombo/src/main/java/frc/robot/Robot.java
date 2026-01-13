@@ -28,15 +28,15 @@ public class Robot extends TimedRobot {
     SmartDashboard.putBoolean("Using RIO energy", false);
 
     // General LED control
-    SmartDashboard.setDefaultNumber("LED Mode", 1);
+    SmartDashboard.setDefaultNumber("LED Mode", 3);
     SmartDashboard.setDefaultNumber("LED R", 255);
     SmartDashboard.setDefaultNumber("LED G", 255);
     SmartDashboard.setDefaultNumber("LED B", 255);
     SmartDashboard.setDefaultNumber("LED Brightness", 128);
     SmartDashboard.setDefaultNumber("LED OnOff", 1);
-    SmartDashboard.setDefaultNumber("LED Param0", 20);
+    SmartDashboard.setDefaultNumber("LED Param0", 50);
     SmartDashboard.setDefaultNumber("LED Param1", 20);
-    SmartDashboard.setDefaultNumber("LED Total Pixels", 10);
+    SmartDashboard.setDefaultNumber("LED Total Pixels", 150);
 
     // Custom pixel write
     SmartDashboard.setDefaultNumber("LED Pixel Index", 0);
@@ -87,13 +87,13 @@ public class Robot extends TimedRobot {
     }
 
     // === LED Control ===
-    int mode       = (int) SmartDashboard.getNumber("LED Mode", 1);
+    int mode       = (int) SmartDashboard.getNumber("LED Mode", 3);
     int r          = (int) SmartDashboard.getNumber("LED R", 255);
     int g          = (int) SmartDashboard.getNumber("LED G", 255);
     int b          = (int) SmartDashboard.getNumber("LED B", 255);
     int brightness = (int) SmartDashboard.getNumber("LED Brightness", 128);
     int onOff      = (int) SmartDashboard.getNumber("LED OnOff", 1);
-    int param0     = (int) SmartDashboard.getNumber("LED Param0", 20);
+    int param0     = (int) SmartDashboard.getNumber("LED Param0", 100);
     int param1     = (int) SmartDashboard.getNumber("LED Param1", 20);
     int totalPixels = (int) SmartDashboard.getNumber("LED Total Pixels", 10);
 

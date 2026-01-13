@@ -79,7 +79,7 @@ const int EEPROM_ADDR_DEVICE_NUM = 0;
 #define REV_PDH_API_ID       0x064
 
 // Addressable LED defaults
-#define DEFAULT_MODE        1
+#define DEFAULT_MODE        254
 #define DEFAULT_R           255
 #define DEFAULT_G           255
 #define DEFAULT_B           255

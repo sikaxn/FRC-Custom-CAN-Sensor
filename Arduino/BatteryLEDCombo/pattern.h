@@ -20,6 +20,7 @@ uint16_t centerWipeStep(const CRGB& color, uint8_t delayMs, int16_t offset, uint
 uint16_t alternatingBlockStep(const CRGB& color, uint8_t delayMs, uint16_t frame, uint8_t spacing);
 uint16_t alternatingBlockFadeStep(const CRGB& color, uint8_t delayMs, uint16_t frame, uint8_t spacing);
 uint16_t rainbowStep(uint8_t delayMs, uint16_t j);
+void powerOnSequenceStep(uint8_t& phase, uint32_t& phaseStartMs);
 uint16_t breatheStep(const CRGB& color, uint8_t maxBrightness, uint8_t speed, uint16_t frame);
 uint16_t fastBlinking(const CRGB& color, uint8_t speed, uint16_t frame);
 //uint16_t customPattern(const CRGB& color, uint8_t speed, uint16_t frame); //define yuor function

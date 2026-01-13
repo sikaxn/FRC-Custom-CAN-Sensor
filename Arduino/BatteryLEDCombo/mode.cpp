@@ -14,6 +14,8 @@ static int8_t bounceDir = 1;
 static int16_t centerBounceOffset = 0;
 static int8_t centerBounceDir = 1;
 static int16_t centerWipeOffset = 0;
+static uint8_t powerPhase = 0;
+static uint32_t powerPhaseStartMs = 0;
 
 void runCurrentMode() {
   switch (canMode) {
@@ -213,6 +215,15 @@ void runCurrentMode() {
       break;
     }
 
+    case 254: { // power-on init sequence
+      if (modeRefresh) {
+        powerPhase = 0;
+        powerPhaseStartMs = millis();
+        modeRefresh = false;
+      }
+      powerOnSequenceStep(powerPhase, powerPhaseStartMs);
+      break;
+    }
 
     default: //invalid case
       fill_solid(leds, NUM_LEDS, CRGB::Black);
