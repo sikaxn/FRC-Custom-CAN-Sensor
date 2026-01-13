@@ -36,7 +36,7 @@ CRGB leds[DEFAULT_NUM_LEDS];
 #define LED_COLOR_ORDER GRB
 
 // IO0 mode button settings
-const uint8_t buttonModes[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 255};
+const uint8_t buttonModes[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 255};
 const size_t numButtonModes = sizeof(buttonModes) / sizeof(buttonModes[0]);
 size_t currentModeIndex = 0;
 

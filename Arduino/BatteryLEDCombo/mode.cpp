@@ -84,10 +84,32 @@ void runCurrentMode() {
       break;
     }
 
-    case 9: { // single pixel bounce
+      case 9: { // single pixel wipe no reset
+      if (modeRefresh) {
+        //modeFrame = 0;
+        modeRefresh = false;
+      }
+      uint16_t length = (uint16_t)canParam1 + 1;
+      modeFrame = singlePixelWipeStep(CRGB{canR, canG, canB}, canParam0, modeFrame, length);
+      break;
+    }
+    
+
+    case 10: { // single pixel bounce
       if (modeRefresh) {
         bouncePos = 0;
         bounceDir = 1;
+        modeRefresh = false;
+      }
+      uint16_t length = (uint16_t)canParam1 + 1;
+      bouncePos = (int16_t)singlePixelBounceStep(CRGB{canR, canG, canB}, canParam0, bouncePos, bounceDir, length);
+      break;
+    }
+
+    case 11: { // single pixel bounce no reset
+      if (modeRefresh) {
+        //bouncePos = 0;
+        //bounceDir = 1;
         modeRefresh = false;
       }
       uint16_t length = (uint16_t)canParam1 + 1;
