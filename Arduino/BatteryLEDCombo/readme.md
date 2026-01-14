@@ -41,7 +41,7 @@ https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/roboRIO/batteryRe
 | GPIO 19 | SPI MISO (shared between readers)      |
 | GPIO 23 | SPI MOSI (shared between readers)      |
 | GPIO 0  | Mode button (IO0, built-in; toggles mode for testing) |
-| GPIO 17 | Relay toggle button (toggles canOnOff; off forces mode 0) |
+| GPIO 17 | Local LED blackout button (toggles local on/off; CAN still updates state) |
 | GPIO 25 | Relay                                  |
 | 3.3V/5V | Power for CAN transceiver              |
 | GND     | Common ground                          |
@@ -74,4 +74,3 @@ All color-based modes use `canR/canG/canB` with `canBrig`. Unless noted, `param0
 | 18 | Alternating block fade (no reset); `param1` = spacing |
 | 254 | Power-on default init sequence |
 | 255 | Custom pixel write mode |
-

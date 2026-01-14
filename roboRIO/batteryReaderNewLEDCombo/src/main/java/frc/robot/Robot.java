@@ -9,13 +9,6 @@ public class Robot extends TimedRobot {
   private batteryCAN battery;
   private addressableLEDCAN leds;
 
-  private int lastMode = -1;
-  private int lastR = -1, lastG = -1, lastB = -1;
-  private int lastBrightness = -1, lastOnOff = -1;
-  private int lastParam0 = -1, lastParam1 = -1;
-  private int lastTotalPixels = -1;
-  private boolean lastWritePixel = false;
-
   @Override
   public void robotInit() {
     battery = new batteryCAN(33); // your ESP32 device number
@@ -97,35 +90,12 @@ public class Robot extends TimedRobot {
     int param1     = (int) SmartDashboard.getNumber("LED Param1", 20);
     int totalPixels = (int) SmartDashboard.getNumber("LED Total Pixels", 10);
 
-    boolean changed =
-        mode       != lastMode       ||
-        r          != lastR          ||
-        g          != lastG          ||
-        b          != lastB          ||
-        brightness != lastBrightness ||
-        onOff      != lastOnOff      ||
-        param0     != lastParam0     ||
-        param1     != lastParam1;
-
-    if (changed) {
-      if (totalPixels != lastTotalPixels) {
-        leds.setTotalPixel(totalPixels);
-        lastTotalPixels = totalPixels;
-      }
-      leds.sendGeneralCommand(mode, r, g, b, brightness, onOff, param0, param1);
-      lastMode       = mode;
-      lastR          = r;
-      lastG          = g;
-      lastB          = b;
-      lastBrightness = brightness;
-      lastOnOff      = onOff;
-      lastParam0     = param0;
-      lastParam1     = param1;
-    }
+    leds.setTotalPixel(totalPixels);
+    leds.sendGeneralCommand(mode, r, g, b, brightness, onOff, param0, param1);
 
     // Pixel write logic
     boolean writePixel = SmartDashboard.getBoolean("LED Write Pixel", false);
-    if (writePixel && !lastWritePixel) {
+    if (writePixel) {
       int index = (int) SmartDashboard.getNumber("LED Pixel Index", 0);
       int pr    = (int) SmartDashboard.getNumber("LED Pixel R", 255);
       int pg    = (int) SmartDashboard.getNumber("LED Pixel G", 0);
@@ -135,6 +105,5 @@ public class Robot extends TimedRobot {
       leds.sendPixelWrite(index, pr, pg, pb, 0, pbrig, 0); // w=0, slot=0
       SmartDashboard.putBoolean("LED Write Pixel", false); // auto-reset trigger
     }
-    lastWritePixel = writePixel;
   }
 }

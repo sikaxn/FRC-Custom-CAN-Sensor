@@ -176,6 +176,7 @@ volatile bool     modeRefresh = true;
 volatile bool     customSeen = false;
 volatile uint16_t customPix = 0;
 volatile uint8_t  cR = 0, cG = 0, cB = 0;
+volatile bool     localLedEnabled = true;
 
 
 
@@ -548,12 +549,14 @@ void TaskLEDWrite(void* pvParameters) {
   bool lastBtn = digitalRead(0);
   bool lastToggleBtn = digitalRead(LED_TOGGLE_BTN_PIN);
   for (;;) {
-    digitalWrite(RELAY_PIN, canOnOff ? HIGH : LOW);
+    digitalWrite(RELAY_PIN, (localLedEnabled && canOnOff) ? HIGH : LOW);
     bool toggleBtn = digitalRead(LED_TOGGLE_BTN_PIN);
     if (lastToggleBtn == HIGH && toggleBtn == LOW) {
-      canOnOff = !canOnOff;
-      if (!canOnOff) {
-        canMode = 0;
+      localLedEnabled = !localLedEnabled;
+      if (!localLedEnabled) {
+        fill_solid(leds, NUM_LEDS, CRGB::Black);
+        FastLED.show();
+      } else {
         modeRefresh = true;
       }
     }
@@ -566,7 +569,9 @@ void TaskLEDWrite(void* pvParameters) {
       Serial.printf("[LED] IO0 mode -> %u\n", canMode);
     }
     lastBtn = btn;
-    runCurrentMode();
+    if (localLedEnabled) {
+      runCurrentMode();
+    }
     vTaskDelay(pdMS_TO_TICKS(1));
   }
 }
