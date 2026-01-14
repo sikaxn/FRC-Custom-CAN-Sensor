@@ -8,6 +8,10 @@ Video demo: https://www.youtube.com/watch?v=rKZOKIWVOAg
 
 Developed with wpilib 2025 and the latest firmware avaliable at the time for REV PDH and CTRE PDP.
 
+For 2026 build season our team will be focusing on Addressable LED + RFID combo firmware. This one might be slightly out dated. 
+
+Combo Firmware: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/BatteryLEDCombo
+
 # Getting Started
 
 https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/900.-IronMaple-RFID-Battery-Tracking-Solution

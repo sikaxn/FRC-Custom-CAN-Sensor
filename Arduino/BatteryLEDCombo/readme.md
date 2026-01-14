@@ -6,6 +6,20 @@ This firmware will combine all those function in the end. it is still in the wor
 
 ![image](../../drawing/BatteryLEDCombo_bb.png)
 
+# Please also read these documents
+
+Battery Tracking: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/Battery_Tracking
+
+Addressable LED: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/addressableLED
+
+Battery Tracking Wiki: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/900.-IronMaple-RFID-Battery-Tracking-Solution
+
+CD Thread 1: https://www.chiefdelphi.com/t/custom-can-sensor-esp32-development-board/505038
+
+CD Thread 2: https://www.chiefdelphi.com/t/rfid-battery-tracking-progress-updates-video-demo-update/502847
+
+CD Thread 3: https://www.chiefdelphi.com/t/custom-can-sensor-rfid-battery-tracking-led-controller-combo-firmware/510961
+
 # Driver
 
 https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/roboRIO/batteryReaderNewLEDCombo

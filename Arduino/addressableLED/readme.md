@@ -1,5 +1,9 @@
 # 🧾 Addressable LED CAN
 
+For 2026 build season our team will be focusing on Addressable LED + RFID combo firmware. This one might be slightly out dated. 
+
+Combo Firmware: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/BatteryLEDCombo
+
 Video: https://www.youtube.com/watch?v=yBTm1w7MFy0
 
 Addressable LED controller using an ESP32 connected to the FRC CAN bus.

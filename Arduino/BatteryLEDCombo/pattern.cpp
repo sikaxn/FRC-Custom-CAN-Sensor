@@ -303,9 +303,9 @@ void powerOnSequenceStep(uint8_t& phase, uint32_t& phaseStartMs) {
       }
       break;
     }
-    case 6: { // first 3 pixels: R, G, B every 1s
-      uint8_t step = (uint8_t)((elapsed / 1000) % 3);
-      CRGB c = (step == 0) ? CRGB::Red : (step == 1) ? CRGB::Green : CRGB::Blue;
+    case 6: { // first 3 pixels: white/off blink every 1s
+      bool on = ((elapsed / 1000) % 2) == 0;
+      CRGB c = on ? CRGB::White : CRGB::Black;
       fill_solid(leds, NUM_LEDS, CRGB::Black);
       uint16_t count = NUM_LEDS < 3 ? NUM_LEDS : 3;
       for (uint16_t i = 0; i < count; i++) {
