@@ -26,6 +26,8 @@ https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/roboRIO/batteryRe
 | GPIO 18 | SPI SCK (shared between readers)       |
 | GPIO 19 | SPI MISO (shared between readers)      |
 | GPIO 23 | SPI MOSI (shared between readers)      |
-| GPIO 0  | Mode button (IO0, built-in on boards)  |
+| GPIO 0  | Mode button (IO0, built-in; toggles mode for testing) |
+| GPIO 17 | Relay toggle button (toggles canOnOff; off forces mode 0) |
+| GPIO 25 | Relay                                  |
 | 3.3V/5V | Power for CAN transceiver              |
 | GND     | Common ground                          |
