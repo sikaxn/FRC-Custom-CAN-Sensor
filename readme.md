@@ -14,28 +14,28 @@ Factory test code: https://studenttechsupport.com/customcanespfw/factory/
 
 ### Addressable LED
 
-1. Allow change number of pixel over CAN
-2. offline detection on roborio driver
+1. Allow change number of pixel over CAN **DONE**
+2. offline detection on roborio driver **DONE**
 
 ### Battery Tracking
 
-1. Indicator Task that use IM dev board RGB LED
-2. Better CAN protocol - Allow writing energy form roboRIO by user
-3. Better CAN protocol - Allow user to trigger tag rescan over CAN
-4. Better CAN protocol - More status feedback from ESP32 (tag write error)
-5. Better CAN protocol - Empty message upon startup 
-6. Allow change CAN Device Number using web tool
+1. Indicator Task that use IM dev board RGB LED **DONE**
+2. Better CAN protocol - Allow writing energy form roboRIO by user **DONE**
+3. Better CAN protocol - Allow user to trigger tag rescan over CAN **DONE**
+4. Better CAN protocol - More status feedback from ESP32 (tag write error) **DONE**
+5. Better CAN protocol - Empty message upon startup **DONE**
+6. Allow change CAN Device Number using web tool **DONE**
 7. APP improvment - init new serial number follow BEST protocol (or disable this in setting)
 8. APP improvment - App should not be set as default NFC app on Android
 
 ### IM ESP Devkit demo 
 
-1. Bugfix - Change CAN Device Number using web tool currently not working.
+1. Bugfix - Change CAN Device Number using web tool currently not working. **DONE**
 2. Maybe merge Addressable LED with it.
 
 ### Battery Tracking + addressable LED combined firmware
 
-1. New firmware that combine those two together.
+1. New firmware that combine those two together. **DONE**
 
 
 # Custom CAN sensor with roboRIO
