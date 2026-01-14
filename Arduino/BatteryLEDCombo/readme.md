@@ -45,3 +45,33 @@ https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/roboRIO/batteryRe
 | GPIO 25 | Relay                                  |
 | 3.3V/5V | Power for CAN transceiver              |
 | GND     | Common ground                          |
+
+# LED Modes
+
+All color-based modes use `canR/canG/canB` with `canBrig`. Unless noted, `param0` is speed (delay ms) and `param1` is length/spacing.
+
+
+| Mode | Description |
+| ---- | ----------- |
+| 0 | Off |
+| 1 | Solid color |
+| 2 | Color wipe |
+| 3 | Color wipe (reset on mode change) |
+| 4 | Rainbow |
+| 5 | Breathe (reset on mode change) |
+| 6 | Breathe (no reset) |
+| 7 | Fast blinking (reset on mode change) |
+| 8 | Single-pixel wipe, moving block length = `param1 + 1` (reset) |
+| 9 | Single-pixel wipe, moving block length = `param1 + 1` (no reset) |
+| 10 | Single-pixel bounce, block length = `param1 + 1` (reset) |
+| 11 | Single-pixel bounce, block length = `param1 + 1` (no reset) |
+| 12 | Center wipe, block length = `param1 + 1` (reset) |
+| 13 | Center wipe, block length = `param1 + 1` (no reset) |
+| 14 | Center bounce, block length = `param1 + 1` (reset) |
+| 15 | Center bounce, block length = `param1 + 1` (no reset) |
+| 16 | Alternating blocks (no reset); `param1` = spacing; `param0` inverted (smaller = slower) |
+| 17 | Alternating block fade (no reset); `param1` = spacing |
+| 18 | Alternating block fade (no reset); `param1` = spacing |
+| 254 | Power-on default init sequence |
+| 255 | Custom pixel write mode |
+
