@@ -93,7 +93,7 @@ public class Robot extends TimedRobot {
     leds.setTotalPixel(totalPixels);
     leds.sendGeneralCommand(mode, r, g, b, brightness, onOff, param0, param1);
 
-    // Pixel write logic
+    // Mode 255 Pixel write logic
     boolean writePixel = SmartDashboard.getBoolean("LED Write Pixel", false);
     if (writePixel) {
       int index = (int) SmartDashboard.getNumber("LED Pixel Index", 0);
