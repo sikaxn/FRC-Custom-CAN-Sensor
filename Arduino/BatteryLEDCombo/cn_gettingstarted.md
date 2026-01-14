@@ -95,3 +95,9 @@ battery.setEnergyKJAndSend(energyKJ);//设置能量并将isUsingRIOEnergy设置�
 ```java
 leds.sendPixelWrite(index, pr, pg, pb, 0, pbrig, slot);
 ```
+
+# 请阅读有关英文文档！
+
+https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/900.-IronMaple-RFID-Battery-Tracking-Solution
+
+https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/BatteryLEDCombo
