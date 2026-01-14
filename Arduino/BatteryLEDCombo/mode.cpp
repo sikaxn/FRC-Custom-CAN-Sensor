@@ -25,7 +25,7 @@ void runCurrentMode() {
       break;
 
     case 1:  // Solid color
-      if (canOnOff) {
+      if (true) {
         CRGB color = CRGB{canR, canG, canB};
         color.nscale8_video(canBrig);
         fill_solid(leds, NUM_LEDS, color);

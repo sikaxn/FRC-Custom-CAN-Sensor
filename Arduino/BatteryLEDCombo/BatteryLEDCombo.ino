@@ -25,6 +25,8 @@
 #define LED_R 15
 #define LED_G 13
 #define LED_B 14
+#define RELAY_PIN 25
+#define LED_TOGGLE_BTN_PIN 17
 
 // Addressable LED Strip
 const uint16_t DEFAULT_NUM_LEDS = 140;
@@ -252,6 +254,9 @@ void setup() {
   pinMode(LED_R, OUTPUT);
   pinMode(LED_B, OUTPUT);
   pinMode(LED_G, OUTPUT);
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW);
+  pinMode(LED_TOGGLE_BTN_PIN, INPUT_PULLUP);
 
   Serial.begin(115200);
   while (!Serial);
@@ -541,7 +546,18 @@ void TaskCANRx(void* pvParameters) {
 void TaskLEDWrite(void* pvParameters) {
   (void)pvParameters;
   bool lastBtn = digitalRead(0);
+  bool lastToggleBtn = digitalRead(LED_TOGGLE_BTN_PIN);
   for (;;) {
+    digitalWrite(RELAY_PIN, canOnOff ? HIGH : LOW);
+    bool toggleBtn = digitalRead(LED_TOGGLE_BTN_PIN);
+    if (lastToggleBtn == HIGH && toggleBtn == LOW) {
+      canOnOff = !canOnOff;
+      if (!canOnOff) {
+        canMode = 0;
+        modeRefresh = true;
+      }
+    }
+    lastToggleBtn = toggleBtn;
     bool btn = digitalRead(0);
     if (lastBtn == HIGH && btn == LOW) {
       currentModeIndex = (currentModeIndex + 1) % numButtonModes;
