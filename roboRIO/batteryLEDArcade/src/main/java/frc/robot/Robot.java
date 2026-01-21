@@ -1,6 +1,15 @@
 package frc.robot;
 
+import com.revrobotics.PersistMode;
+import com.revrobotics.ResetMode;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.subsystems.addressableLEDCAN;
 import frc.robot.subsystems.batteryCAN;
@@ -8,6 +17,11 @@ import frc.robot.subsystems.batteryCAN;
 public class Robot extends TimedRobot {
   private batteryCAN battery;
   private addressableLEDCAN leds;
+  private SparkMax leftLeader;
+  private SparkMax leftFollower;
+  private SparkMax rightLeader;
+  private SparkMax rightFollower;
+  private XboxController controller;
 
   @Override
   public void robotInit() {
@@ -38,6 +52,43 @@ public class Robot extends TimedRobot {
     SmartDashboard.setDefaultNumber("LED Pixel B", 0);
     SmartDashboard.setDefaultNumber("LED Pixel Brightness", 128);
     SmartDashboard.setDefaultBoolean("LED Write Pixel", false);
+
+    leftLeader = new SparkMax(11, MotorType.kBrushed); // Left side leader
+    leftFollower = new SparkMax(21, MotorType.kBrushed); // Left side follower
+    rightLeader = new SparkMax(12, MotorType.kBrushed); // Right side leader
+    rightFollower = new SparkMax(22, MotorType.kBrushed); // Right side follower
+
+    SparkMaxConfig globalConfig = new SparkMaxConfig();
+    SparkMaxConfig leftLeaderConfig = new SparkMaxConfig();
+    SparkMaxConfig rightLeaderConfig = new SparkMaxConfig();
+    SparkMaxConfig leftFollowerConfig = new SparkMaxConfig();
+    SparkMaxConfig rightFollowerConfig = new SparkMaxConfig();
+
+    globalConfig
+        .smartCurrentLimit(50)
+        .idleMode(IdleMode.kCoast);
+
+    leftLeaderConfig
+        .apply(globalConfig);
+
+    rightLeaderConfig
+        .apply(globalConfig)
+        .inverted(true);
+
+    leftFollowerConfig
+        .apply(globalConfig)
+        .follow(leftLeader);
+
+    rightFollowerConfig
+        .apply(globalConfig)
+        .follow(rightLeader);
+
+    leftLeader.configure(leftLeaderConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    leftFollower.configure(leftFollowerConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    rightLeader.configure(rightLeaderConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    rightFollower.configure(rightFollowerConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+
+    controller = new XboxController(0);
   }
 
   @Override
@@ -80,15 +131,42 @@ public class Robot extends TimedRobot {
     }
 
     // === LED Control ===
-    int mode       = (int) SmartDashboard.getNumber("LED Mode", 3);
-    int r          = (int) SmartDashboard.getNumber("LED R", 255);
-    int g          = (int) SmartDashboard.getNumber("LED G", 255);
-    int b          = (int) SmartDashboard.getNumber("LED B", 255);
+    int mode;
+    int r;
+    int g;
+    int b;
     int brightness = (int) SmartDashboard.getNumber("LED Brightness", 128);
     int onOff      = (int) SmartDashboard.getNumber("LED OnOff", 1);
-    int param0     = (int) SmartDashboard.getNumber("LED Param0", 100);
-    int param1     = (int) SmartDashboard.getNumber("LED Param1", 20);
+    int param0;
+    int param1;
     int totalPixels = (int) SmartDashboard.getNumber("LED Total Pixels", 10);
+
+    double avgOutput = (leftLeader.getAppliedOutput() + rightLeader.getAppliedOutput()) / 2.0;
+    double speedAbs = Math.abs(avgOutput);
+
+    if (!DriverStation.isEnabled()) {
+      mode = 5;
+      param0 = 5;
+      param1 = 5;
+      r = 255;
+      g = 255;
+      b = 255;
+    } else if (speedAbs < 0.5) {
+      mode = 13;
+      param0 = (int) Math.round(30.0 - (20.0 * (speedAbs / 0.5)));
+      param1 = 15;
+      r = speedAbs > 0.2 && avgOutput < 0 ? 255 : 0;
+      g = speedAbs > 0.2 && avgOutput > 0 ? 255 : 0;
+      b = 255;
+    } else {
+      mode = 16;
+      param0 = (int) Math.round(30.0 + (40.0 * ((speedAbs - 0.5) / 0.5)));
+      param0 = (int) MathUtil.clamp(param0, 30, 70);
+      param1 = 2;
+      r = avgOutput < 0 ? 255 : 0;
+      g = avgOutput > 0 ? 255 : 0;
+      b = 0;
+    }
 
     leds.setTotalPixel(totalPixels);
     leds.sendGeneralCommand(mode, r, g, b, brightness, onOff, param0, param1);
@@ -105,5 +183,16 @@ public class Robot extends TimedRobot {
       leds.sendPixelWrite(index, pr, pg, pb, 0, pbrig, 0); // w=0, slot=0
       SmartDashboard.putBoolean("LED Write Pixel", false); // auto-reset trigger
     }
+
+    SmartDashboard.putNumber("Left Out", leftLeader.getAppliedOutput());
+    SmartDashboard.putNumber("Right Out", rightLeader.getAppliedOutput());
+  }
+
+  @Override
+  public void teleopPeriodic() {
+    double speed = MathUtil.applyDeadband(-controller.getLeftY(), 0.08);
+    double rotation = MathUtil.applyDeadband(controller.getRightX(), 0.08);
+    leftLeader.set(speed + rotation);
+    rightLeader.set(speed - rotation);
   }
 }
