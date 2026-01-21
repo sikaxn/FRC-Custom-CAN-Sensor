@@ -24,6 +24,7 @@ https://kno.wled.ge/basics/getting-started/
 | GPIO 4    | CAN TX (to CAN transceiver TXD)                          |
 | GPIO 5    | CAN RX (from CAN transceiver RXD)                        |
 | GPIO 16   | LED Strip Data Pin                                       |
+| GPIO 0    | Mode button (IO0, built-in; toggles mode for testing)    |
 | 3.3V / 5V | Power for CAN transceiver and LEDs (depends on hardware) |
 | GND       | Common ground                                            |
 
@@ -42,7 +43,7 @@ The following defines and variables configure the **NeoPixel (WS2812B) LED strip
 
 ```cpp
 // —— LED Configuration ——
-const uint16_t NUM_LEDS = 60;     // Total number of addressable LEDs in the strip
+const uint16_t NUM_LEDS = 140;    // Total number of addressable LEDs in the strip
 CRGB          leds[NUM_LEDS];    // FastLED pixel buffer (each LED is a CRGB object)
 
 #define DATA_PIN    16           // GPIO pin used to drive the LED data line
@@ -93,6 +94,7 @@ CAN_ID = (deviceID << 24) | (manufacturerID << 16) | (apiID << 6) | (deviceNumbe
 | GENERAL\_API (ID) | `0x350`                  |
 | CUSTOM\_API       | `0x351` to `0x358`       |
 | FEEDBACK\_API     | `0x359`                  |
+| TOTAL\_PIXEL\_API | `0x360`                  |
 
 ---
 
@@ -147,6 +149,47 @@ The ESP32 sends back status at \~50Hz.
 | 0-1  | Number of LEDs |             |
 | 2    | Current Mode   |             |
 | 3-7  | Reserved       |             |
+
+---
+
+### 🔢 Total Pixel Count (API ID `0x360`)
+
+Set the active LED count without reflashing. The firmware clamps the value to the compiled maximum.
+
+| Byte | Field          | Description |
+| ---- | -------------- | ----------- |
+| 0-1  | Number of LEDs | Big-endian  |
+| 2-7  | Reserved       | Set to 0    |
+
+---
+
+## 💡 LED Modes
+
+All color-based modes use `canR/canG/canB` with `canBrig`. Unless noted, `param0` is speed (delay ms) and `param1` is length/spacing.
+
+| Mode | Description |
+| ---- | ----------- |
+| 0 | Off |
+| 1 | Solid color |
+| 2 | Color wipe |
+| 3 | Color wipe (reset on mode change) |
+| 4 | Rainbow |
+| 5 | Breathe (reset on mode change) |
+| 6 | Breathe (no reset) |
+| 7 | Fast blinking (reset on mode change) |
+| 8 | Single-pixel wipe, moving block length = `param1 + 1` (reset) |
+| 9 | Single-pixel wipe, moving block length = `param1 + 1` (no reset) |
+| 10 | Single-pixel bounce, block length = `param1 + 1` (reset) |
+| 11 | Single-pixel bounce, block length = `param1 + 1` (no reset) |
+| 12 | Center wipe, block length = `param1 + 1` (reset) |
+| 13 | Center wipe, block length = `param1 + 1` (no reset) |
+| 14 | Center bounce, block length = `param1 + 1` (reset) |
+| 15 | Center bounce, block length = `param1 + 1` (no reset) |
+| 16 | Alternating blocks (no reset); `param1` = spacing; `param0` inverted (smaller = slower) |
+| 17 | Alternating block fade (no reset); `param1` = spacing |
+| 18 | Alternating block fade (no reset); `param1` = spacing |
+| 254 | Power-on default init sequence |
+| 255 | Custom pixel write mode |
 
 ---
 
