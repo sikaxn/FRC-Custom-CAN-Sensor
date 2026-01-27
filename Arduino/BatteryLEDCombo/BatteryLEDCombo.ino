@@ -44,6 +44,9 @@ size_t currentModeIndex = 0;
 
 #define DISABLE_WRITE_DELAY_MS 1000
 
+
+const bool DISABLE_RFID = false; //Use this option to disable RFID if a LED only firmware build is needed.
+
 // ==================================================
 // ===================  CAN CONSTANTS  ===============
 // ==================================================
@@ -277,51 +280,55 @@ void setup() {
 
   Serial.printf("[CANID] Loaded DEVICE_NUMBER = %d\n", DEVICE_NUMBER);
 
-  // === Reset pin for MFRC522 (shared between both readers) ===
-  pinMode(RST_PIN, OUTPUT);
-  digitalWrite(RST_PIN, HIGH);  // Keep reset HIGH to enable readers
+  if (!DISABLE_RFID) {
+    // === Reset pin for MFRC522 (shared between both readers) ===
+    pinMode(RST_PIN, OUTPUT);
+    digitalWrite(RST_PIN, HIGH);  // Keep reset HIGH to enable readers
 
-  // === Set MIFARE default key A ===
-  byte keyVal[6] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7};
-  memcpy(keyA.keyByte, keyVal, 6);
+    // === Set MIFARE default key A ===
+    byte keyVal[6] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7};
+    memcpy(keyA.keyByte, keyVal, 6);
 
-  // === SPI Setup (SCK, MISO, MOSI) ===
-  SPI.begin(18, 19, 23);  // SCK=18, MISO=19, MOSI=23
+    // === SPI Setup (SCK, MISO, MOSI) ===
+    SPI.begin(18, 19, 23);  // SCK=18, MISO=19, MOSI=23
 
-  // === Initialize RFID Readers ===
-  mfrc1.PCD_Init();
-  mfrc2.PCD_Init();
+    // === Initialize RFID Readers ===
+    mfrc1.PCD_Init();
+    mfrc2.PCD_Init();
 
-  // -------------------------------------------------------
-  // Detect if MFRC522 readers are responding via version register
-  // -------------------------------------------------------
-  bool reader1OK = false;
-  bool reader2OK = false;
+    // -------------------------------------------------------
+    // Detect if MFRC522 readers are responding via version register
+    // -------------------------------------------------------
+    bool reader1OK = false;
+    bool reader2OK = false;
 
-  Serial.println("Reader 1:");
-  MFRC522Debug::PCD_DumpVersionToSerial(mfrc1, Serial);
-  delay(100);
+    Serial.println("Reader 1:");
+    MFRC522Debug::PCD_DumpVersionToSerial(mfrc1, Serial);
+    delay(100);
 
-  Serial.println("Reader 2:");
-  MFRC522Debug::PCD_DumpVersionToSerial(mfrc2, Serial);
-  delay(100);
+    Serial.println("Reader 2:");
+    MFRC522Debug::PCD_DumpVersionToSerial(mfrc2, Serial);
+    delay(100);
 
-  byte ver1 = mfrc1.PCD_GetVersion();
-  byte ver2 = mfrc2.PCD_GetVersion();
+    byte ver1 = mfrc1.PCD_GetVersion();
+    byte ver2 = mfrc2.PCD_GetVersion();
 
-  // Known valid MFRC522 or FM17522 variants → anything except 0xFF is good
-  if (ver1 != 0xFF) reader1OK = true;
-  if (ver2 != 0xFF) reader2OK = true;
+    // Known valid MFRC522 or FM17522 variants → anything except 0xFF is good
+    if (ver1 != 0xFF) reader1OK = true;
+    if (ver2 != 0xFF) reader2OK = true;
 
-
-  if (reader1OK || reader2OK) {
-    readerDetected = true;
-    Serial.printf("[INFO] Reader(s) detected: %s%s\n",
-                  reader1OK ? "R1 " : "",
-                  reader2OK ? "R2" : "");
+    if (reader1OK || reader2OK) {
+      readerDetected = true;
+      Serial.printf("[INFO] Reader(s) detected: %s%s\n",
+                    reader1OK ? "R1 " : "",
+                    reader2OK ? "R2" : "");
+    } else {
+      readerDetected = false;
+      Serial.println("[WARN] No reader detected (Version = unknown).");
+    }
   } else {
     readerDetected = false;
-    Serial.println("[WARN] No reader detected (Version = unknown).");
+    Serial.println("[INFO] RFID disabled — skipping reader init.");
   }
 
   // === CAN (TWAI) Configuration ===
@@ -366,7 +373,9 @@ void setup() {
   Serial.println(F("System ready. Present tag to one reader or send a command."));
 
   // === Create Tasks ===
-  xTaskCreatePinnedToCore(TaskAutoBatteryManager, "Battery Manager", 4096, NULL, 1, NULL, 1);
+  if (!DISABLE_RFID) {
+    xTaskCreatePinnedToCore(TaskAutoBatteryManager, "Battery Manager", 4096, NULL, 1, NULL, 1);
+  }
   xTaskCreatePinnedToCore(TaskCANTx,              "CAN TX",          4096, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(TaskCANRx,              "CAN RX Unified",  4096, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(TaskLEDWrite,           "LED Task",        4096, NULL, 1, NULL, 0);
@@ -588,7 +597,7 @@ void TaskCANTx(void* pvParameters) {
     if (canAvailable) {
       uint32_t now = millis();
 
-      if (now - lastBatteryTx >= 100) {
+      if (!DISABLE_RFID && (now - lastBatteryTx >= 100)) {
         lastBatteryTx = now;
       // ==========================================================
       // 0x131 → Battery Serial (8 bytes)
@@ -700,7 +709,7 @@ void onCANMessage(const twai_message_t* msg) {
   uint8_t deviceNumber = id & 0x3F;
 
   // Route messages
-  if (
+  if (!DISABLE_RFID &&
       (deviceNumber == DEVICE_NUMBER) &&
       (
         apiID == BATTERY_STATUS_API_ID_1 ||
@@ -714,8 +723,9 @@ void onCANMessage(const twai_message_t* msg) {
       handleJavaCAN(*msg);
       lastJavaMsgTime = millis();
   }
-  else if (apiID == CTRE_PDP_API_VOLTAGE || apiID == CTRE_PDP_API_CURRENT ||
-           apiID == REV_PDH_API_ID) {
+  else if (!DISABLE_RFID &&
+           (apiID == CTRE_PDP_API_VOLTAGE || apiID == CTRE_PDP_API_CURRENT ||
+            apiID == REV_PDH_API_ID)) {
     handlePD(*msg);
     lastPDMsgTime = millis();
   }
@@ -806,12 +816,18 @@ void TaskCANGlobalHandler(void* pvParameters) {
     dt = (now - lastLoop) / 1000.0f;
     lastLoop = now;
 
-
     // --- Timeout detection (1000 ms) ---
     canOnline        = (now - lastCANMsgTime    < 1000);
-    pdOnline         = (now - lastPDMsgTime     < 1000);
-    javaOnline       = (now - lastJavaMsgTime   < 1000);
     heartbeatOnline  = (now - lastHeartbeatTime < 1000);
+
+    if (DISABLE_RFID) {
+      pdOnline = false;
+      javaOnline = false;
+      pdType = NO_PD;
+    } else {
+      pdOnline         = (now - lastPDMsgTime     < 1000);
+      javaOnline       = (now - lastJavaMsgTime   < 1000);
+    }
 
     // --- Heartbeat loss safety fallback ---
     if (!heartbeatOnline && currentlyEnabled) {
@@ -820,53 +836,60 @@ void TaskCANGlobalHandler(void* pvParameters) {
       Serial.println("[Heartbeat] LOST — Robot DISABLED (timeout)");
     }
 
-    // --- PD offline fallback ---
-    if (!pdOnline) {
-      PDvoltage = 0.0f;
-      PDcurrent = 0.0f;
+    if (!DISABLE_RFID) {
+      // --- PD offline fallback ---
+      if (!pdOnline) {
+        PDvoltage = 0.0f;
+        PDcurrent = 0.0f;
+      }
+
+      // --- Voltage source preference ---
+      if (pdOnline && PDvoltage > 5.0f)
+        globalVoltage = PDvoltage;
+      else if (javaOnline && rioVoltage > 5.0f)
+        globalVoltage = rioVoltage;
+      else
+        globalVoltage = 0.0f;
+
+      // --- Track lowest voltage ---
+      if (globalVoltage > 5.0f &&
+          (lowestVoltage == 0.0f || globalVoltage < lowestVoltage))
+        lowestVoltage = globalVoltage;
+
+      // --- Energy calculation ---
+      static float localEnergyTotal_J = 0.0f;
+      float power_W = globalVoltage * PDcurrent;  // watts = volts * amps
+      localEnergyTotal_J += power_W * dt;
+
+      // --- Choose energy source ---
+      if (useRoboRIOEnergy) {
+        // RIO reports energy in kJ directly
+        energyTotal = roboRIOenergy;
+      } else {
+        // Convert J → kJ (float, 1 decimal)
+        energyTotal = localEnergyTotal_J / 1000.0f;
+      }
+
+      // --- Update integer global energy (kJ) for NFC / CAN TX ---
+      energy = (int)roundf(energyTotal);
     }
-
-    // --- Voltage source preference ---
-    if (pdOnline && PDvoltage > 5.0f)
-      globalVoltage = PDvoltage;
-    else if (javaOnline && rioVoltage > 5.0f)
-      globalVoltage = rioVoltage;
-    else
-      globalVoltage = 0.0f;
-
-    // --- Track lowest voltage ---
-    if (globalVoltage > 5.0f &&
-        (lowestVoltage == 0.0f || globalVoltage < lowestVoltage))
-      lowestVoltage = globalVoltage;
-
-    // --- Energy calculation ---
-    static float localEnergyTotal_J = 0.0f;
-    float power_W = globalVoltage * PDcurrent;  // watts = volts * amps
-    localEnergyTotal_J += power_W * dt;
-
-    // --- Choose energy source ---
-    if (useRoboRIOEnergy) {
-      // RIO reports energy in kJ directly
-      energyTotal = roboRIOenergy;
-    } else {
-      // Convert J → kJ (float, 1 decimal)
-      energyTotal = localEnergyTotal_J / 1000.0f;
-    }
-
-    // --- Update integer global energy (kJ) for NFC / CAN TX ---
-    energy = (int)roundf(energyTotal);
 
     // --- Debug print every 10 seconds or on loss events ---
     if (now - lastPrintTime > 3000)  {
-
-      Serial.printf("[CANGlobal] CAN:%d HB:%d PD:%d Java:%d | PDType:%s | Robot:%s | V=%.2fV I=%.2fA E=%d kJ | LowestV=%.2f | %04d-%02d-%02d %02d:%02d:%02d\n",
-                    canOnline, heartbeatOnline, pdOnline, javaOnline,
-                    (pdType == REV_PDH) ? "REV_PDH" :
-                    (pdType == CTRE_PDP) ? "CTRE_PDP" : "NONE",
-                    currentlyEnabled ? "EN" : "DIS",
-                    globalVoltage, PDcurrent, energy,
-                    lowestVoltage,
-                    year, month, day, hour, minute, second);
+      if (DISABLE_RFID) {
+        Serial.printf("[CANGlobal] RFID Disabled! CAN:%d HB:%d | Robot:%s\n",
+                      canOnline, heartbeatOnline,
+                      currentlyEnabled ? "EN" : "DIS");
+      } else {
+        Serial.printf("[CANGlobal] CAN:%d HB:%d PD:%d Java:%d | PDType:%s | Robot:%s | V=%.2fV I=%.2fA E=%d kJ | LowestV=%.2f | %04d-%02d-%02d %02d:%02d:%02d\n",
+                      canOnline, heartbeatOnline, pdOnline, javaOnline,
+                      (pdType == REV_PDH) ? "REV_PDH" :
+                      (pdType == CTRE_PDP) ? "CTRE_PDP" : "NONE",
+                      currentlyEnabled ? "EN" : "DIS",
+                      globalVoltage, PDcurrent, energy,
+                      lowestVoltage,
+                      year, month, day, hour, minute, second);
+      }
 
       lastPrintTime = now;
       lastPdOnline = pdOnline;
@@ -1060,92 +1083,108 @@ void TaskLEDIndicator(void* pvParameters) {
     uint8_t blinkHz = 0;  // 0 = solid
     uint8_t r = 0, g = 0, b = 0;
 
-    // --- Update write-failure flag every 100 ms ---
-    if (millis() - lastAuthCheck > 100) {
-      lastAuthCheck = millis();
-
-      // Detect increase in auth fail count → trigger yellow warning
-      if (authFailCount > lastAuthFailCount) {
-        writeFailActive = true;
-        lastAuthFailCount = authFailCount;
-        Serial.println(F("[WARN] Write authentication failed — LED warning active."));
-      }
-
-      // If a successful write happened after failure → auto-clear warning
-      if (writeFailActive && totalWriteCount > lastWriteCount) {
-        writeFailActive = false;
-        Serial.println(F("[INFO] Write success — auth fail warning cleared."));
-      }
-
-      // Clear warning when robot becomes enabled
-      if (writeFailActive && currentlyEnabled) {
-        writeFailActive = false;
-        Serial.println(F("[INFO] Robot enabled — clearing write fail warning."));
-      }
-
-      lastWriteCount = totalWriteCount;
-    }
-
-    // ---------------- Priority 6: Blue (highest) ----------------
-    if (currentState == STATE_PARSE_AND_WRITE_INITIAL ||
-        currentState == STATE_WRITE_FINAL) {
-      b = 255;
-      blinkHz = 4;  // 4 Hz blink → writing card
-    }
-
-    // ---------------- Priority 5: Red (error) ----------------
-    else if (!canOnline) {
-      r = 255;
-      blinkHz = 1;  // 1 Hz blink → CAN lost
-    }
-    else if (!readerDetected) {
-      r = 255;
-      blinkHz = 2;  // 2 Hz blink → no reader
-    }
-    else if (!heartbeatOnline) {
-      r = 255;
-      blinkHz = 3;  // 3 Hz blink → no heartbeat
-    }
-
-    // ---------------- Priority 4: Yellow (auth fail warning) ----------------
-    else if (writeFailActive) {
-      r = 255; g = 255;
-      blinkHz = 5;  // 5 Hz blink → recent write/auth failure
-    }
-
-    // ---------------- Priority 3: Yellow (other cautions) ----------------
-    else if (currentState == STATE_WAIT_FOR_TAG) {
-      r = 255; g = 255;
-      blinkHz = 1;  // waiting for tag
-    }
-    else if (!pdOnline && !javaOnline) {
-      r = 255; g = 255;
-      blinkHz = 2;  // PD and Java both offline
-    }
-
-    // ---------------- Priority 2.5: Cyan (using RoboRIO energy) ----------------
-    else if (readerDetected && heartbeatOnline && (pdOnline || javaOnline) &&
-             !currentlyEnabled && useRoboRIOEnergy) {
-      g = 255; b = 255;   // Cyan solid
-      blinkHz = 0;
-    }
-
-    // ---------------- Priority 2: Green / White (good) ----------------
-    else if (readerDetected && heartbeatOnline && (pdOnline || javaOnline)) {
-      if (currentlyEnabled) {
-        r = g = b = 255;   // White solid
+    if (DISABLE_RFID) {
+      if (!canOnline) {
+        r = 255;
+        blinkHz = 1;  // CAN lost
+      } else if (!heartbeatOnline) {
+        r = 255;
+        blinkHz = 3;  // no heartbeat
+      } else if (currentlyEnabled) {
+        r = g = b = 255;  // enabled
         blinkHz = 0;
       } else {
-        g = 255;           // Green solid
+        g = 255;  // disabled but healthy
         blinkHz = 0;
       }
-    }
+    } else {
+      // --- Update write-failure flag every 100 ms ---
+      if (millis() - lastAuthCheck > 100) {
+        lastAuthCheck = millis();
 
-    // ---------------- Fallback (lowest) ----------------
-    else if (currentlyEnabled && canOnline && heartbeatOnline &&
-             pdOnline && javaOnline && readerDetected) {
-      r = g = b = 255;  // All perfect → white
-      blinkHz = 0;
+        // Detect increase in auth fail count → trigger yellow warning
+        if (authFailCount > lastAuthFailCount) {
+          writeFailActive = true;
+          lastAuthFailCount = authFailCount;
+          Serial.println(F("[WARN] Write authentication failed — LED warning active."));
+        }
+
+        // If a successful write happened after failure → auto-clear warning
+        if (writeFailActive && totalWriteCount > lastWriteCount) {
+          writeFailActive = false;
+          Serial.println(F("[INFO] Write success — auth fail warning cleared."));
+        }
+
+        // Clear warning when robot becomes enabled
+        if (writeFailActive && currentlyEnabled) {
+          writeFailActive = false;
+          Serial.println(F("[INFO] Robot enabled — clearing write fail warning."));
+        }
+
+        lastWriteCount = totalWriteCount;
+      }
+
+      // ---------------- Priority 6: Blue (highest) ----------------
+      if (currentState == STATE_PARSE_AND_WRITE_INITIAL ||
+          currentState == STATE_WRITE_FINAL) {
+        b = 255;
+        blinkHz = 4;  // 4 Hz blink → writing card
+      }
+
+      // ---------------- Priority 5: Red (error) ----------------
+      else if (!canOnline) {
+        r = 255;
+        blinkHz = 1;  // 1 Hz blink → CAN lost
+      }
+      else if (!readerDetected) {
+        r = 255;
+        blinkHz = 2;  // 2 Hz blink → no reader
+      }
+      else if (!heartbeatOnline) {
+        r = 255;
+        blinkHz = 3;  // 3 Hz blink → no heartbeat
+      }
+
+      // ---------------- Priority 4: Yellow (auth fail warning) ----------------
+      else if (writeFailActive) {
+        r = 255; g = 255;
+        blinkHz = 5;  // 5 Hz blink → recent write/auth failure
+      }
+
+      // ---------------- Priority 3: Yellow (other cautions) ----------------
+      else if (currentState == STATE_WAIT_FOR_TAG) {
+        r = 255; g = 255;
+        blinkHz = 1;  // waiting for tag
+      }
+      else if (!pdOnline && !javaOnline) {
+        r = 255; g = 255;
+        blinkHz = 2;  // PD and Java both offline
+      }
+
+      // ---------------- Priority 2.5: Cyan (using RoboRIO energy) ----------------
+      else if (readerDetected && heartbeatOnline && (pdOnline || javaOnline) &&
+               !currentlyEnabled && useRoboRIOEnergy) {
+        g = 255; b = 255;   // Cyan solid
+        blinkHz = 0;
+      }
+
+      // ---------------- Priority 2: Green / White (good) ----------------
+      else if (readerDetected && heartbeatOnline && (pdOnline || javaOnline)) {
+        if (currentlyEnabled) {
+          r = g = b = 255;   // White solid
+          blinkHz = 0;
+        } else {
+          g = 255;           // Green solid
+          blinkHz = 0;
+        }
+      }
+
+      // ---------------- Fallback (lowest) ----------------
+      else if (currentlyEnabled && canOnline && heartbeatOnline &&
+               pdOnline && javaOnline && readerDetected) {
+        r = g = b = 255;  // All perfect → white
+        blinkHz = 0;
+      }
     }
 
     // --- Blink Timing ---

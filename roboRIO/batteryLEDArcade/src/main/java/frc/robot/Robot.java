@@ -132,7 +132,14 @@ public class Robot extends TimedRobot {
     double speedAbs = Math.abs(avgOutput);
     double turnDiff = Math.abs(leftOutput - rightOutput);
 
-    if (!DriverStation.isEnabled()) {
+    if (DriverStation.isEStopped()) {
+      mode = 1;
+      param0 = 0;
+      param1 = 0;
+      r = 255;
+      g = 0;
+      b = 0;
+    } else if (!DriverStation.isEnabled()) {
       mode = 5;
       param0 = 5;
       param1 = 5;
