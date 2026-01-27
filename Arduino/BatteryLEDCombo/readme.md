@@ -6,6 +6,14 @@ This firmware will combine all those function in the end. it is still in the wor
 
 ![image](../../drawing/BatteryLEDCombo_bb.png)
 
+# Build LED only firmware
+
+Modify DISABLE_RFID to true and build or upload.
+```
+const bool DISABLE_RFID = true; //Use this option to disable RFID if a LED only firmware build is needed.
+```
+
+
 # Please also read these documents
 
 Battery Tracking: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/Battery_Tracking
