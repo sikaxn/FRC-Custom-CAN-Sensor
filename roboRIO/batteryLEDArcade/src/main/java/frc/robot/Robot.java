@@ -10,6 +10,8 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.Alert;
+import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.subsystems.addressableLEDCAN;
 import frc.robot.subsystems.batteryCAN;
@@ -26,6 +28,7 @@ public class Robot extends TimedRobot {
   private SparkMax rightLeader;
   private SparkMax rightFollower;
   private XboxController controller;
+  private final Alert batteryStatusAlert = new Alert("Battery status is Unknown", AlertType.kWarning);
 
   @Override
   public void robotInit() {
@@ -90,6 +93,8 @@ public class Robot extends TimedRobot {
         case 3 -> "Other";
         default -> "Unknown";
     };
+    batteryStatusAlert.setText("Battery status is " + noteLabel);
+    batteryStatusAlert.set(battery.getNote() != 0);
     SmartDashboard.putString("NotCause", noteLabel);
     SmartDashboard.putNumber("Note", battery.getNote());
     SmartDashboard.putNumber("ESP State", battery.getESPState());
@@ -143,9 +148,19 @@ public class Robot extends TimedRobot {
       mode = 5;
       param0 = 5;
       param1 = 5;
-      r = 255;
-      g = 255;
-      b = 255;
+      if ("Scrap".equals(noteLabel)) {
+        r = 255;
+        g = 0;
+        b = 0;
+      } else if ("Other".equals(noteLabel) || "Practice Only".equals(noteLabel)) {
+        r = 255;
+        g = 165;
+        b = 0;
+      } else {
+        r = 255;
+        g = 255;
+        b = 255;
+      }
     } else if (turnDiff > 0.1) {
       mode = 4;
       double turnNorm = MathUtil.clamp((turnDiff - 0.1) / 1.9, 0.0, 1.0);
