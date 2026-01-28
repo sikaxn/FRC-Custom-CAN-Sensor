@@ -67,10 +67,10 @@ const int EEPROM_ADDR_DEVICE_NUM = 0;
 #define BATTERY_STATUS_API_ID_2  0x136
 
 // Addressable LED CAN APIs
-#define GENERAL_API         0x350
+#define GENERAL_API_1       0x350
 #define CUSTOM_PATTERN_API  0x351  // through 0x358
 #define ESP_FEEDBACK_API    0x359
-#define API_TOTAL_PIXEL_COUNT 0x360
+#define GENERAL_API_2       0x360
 
 // CTRE PDP
 #define CTRE_PDP_TYPE_ID     0x08
@@ -173,6 +173,11 @@ volatile uint8_t  canG      = DEFAULT_G;
 volatile uint8_t  canB      = DEFAULT_B;
 volatile uint8_t  canBrig   = DEFAULT_BRIGHTNESS;
 volatile bool     canOnOff  = DEFAULT_ONOFF;
+volatile uint8_t  canR2     = 0;
+volatile uint8_t  canG2     = 0;
+volatile uint8_t  canB2     = 0;
+volatile uint8_t  canBrig2  = 0;
+volatile uint8_t  canOnOff2 = 0;
 volatile uint8_t  canParam0 = 20;
 volatile uint8_t  canParam1 = 20;
 volatile bool     modeRefresh = true;
@@ -732,8 +737,8 @@ void onCANMessage(const twai_message_t* msg) {
   else if (
       (deviceNumber == DEVICE_NUMBER || deviceNumber == 0) &&
       (
-          apiID == GENERAL_API ||
-          apiID == API_TOTAL_PIXEL_COUNT ||
+          apiID == GENERAL_API_1 ||
+          apiID == GENERAL_API_2 ||
           (apiID >= CUSTOM_PATTERN_API &&
           apiID <  CUSTOM_PATTERN_API + 8)
       )
@@ -763,7 +768,7 @@ void handleLEDCan(const twai_message_t& msg) {
   if (mfr != MANUFACTURER_ID) return;
   if (dev != DEVICE_NUMBER) return;
 
-  if (api == GENERAL_API) {
+  if (api == GENERAL_API_1) {
     uint8_t newMode = msg.data[0];
     canR      = msg.data[1];
     canG      = msg.data[2];
@@ -779,7 +784,7 @@ void handleLEDCan(const twai_message_t& msg) {
       canMode = newMode;
     }
     modeRefresh = true;
-  } else if (api == API_TOTAL_PIXEL_COUNT) {
+  } else if (api == GENERAL_API_2) {
     uint16_t newCount = ((uint16_t)msg.data[0] << 8) | (uint16_t)msg.data[1];
     if (newCount > DEFAULT_NUM_LEDS) {
       newCount = DEFAULT_NUM_LEDS;
@@ -788,6 +793,15 @@ void handleLEDCan(const twai_message_t& msg) {
       NUM_LEDS = newCount;
       Serial.printf("[LED] Total pixels -> %u\n", NUM_LEDS);
       modeRefresh = true;
+    }
+    canR2 = msg.data[2];
+    canG2 = msg.data[3];
+    canB2 = msg.data[4];
+    canBrig2 = msg.data[5];
+    canOnOff2 = msg.data[6];
+    if (msg.data[7] != 0) {
+      Serial.println("[LED] Reboot requested by CAN (GENERAL_API_2)");
+      ESP.restart();
     }
   } else if (api >= CUSTOM_PATTERN_API && api < CUSTOM_PATTERN_API + 8) {
     customSeen = true;

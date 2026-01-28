@@ -1,23 +1,31 @@
 #include "pattern.h"
 
-uint16_t colorWipeStep(const CRGB& color, uint8_t delayMs, uint16_t index) {
+static CRGB scaleColor(const CRGB& color, uint8_t brightness) {
+  CRGB c = color;
+  c.nscale8_video(brightness);
+  return c;
+}
+
+uint16_t colorWipeStep(const CRGB& color, uint8_t brightness, uint8_t delayMs, uint16_t index,
+                       const CRGB& background, uint8_t backgroundBrightness) {
+  CRGB c = scaleColor(color, brightness);
+  CRGB bg = scaleColor(background, backgroundBrightness);
   if (index < NUM_LEDS) {
-    CRGB c = color;
-    c.nscale8_video(canBrig);
     leds[index] = c;
     FastLED.show();
     delay(delayMs);
     return index + 1;
   } else {
-    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    fill_solid(leds, NUM_LEDS, bg);
     FastLED.show();
     return 0;
   }
 }
 
-uint16_t singlePixelWipeStep(const CRGB& color, uint8_t delayMs, uint16_t index, uint16_t length) {
+uint16_t singlePixelWipeStep(const CRGB& color, uint8_t brightness, uint8_t delayMs, uint16_t index, uint16_t length,
+                             const CRGB& background, uint8_t backgroundBrightness) {
   if (length == 0 || NUM_LEDS == 0) {
-    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    fill_solid(leds, NUM_LEDS, scaleColor(background, backgroundBrightness));
     FastLED.show();
     delay(delayMs);
     return 0;
@@ -28,9 +36,8 @@ uint16_t singlePixelWipeStep(const CRGB& color, uint8_t delayMs, uint16_t index,
   }
 
   uint16_t pos = index % NUM_LEDS;
-  CRGB c = color;
-  c.nscale8_video(canBrig);
-  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  CRGB c = scaleColor(color, brightness);
+  fill_solid(leds, NUM_LEDS, scaleColor(background, backgroundBrightness));
   for (uint16_t i = 0; i < length; i++) {
     leds[(pos + i) % NUM_LEDS] = c;
   }
@@ -39,9 +46,10 @@ uint16_t singlePixelWipeStep(const CRGB& color, uint8_t delayMs, uint16_t index,
   return pos + 1;
 }
 
-uint16_t singlePixelBounceStep(const CRGB& color, uint8_t delayMs, int16_t pos, int8_t& dir, uint16_t length) {
+uint16_t singlePixelBounceStep(const CRGB& color, uint8_t brightness, uint8_t delayMs, int16_t pos, int8_t& dir, uint16_t length,
+                               const CRGB& background, uint8_t backgroundBrightness) {
   if (length == 0 || NUM_LEDS == 0) {
-    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    fill_solid(leds, NUM_LEDS, scaleColor(background, backgroundBrightness));
     FastLED.show();
     delay(delayMs);
     return 0;
@@ -64,9 +72,8 @@ uint16_t singlePixelBounceStep(const CRGB& color, uint8_t delayMs, int16_t pos, 
     dir = -1;
   }
 
-  CRGB c = color;
-  c.nscale8_video(canBrig);
-  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  CRGB c = scaleColor(color, brightness);
+  fill_solid(leds, NUM_LEDS, scaleColor(background, backgroundBrightness));
   for (uint16_t i = 0; i < length; i++) {
     leds[pos + i] = c;
   }
@@ -86,9 +93,10 @@ uint16_t singlePixelBounceStep(const CRGB& color, uint8_t delayMs, int16_t pos, 
   return pos + dir;
 }
 
-uint16_t centerBounceStep(const CRGB& color, uint8_t delayMs, int16_t offset, int8_t& dir, uint16_t length) {
+uint16_t centerBounceStep(const CRGB& color, uint8_t brightness, uint8_t delayMs, int16_t offset, int8_t& dir, uint16_t length,
+                          const CRGB& background, uint8_t backgroundBrightness) {
   if (length == 0 || NUM_LEDS == 0) {
-    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    fill_solid(leds, NUM_LEDS, scaleColor(background, backgroundBrightness));
     FastLED.show();
     delay(delayMs);
     return 0;
@@ -116,9 +124,8 @@ uint16_t centerBounceStep(const CRGB& color, uint8_t delayMs, int16_t offset, in
     dir = -1;
   }
 
-  CRGB c = color;
-  c.nscale8_video(canBrig);
-  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  CRGB c = scaleColor(color, brightness);
+  fill_solid(leds, NUM_LEDS, scaleColor(background, backgroundBrightness));
   for (uint16_t i = 0; i < length; i++) {
     int16_t leftIndex = centerLeft - offset - (int16_t)i;
     int16_t rightIndex = centerRight + offset + (int16_t)i;
@@ -145,9 +152,10 @@ uint16_t centerBounceStep(const CRGB& color, uint8_t delayMs, int16_t offset, in
   return offset + dir;
 }
 
-uint16_t centerWipeStep(const CRGB& color, uint8_t delayMs, int16_t offset, uint16_t length) {
+uint16_t centerWipeStep(const CRGB& color, uint8_t brightness, uint8_t delayMs, int16_t offset, uint16_t length,
+                        const CRGB& background, uint8_t backgroundBrightness) {
   if (length == 0 || NUM_LEDS == 0) {
-    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    fill_solid(leds, NUM_LEDS, scaleColor(background, backgroundBrightness));
     FastLED.show();
     delay(delayMs);
     return 0;
@@ -173,9 +181,8 @@ uint16_t centerWipeStep(const CRGB& color, uint8_t delayMs, int16_t offset, uint
     offset = 0;
   }
 
-  CRGB c = color;
-  c.nscale8_video(canBrig);
-  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  CRGB c = scaleColor(color, brightness);
+  fill_solid(leds, NUM_LEDS, scaleColor(background, backgroundBrightness));
   for (uint16_t i = 0; i < length; i++) {
     int16_t leftIndex = centerLeft - offset - (int16_t)i;
     int16_t rightIndex = centerRight + offset + (int16_t)i;
@@ -196,31 +203,33 @@ uint16_t centerWipeStep(const CRGB& color, uint8_t delayMs, int16_t offset, uint
   return offset + 1;
 }
 
-uint16_t alternatingBlockStep(const CRGB& color, uint8_t delayMs, uint16_t frame, uint8_t spacing) {
+uint16_t alternatingBlockStep(const CRGB& color, uint8_t brightness, uint8_t delayMs, uint16_t frame, uint8_t spacing,
+                              const CRGB& background, uint8_t backgroundBrightness) {
   uint16_t blockSize = spacing == 0 ? 1 : spacing;
   uint16_t period = blockSize * 2;
 
-  CRGB c = color;
-  c.nscale8_video(canBrig);
+  CRGB c = scaleColor(color, brightness);
+  CRGB bg = scaleColor(background, backgroundBrightness);
 
   for (uint16_t i = 0; i < NUM_LEDS; i++) {
     uint16_t phase = (i + (uint16_t)frame * blockSize) % period;
-    leds[i] = (phase < blockSize) ? c : CRGB::Black;
+    leds[i] = (phase < blockSize) ? c : bg;
   }
   FastLED.show();
   delay(delayMs);
   return frame + 1;
 }
 
-uint16_t alternatingBlockFadeStep(const CRGB& color, uint8_t delayMs, uint16_t frame, uint8_t spacing) {
+uint16_t alternatingBlockFadeStep(const CRGB& color, uint8_t brightness, uint8_t delayMs, uint16_t frame, uint8_t spacing,
+                                  const CRGB& background, uint8_t backgroundBrightness) {
   uint16_t blockSize = spacing == 0 ? 1 : spacing;
   uint16_t period = blockSize * 2;
 
   uint8_t fade = frame & 0xFF;
   bool useAlt = ((frame >> 8) & 0x01) != 0;
 
-  CRGB c = color;
-  c.nscale8_video(canBrig);
+  CRGB c = scaleColor(color, brightness);
+  CRGB bg = scaleColor(background, backgroundBrightness);
 
   for (uint16_t i = 0; i < NUM_LEDS; i++) {
     uint16_t phaseA = i % period;
@@ -232,9 +241,7 @@ uint16_t alternatingBlockFadeStep(const CRGB& color, uint8_t delayMs, uint16_t f
     uint16_t bWeight = 255 - aWeight;
 
     uint16_t mix = (onA ? aWeight : 0) + (onB ? bWeight : 0);
-    CRGB out = c;
-    out.nscale8_video((uint8_t)mix);
-    leds[i] = out;
+    leds[i] = blend(bg, c, (uint8_t)mix);
   }
   FastLED.show();
   delay(delayMs);
@@ -321,9 +328,9 @@ void powerOnSequenceStep(uint8_t& phase, uint32_t& phaseStartMs) {
   }
 }
 
-uint16_t rainbowStep(uint8_t delayMs, uint16_t j) {
+uint16_t rainbowStep(uint8_t brightness, uint8_t delayMs, uint16_t j) {
   for (uint16_t i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CHSV((i * 256 / NUM_LEDS + j) & 255, 255, canBrig);
+    leds[i] = CHSV((i * 256 / NUM_LEDS + j) & 255, 255, brightness);
   }
   FastLED.show();
   delay(delayMs);
@@ -332,7 +339,8 @@ uint16_t rainbowStep(uint8_t delayMs, uint16_t j) {
 
 
 
-uint16_t breatheStep(const CRGB& color, uint8_t brightness, uint8_t speed, uint16_t frame) {
+uint16_t breatheStep(const CRGB& color, uint8_t brightness, uint8_t speed, uint16_t frame,
+                     const CRGB& background, uint8_t backgroundBrightness) {
   float minSpeed = 0.05f;
   float maxSpeed = 5.0f;
   float scale = minSpeed + ((maxSpeed - minSpeed) * (speed / 255.0f));
@@ -340,19 +348,20 @@ uint16_t breatheStep(const CRGB& color, uint8_t brightness, uint8_t speed, uint1
   float t = frame * scale * 0.01f;
   float breath = 0.5f * (1 + sinf(t * 2 * PI));  // 0.0–1.0
 
-  CRGB c = color;
-  c.nscale8_video((uint8_t)(brightness * breath));
-  fill_solid(leds, NUM_LEDS, c);
+  CRGB fg = scaleColor(color, (uint8_t)(brightness * breath));
+  CRGB bg = scaleColor(background, backgroundBrightness);
+  fill_solid(leds, NUM_LEDS, blend(bg, fg, (uint8_t)(breath * 255.0f)));
   FastLED.show();
 
   return frame + 1;
 }
 
-uint16_t fastBlinking(const CRGB& color, uint8_t speed, uint16_t frame) { 
+uint16_t fastBlinking(const CRGB& color, uint8_t brightness, uint8_t speed, uint16_t frame,
+                      const CRGB& background, uint8_t backgroundBrightness) { 
   bool on = (frame / speed + 1) % 2 == 0;
-  CRGB c = color;
-  c.nscale8_video(canBrig);
-  fill_solid(leds, NUM_LEDS, on ? c : CRGB::Black);
+  CRGB c = scaleColor(color, brightness);
+  CRGB bg = scaleColor(background, backgroundBrightness);
+  fill_solid(leds, NUM_LEDS, on ? c : bg);
   FastLED.show();
   return frame + 1;
 }

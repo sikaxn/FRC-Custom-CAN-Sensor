@@ -11,7 +11,7 @@ import edu.wpi.first.wpilibj.Timer;
  * RIO -> ESP32:
  *   0x350: General command (mode, RGB, brightness, on/off, param0, param1)
  *   0x351-0x358: Custom pixel writes (slot indexed)
- *   0x360: Total pixel count
+ *   0x360: Total pixel count + secondary color
  *
  * ESP32 -> RIO:
  *   0x359: Feedback frame (num LEDs, current mode)
@@ -23,7 +23,7 @@ public class addressableLEDCAN {
   private static final int API_GENERAL_CMD = 0x350;
   private static final int API_CUSTOM_PIXEL_BASE = 0x351; // 0x351..0x358
   private static final int API_FEEDBACK = 0x359;
-  private static final int API_TOTAL_PIXEL_COUNT = 0x360;
+  private static final int API_GENERAL_2 = 0x360;
 
   private final CAN can;
   private final CANData rxFrame = new CANData();
@@ -43,6 +43,11 @@ public class addressableLEDCAN {
   private int desiredParam0 = -1;
   private int desiredParam1 = -1;
   private int desiredTotalPixels = 10;
+  private int desiredR2 = 0;
+  private int desiredG2 = 0;
+  private int desiredB2 = 0;
+  private int desiredBrightness2 = 0;
+  private int desiredOnOff2 = 0;
   private boolean hasDesiredGeneral = false;
 
   private int lastSentMode = -1;
@@ -54,6 +59,11 @@ public class addressableLEDCAN {
   private int lastSentParam0 = -1;
   private int lastSentParam1 = -1;
   private int lastSentTotalPixels = -1;
+  private int lastSentR2 = -1;
+  private int lastSentG2 = -1;
+  private int lastSentB2 = -1;
+  private int lastSentBrightness2 = -1;
+  private int lastSentOnOff2 = -1;
   private double lastGeneralSendTime = 0.0;
 
   private final int[] lastPixelIndex = new int[8];
@@ -164,22 +174,41 @@ public class addressableLEDCAN {
     sendTotalPixelIfNeeded();
   }
 
+  public synchronized void setSecondaryColor(int enable, int r, int g, int b, int brightness) {
+    desiredOnOff2 = enable;
+    desiredR2 = r;
+    desiredG2 = g;
+    desiredB2 = b;
+    desiredBrightness2 = brightness;
+    sendTotalPixelIfNeeded();
+  }
+
   private void sendTotalPixelIfNeeded() {
-    if (desiredTotalPixels == lastSentTotalPixels) {
+    if (desiredTotalPixels == lastSentTotalPixels
+        && desiredR2 == lastSentR2
+        && desiredG2 == lastSentG2
+        && desiredB2 == lastSentB2
+        && desiredBrightness2 == lastSentBrightness2
+        && desiredOnOff2 == lastSentOnOff2) {
       return;
     }
 
     byte[] data = new byte[8];
     data[0] = (byte) ((desiredTotalPixels >> 8) & 0xFF);
     data[1] = (byte) (desiredTotalPixels & 0xFF);
-    data[2] = 0;
-    data[3] = 0;
-    data[4] = 0;
-    data[5] = 0;
-    data[6] = 0;
+    data[2] = (byte) desiredR2;
+    data[3] = (byte) desiredG2;
+    data[4] = (byte) desiredB2;
+    data[5] = (byte) desiredBrightness2;
+    data[6] = (byte) desiredOnOff2;
     data[7] = 0;
-    writePacket(data, API_TOTAL_PIXEL_COUNT, "totalPixel");
+    writePacket(data, API_GENERAL_2, "general2");
     lastSentTotalPixels = desiredTotalPixels;
+    lastSentR2 = desiredR2;
+    lastSentG2 = desiredG2;
+    lastSentB2 = desiredB2;
+    lastSentBrightness2 = desiredBrightness2;
+    lastSentOnOff2 = desiredOnOff2;
   }
 
   private void sendGeneralCommandNow() {

@@ -30,6 +30,11 @@ public class Robot extends TimedRobot {
     SmartDashboard.setDefaultNumber("LED Param0", 50);
     SmartDashboard.setDefaultNumber("LED Param1", 20);
     SmartDashboard.setDefaultNumber("LED Total Pixels", 150);
+    SmartDashboard.setDefaultNumber("LED2 R", 0);
+    SmartDashboard.setDefaultNumber("LED2 G", 0);
+    SmartDashboard.setDefaultNumber("LED2 B", 0);
+    SmartDashboard.setDefaultNumber("LED2 Brightness", 0);
+    SmartDashboard.setDefaultBoolean("LED2 Enable", false);
 
     // Custom pixel write
     SmartDashboard.setDefaultNumber("LED Pixel Index", 0);
@@ -89,8 +94,14 @@ public class Robot extends TimedRobot {
     int param0     = (int) SmartDashboard.getNumber("LED Param0", 100);
     int param1     = (int) SmartDashboard.getNumber("LED Param1", 20);
     int totalPixels = (int) SmartDashboard.getNumber("LED Total Pixels", 10);
+    int r2         = (int) SmartDashboard.getNumber("LED2 R", 0);
+    int g2         = (int) SmartDashboard.getNumber("LED2 G", 0);
+    int b2         = (int) SmartDashboard.getNumber("LED2 B", 0);
+    int brig2      = (int) SmartDashboard.getNumber("LED2 Brightness", 0);
+    int en2        = SmartDashboard.getBoolean("LED2 Enable", false) ? 1 : 0;
 
     leds.setTotalPixel(totalPixels);
+    leds.setSecondaryColor(en2, r2, g2, b2, brig2);
     leds.sendGeneralCommand(mode, r, g, b, brightness, onOff, param0, param1);
 
     // Mode 255 Pixel write logic

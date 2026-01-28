@@ -56,7 +56,7 @@ https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/roboRIO/batteryRe
 
 # LED Modes
 
-All color-based modes use `canR/canG/canB` with `canBrig`. Unless noted, `param0` is speed (delay ms) and `param1` is length/spacing.
+All color-based modes use `canR/canG/canB` with `canBrig` (global brightness). Modes 19–34 use color 2 (`canR2/canG2/canB2` with `canBrig2`), clamped to `canBrig`. If color 2 enable is 0, color 2 is treated as off. Unless noted, `param0` is speed (delay ms) and `param1` is length/spacing.
 
 
 | Mode | Description |
@@ -78,7 +78,23 @@ All color-based modes use `canR/canG/canB` with `canBrig`. Unless noted, `param0
 | 14 | Center bounce, block length = `param1 + 1` (reset) |
 | 15 | Center bounce, block length = `param1 + 1` (no reset) |
 | 16 | Alternating blocks (no reset); `param1` = spacing; `param0` inverted (smaller = slower) |
-| 17 | Alternating block fade (no reset); `param1` = spacing |
+| 17 | Alternating block fade (reset); `param1` = spacing |
 | 18 | Alternating block fade (no reset); `param1` = spacing |
+| 19 | Color wipe with color 2 |
+| 20 | Color wipe (reset on mode change) with color 2 |
+| 21 | Breathe (reset on mode change) with color 2 |
+| 22 | Breathe (no reset) with color 2 |
+| 23 | Fast blinking (reset on mode change) with color 2 |
+| 24 | Single-pixel wipe, moving block length = `param1 + 1` (reset) with color 2 |
+| 25 | Single-pixel wipe, moving block length = `param1 + 1` (no reset) with color 2 |
+| 26 | Single-pixel bounce, block length = `param1 + 1` (reset) with color 2 |
+| 27 | Single-pixel bounce, block length = `param1 + 1` (no reset) with color 2 |
+| 28 | Center wipe, block length = `param1 + 1` (reset) with color 2 |
+| 29 | Center wipe, block length = `param1 + 1` (no reset) with color 2 |
+| 30 | Center bounce, block length = `param1 + 1` (reset) with color 2 |
+| 31 | Center bounce, block length = `param1 + 1` (no reset) with color 2 |
+| 32 | Alternating blocks (no reset); `param1` = spacing; `param0` inverted (smaller = slower) with color 2 |
+| 33 | Alternating block fade (reset); `param1` = spacing with color 2 |
+| 34 | Alternating block fade (no reset); `param1` = spacing with color 2 |
 | 254 | Power-on default init sequence |
 | 255 | Custom pixel write mode |

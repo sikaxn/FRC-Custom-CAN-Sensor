@@ -9,6 +9,7 @@ extern CRGB leds[];
 extern uint16_t NUM_LEDS;
 extern volatile uint8_t canMode;
 extern volatile uint8_t canR, canG, canB, canBrig;
+extern volatile uint8_t canR2, canG2, canB2, canBrig2, canOnOff2;
 extern volatile bool canOnOff;
 extern volatile uint8_t canParam0, canParam1;
 extern volatile bool customSeen;
