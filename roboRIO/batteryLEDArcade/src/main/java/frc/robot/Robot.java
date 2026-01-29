@@ -28,7 +28,8 @@ public class Robot extends TimedRobot {
   private SparkMax rightLeader;
   private SparkMax rightFollower;
   private XboxController controller;
-  private final Alert batteryStatusAlert = new Alert("Battery status is Unknown", AlertType.kWarning);
+  private final Alert batteryStatusWarning = new Alert("Battery status is Unknown", AlertType.kWarning);
+  private final Alert batteryStatusError = new Alert("Battery status is Unknown", AlertType.kError);
 
   @Override
   public void robotInit() {
@@ -93,8 +94,11 @@ public class Robot extends TimedRobot {
         case 3 -> "Other";
         default -> "Unknown";
     };
-    batteryStatusAlert.setText("Battery status is " + noteLabel);
-    batteryStatusAlert.set(battery.getNote() != 0);
+    String batteryStatusText = "Battery status is " + noteLabel;
+    batteryStatusWarning.setText(batteryStatusText);
+    batteryStatusError.setText(batteryStatusText);
+    batteryStatusError.set("Scrap".equals(noteLabel));
+    batteryStatusWarning.set(battery.getNote() != 0 && !"Scrap".equals(noteLabel));
     SmartDashboard.putString("NotCause", noteLabel);
     SmartDashboard.putNumber("Note", battery.getNote());
     SmartDashboard.putNumber("ESP State", battery.getESPState());
