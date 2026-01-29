@@ -6,7 +6,11 @@ extern volatile uint8_t canR2, canG2, canB2, canBrig2, canOnOff2;
 extern volatile bool canOnOff;
 
 extern volatile bool modeRefresh;
+#ifdef LEDSIM_HOST
+extern CRGB* leds;
+#else
 extern CRGB leds[];
+#endif
 extern uint16_t NUM_LEDS;
 
 static uint16_t modeFrame = 0;
@@ -116,7 +120,8 @@ void runCurrentMode() {
         modeFrame = 0;
         modeRefresh = false;
       }
-      modeFrame = fastBlinking(CRGB{canR, canG, canB}, canBrig, canParam0, modeFrame);
+      uint8_t speed = canParam0 == 0 ? 1 : canParam0;
+      modeFrame = fastBlinking(CRGB{canR, canG, canB}, canBrig, speed, modeFrame);
       break;
     }
 

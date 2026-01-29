@@ -5,7 +5,12 @@
 void runCurrentMode();
 
 // Expose shared state for all mode logic
+// Use a pointer on host builds for dynamic sizing.
+#ifdef LEDSIM_HOST
+extern CRGB* leds;
+#else
 extern CRGB leds[];
+#endif
 extern uint16_t NUM_LEDS;
 extern volatile uint8_t canMode;
 extern volatile uint8_t canR, canG, canB, canBrig;

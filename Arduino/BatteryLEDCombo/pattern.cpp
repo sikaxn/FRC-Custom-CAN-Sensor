@@ -358,6 +358,9 @@ uint16_t breatheStep(const CRGB& color, uint8_t brightness, uint8_t speed, uint1
 
 uint16_t fastBlinking(const CRGB& color, uint8_t brightness, uint8_t speed, uint16_t frame,
                       const CRGB& background, uint8_t backgroundBrightness) { 
+  if (speed == 0) {
+    speed = 1;
+  }
   bool on = (frame / speed + 1) % 2 == 0;
   CRGB c = scaleColor(color, brightness);
   CRGB bg = scaleColor(background, backgroundBrightness);

@@ -5,7 +5,12 @@
 #include <FastLED.h>    // for CRGB, fill_solid(), CHSV, FastLED.show()
 
 extern uint16_t NUM_LEDS;
+// Use a pointer on host builds for dynamic sizing.
+#ifdef LEDSIM_HOST
+extern CRGB* leds;
+#else
 extern       CRGB   leds[];
+#endif
 
 // Animation prototypes
 uint16_t colorWipeStep(const CRGB& color, uint8_t brightness, uint8_t delayMs, uint16_t index,

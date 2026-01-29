@@ -11,3 +11,8 @@ pcb/archive/~$factory-fw-flash.pptx
 pcb/CAD-Resources/~$demo_backplate.SLDDRW
 /pcb/full-demo-fw/build
 *.DS_Store
+/LEDsimulator/build
+/LEDsimulator/build-py312
+/LEDsimulator/__pycache__/
+/LEDsimulator/.venv/
+*.pyd
