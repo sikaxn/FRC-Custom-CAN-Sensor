@@ -131,7 +131,7 @@ You must generate your CAN identifier (message ID) using this very specific way.
 
 ```
 // === CAN Constants ===
-#define DEVICE_ID        0x0A  //DONOT CHANGE
+#define DEVICE_TYPE_ID        0x0A  //DONOT CHANGE
 #define MANUFACTURER_ID  0x08  //DONOT CHANGE
 #define DEVICE_NUMBER    33  // Device Number 0-63
 #define STATUS_API_ID        0x180
@@ -148,7 +148,7 @@ uint32_t makeCANMsgID(uint8_t deviceID, uint8_t manufacturerID, uint16_t apiID, 
 ```
 2. An ID converter script is added. see below for usage.
 
-3. DO NOT change DEVICE_ID and MANUFACTURER_ID as this will result roboRIO code stop working. 
+3. DO NOT change DEVICE_TYPE_ID and MANUFACTURER_ID as this will result roboRIO code stop working. 
 
 ---
 ![image](img/img.jpg)

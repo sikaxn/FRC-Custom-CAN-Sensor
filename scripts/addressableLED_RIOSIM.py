@@ -4,15 +4,15 @@ from tkinter.scrolledtext import ScrolledText
 import can
 
 # —— FRC CAN Constants ——
-DEVICE_ID           = 0x0A  # DO NOT CHANGE
+DEVICE_TYPE_ID           = 0x0A  # DO NOT CHANGE
 MANUFACTURER_ID     = 0x08  # DO NOT CHANGE
 GENERAL_API         = 0x350
 CUSTOM_PATTERN_API  = 0x351  # base for 0x351–0x358
 
 # —— Build a 29-bit FRC CAN ID ——
-def make_can_msg_id(device_id, manufacturer_id, api_id, device_number):
+def make_can_msg_id(DEVICE_TYPE_ID, manufacturer_id, api_id, device_number):
     return (
-        (device_id        & 0xFF) << 24 |
+        (DEVICE_TYPE_ID        & 0xFF) << 24 |
         (manufacturer_id  & 0xFF) << 16 |
         (api_id           & 0x3FF) << 6  |
         (device_number    & 0x3F)
@@ -125,7 +125,7 @@ class CANApp(tk.Tk):
     def send_general(self):
         dev_num = self.device_number.get() & 0x3F
         api_id = GENERAL_API
-        arb_id = make_can_msg_id(DEVICE_ID, MANUFACTURER_ID, api_id, dev_num)
+        arb_id = make_can_msg_id(DEVICE_TYPE_ID, MANUFACTURER_ID, api_id, dev_num)
         data = bytearray(8)
         data[0] = self.mode_var.get() & 0xFF
         data[1] = self.rgb_vars["R"].get() & 0xFF
@@ -148,7 +148,7 @@ class CANApp(tk.Tk):
         dev_num = self.device_number.get() & 0x3F
         idx = self.idx_var.get()
         api_id = CUSTOM_PATTERN_API + idx
-        arb_id = make_can_msg_id(DEVICE_ID, MANUFACTURER_ID, api_id, dev_num)
+        arb_id = make_can_msg_id(DEVICE_TYPE_ID, MANUFACTURER_ID, api_id, dev_num)
         pix = self.pix_var.get() & 0xFFFF
         data = bytearray(8)
         data[0] = (pix >> 8) & 0xFF

@@ -13,7 +13,7 @@
     AnalogIn  = IO35 (ADC1_CH7)
 
   FRC CAN ID:
-    encode_id = (DEVICE_ID<<24) | (MANUFACTURER_ID<<16) | (API_ID<<6) | DEVICE_NUMBER
+    encode_id = (DEVICE_TYPE_ID<<24) | (MANUFACTURER_ID<<16) | (API_ID<<6) | DEVICE_NUMBER
 
   Protocol (corrected):
     roboRIO -> ESP32
@@ -63,7 +63,7 @@
 #define ANALOG_PIN  35 // IO35 (ADC1_CH7)
 
 // =================== FRC CAN Constants ===================
-#define DEVICE_ID             0x0A // DO NOT change
+#define DEVICE_TYPE_ID             0x0A // DO NOT change
 #define MANUFACTURER_ID       0x08 // DO NOT change
 #define DEFAULT_DEVICE_NUMBER 9    // default DN
 
@@ -132,7 +132,7 @@ static inline void decode_id(uint32_t id, uint8_t &dt, uint8_t &man, uint16_t &a
   dn  = id & 0x3F;
 }
 static inline uint32_t make_can_id(uint16_t api) {
-  return encode_id(DEVICE_ID, MANUFACTURER_ID, api, (uint8_t)g_deviceNumber);
+  return encode_id(DEVICE_TYPE_ID, MANUFACTURER_ID, api, (uint8_t)g_deviceNumber);
 }
 
 // =================== EEPROM: Device Number ===================
@@ -193,7 +193,7 @@ void taskCANRx(void* parameter) {
       decode_id(rx.identifier, dt, man, api, dn);
 
       // Only react to our type/manufacturer + matching device number
-      if (dt == DEVICE_ID && man == MANUFACTURER_ID && dn == (uint8_t)g_deviceNumber) {
+      if (dt == DEVICE_TYPE_ID && man == MANUFACTURER_ID && dn == (uint8_t)g_deviceNumber) {
         if (api == API_RX_CONTROL && rx.data_length_code >= 4) {
           // 0x185: R,G,B,relay
           uint8_t R = rx.data[0], G = rx.data[1], B = rx.data[2];

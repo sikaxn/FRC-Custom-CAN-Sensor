@@ -9,7 +9,7 @@
 #define SCL_PIN 22
 #define NUM_SENSORS 4
 
-#define DEVICE_ID        0x0A
+#define DEVICE_TYPE_ID        0x0A
 #define MANUFACTURER_ID  0x08
 #define DEVICE_NUMBER    50
 #define SENSOR_BASE_API_ID 0x0301
@@ -94,7 +94,7 @@ void TaskCANTx(void* pvParams) {
       sensors[i].getROISize(&roiX, &roiY);
 
       twai_message_t msg = {};
-      msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, SENSOR_BASE_API_ID + i, DEVICE_NUMBER);
+      msg.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, SENSOR_BASE_API_ID + i, DEVICE_NUMBER);
       msg.extd = 1;
       msg.data_length_code = 8;
 

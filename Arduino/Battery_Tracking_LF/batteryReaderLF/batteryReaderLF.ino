@@ -42,7 +42,7 @@ void CAN_SendFrame(uint16_t apiId, uint8_t* data, uint8_t len);
 void TaskCANIDHelper(void* parameter);
 
 // === CAN Constants ===
-#define DEVICE_ID        0x0A  // DO NOT CHANGE
+#define DEVICE_TYPE_ID        0x0A  // DO NOT CHANGE
 #define MANUFACTURER_ID  0x08  // DO NOT CHANGE
 
 // === CAN ID Configuration ===
@@ -280,8 +280,8 @@ void TaskCANTx(void* pvParameters) {
     data12[7] = tagCounter;
 
     // --- Transmit frames ---
-    CAN_SendFrame(makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_SN_FIRST8, DEVICE_NUMBER), data11, 8);
-    CAN_SendFrame(makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_SN_LAST6_STATUS, DEVICE_NUMBER), data12, 8);
+    CAN_SendFrame(makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_SN_FIRST8, DEVICE_NUMBER), data11, 8);
+    CAN_SendFrame(makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_SN_LAST6_STATUS, DEVICE_NUMBER), data12, 8);
 
     // --- Debug state transitions ---
     if (active != lastStatus) {
@@ -312,7 +312,7 @@ void TaskCANRx(void* pvParameters) {
       gotMsg = true;
       lastCANRxTime = millis();
 
-      uint32_t expectedRebootID = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_REQUEST_REBOOT, DEVICE_NUMBER);
+      uint32_t expectedRebootID = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_REQUEST_REBOOT, DEVICE_NUMBER);
       if (msg.identifier == expectedRebootID && msg.data_length_code >= 1) {
         Serial.println(F("[CAN] FRC Reboot Request received → Restarting ESP32..."));
         delay(100);

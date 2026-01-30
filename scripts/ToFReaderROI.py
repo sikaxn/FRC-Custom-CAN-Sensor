@@ -8,7 +8,7 @@ CAN_BITRATE = 1000000
 BUS_TYPE = "canalystii"
 
 # CAN ID constants
-DEVICE_ID = 0x0A
+DEVICE_TYPE_ID = 0x0A
 MANUFACTURER_ID = 0x08
 SENSOR_BASE_API_ID = 0x0301
 SENSOR_CONFIG_API_ID = 0x0305
@@ -18,7 +18,7 @@ RANGING_MODES = {"Short": 0, "Medium": 1, "Long": 2}
 REVERSE_MODES = {v: k for k, v in RANGING_MODES.items()}
 
 def make_can_id(api_id, device_number):
-    return ((DEVICE_ID & 0xFF) << 24) | ((MANUFACTURER_ID & 0xFF) << 16) | ((api_id & 0x3FF) << 6) | (device_number & 0x3F)
+    return ((DEVICE_TYPE_ID & 0xFF) << 24) | ((MANUFACTURER_ID & 0xFF) << 16) | ((api_id & 0x3FF) << 6) | (device_number & 0x3F)
 
 class SensorListener(can.Listener):
     def __init__(self, app):

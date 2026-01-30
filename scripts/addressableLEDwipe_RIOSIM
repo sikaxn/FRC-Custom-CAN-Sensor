@@ -2,7 +2,7 @@ import can
 import time
 
 # —— Constants ——
-DEVICE_ID           = 0x0A
+DEVICE_TYPE_ID           = 0x0A
 MANUFACTURER_ID     = 0x08
 DEVICE_NUMBER       = 33
 GENERAL_API         = 0x350
@@ -11,22 +11,22 @@ ESP_FEEDBACK_API    = 0x359
 
 bus = can.Bus(interface='canalystii', channel=0, device=0, bitrate=1_000_000)
 
-def make_can_msg_id(device_id, manufacturer_id, api_id, device_number):
+def make_can_msg_id(DEVICE_TYPE_ID, manufacturer_id, api_id, device_number):
     return (
-        (device_id       & 0xFF) << 24 |
+        (DEVICE_TYPE_ID       & 0xFF) << 24 |
         (manufacturer_id & 0xFF) << 16 |
         (api_id          & 0x3FF) << 6 |
         (device_number   & 0x3F)
     )
 
 def send_mode_255():
-    arb_id = make_can_msg_id(DEVICE_ID, MANUFACTURER_ID, GENERAL_API, DEVICE_NUMBER)
+    arb_id = make_can_msg_id(DEVICE_TYPE_ID, MANUFACTURER_ID, GENERAL_API, DEVICE_NUMBER)
     data = [255, 0, 0, 0, 128, 1, 0, 0]
     bus.send(can.Message(arbitration_id=arb_id, is_extended_id=True, data=data))
     print("→ Set mode 255")
 
 def send_pixel(index, r, g, b):
-    arb_id = make_can_msg_id(DEVICE_ID, MANUFACTURER_ID, CUSTOM_PIXEL_API, DEVICE_NUMBER)
+    arb_id = make_can_msg_id(DEVICE_TYPE_ID, MANUFACTURER_ID, CUSTOM_PIXEL_API, DEVICE_NUMBER)
     data = [
         (index >> 8) & 0xFF,
         index & 0xFF,
@@ -48,7 +48,7 @@ def read_led_info():
     print("Waiting for 0x359 feedback...")
     while True:
         msg = bus.recv(timeout=2)
-        if msg and msg.arbitration_id == make_can_msg_id(DEVICE_ID, MANUFACTURER_ID, ESP_FEEDBACK_API, DEVICE_NUMBER):
+        if msg and msg.arbitration_id == make_can_msg_id(DEVICE_TYPE_ID, MANUFACTURER_ID, ESP_FEEDBACK_API, DEVICE_NUMBER):
             num_leds = (msg.data[0] << 8) | msg.data[1]
             mode = msg.data[2]
             print(f"← Feedback: {num_leds} LEDs | Mode: {mode}")

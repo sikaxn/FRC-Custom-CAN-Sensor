@@ -2,6 +2,8 @@
 
 For 2026 build season our team will be focusing on Addressable LED + RFID combo firmware. This one might be slightly out dated. 
 
+Please use combo firmware. If LED only is needed, please use DISABLE_RFID flag.
+
 Combo Firmware: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/BatteryLEDCombo
 
 Video: https://www.youtube.com/watch?v=yBTm1w7MFy0

@@ -8,7 +8,7 @@ import can
 #   CAN / FRC DEFINITIONS
 # =========================
 # Fixed per your spec
-DEVICE_ID       = 0x0A  # DO NOT change
+DEVICE_TYPE_ID       = 0x0A  # DO NOT change
 MANUFACTURER_ID = 0x08  # DO NOT change
 
 API_RX_CONTROL  = 0x185  # PC -> ESP32: [R,G,B,relay,0,0,0,0]
@@ -22,8 +22,8 @@ SOFTWARE_VER = 1  # 0..255
 bus = can.Bus(interface='canalystii', channel=0, device=0, bitrate=1000000)
 
 def make_can_id(api: int, device_number: int) -> int:
-    """FRC extended ID: (DEVICE_ID<<24) | (MANUFACTURER_ID<<16) | (API<<6) | DN"""
-    return ((DEVICE_ID & 0xFF) << 24) | ((MANUFACTURER_ID & 0xFF) << 16) | ((api & 0x3FF) << 6) | (device_number & 0x3F)
+    """FRC extended ID: (DEVICE_TYPE_ID<<24) | (MANUFACTURER_ID<<16) | (API<<6) | DN"""
+    return ((DEVICE_TYPE_ID & 0xFF) << 24) | ((MANUFACTURER_ID & 0xFF) << 16) | ((api & 0x3FF) << 6) | (device_number & 0x3F)
 
 def send_frame(api: int, dn: int, data: bytes):
     msg = can.Message(arbitration_id=make_can_id(api, dn), is_extended_id=True, data=data)
@@ -197,7 +197,7 @@ class CANTester(tk.Tk):
             dn  = canid & 0x3F
 
             # Filter: from our device (type/manufacturer) and our chosen DN, API 0x195
-            if dt != DEVICE_ID or man != MANUFACTURER_ID:
+            if dt != DEVICE_TYPE_ID or man != MANUFACTURER_ID:
                 continue
             if api != API_TX_INPUTS:
                 continue

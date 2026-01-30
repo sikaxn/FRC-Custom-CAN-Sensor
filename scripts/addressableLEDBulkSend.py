@@ -5,13 +5,13 @@ CAN_CHANNEL = 0
 CAN_DEVICE = 0
 CAN_BITRATE = 1000000
 
-DEVICE_ID = 0x0A
+DEVICE_TYPE_ID = 0x0A
 MFR_ID = 0x08
 API_ID = 0x190  # LED control command
 
 # Create FRC-style CAN ID
 def make_can_id(device_number):
-    return (DEVICE_ID << 24) | (MFR_ID << 16) | (API_ID << 6) | (device_number & 0x3F)
+    return (DEVICE_TYPE_ID << 24) | (MFR_ID << 16) | (API_ID << 6) | (device_number & 0x3F)
 
 # Construct payload for mode 1, white, half-bright
 def create_led_payload():

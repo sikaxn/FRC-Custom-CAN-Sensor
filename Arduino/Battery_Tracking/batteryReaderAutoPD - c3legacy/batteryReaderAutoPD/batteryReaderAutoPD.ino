@@ -23,7 +23,7 @@
 #define RFID_META_API_ID_3       0x133
 #define HEARTBEAT_ID             0x01011840
 
-#define DEVICE_ID        0x0A  // DO NOT CHANGE
+#define DEVICE_TYPE_ID        0x0A  // DO NOT CHANGE
 #define MANUFACTURER_ID  0x08  // DO NOT CHANGE
 #define DEVICE_NUMBER    33    // Device Number 0–63
 
@@ -460,9 +460,9 @@ void TaskCANRxJava(void* pvParameters) {
 }
 
 void TaskCANTx(void* pvParameters) {
-  const uint32_t rfidMeta1 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_1, DEVICE_NUMBER);
-  const uint32_t rfidMeta2 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_2, DEVICE_NUMBER);
-  const uint32_t rfidMeta3 = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, RFID_META_API_ID_3, DEVICE_NUMBER);
+  const uint32_t rfidMeta1 = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, RFID_META_API_ID_1, DEVICE_NUMBER);
+  const uint32_t rfidMeta2 = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, RFID_META_API_ID_2, DEVICE_NUMBER);
+  const uint32_t rfidMeta3 = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, RFID_META_API_ID_3, DEVICE_NUMBER);
 
   for (;;) {
     if (canAvailable && batteryMetaValid) {

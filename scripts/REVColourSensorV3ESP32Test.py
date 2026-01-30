@@ -14,7 +14,7 @@ CAN_BITRATE = 1000000
 # ===============================================================
 # GLOBAL DEVICE NUMBER (editable via GUI)
 # ===============================================================
-DEVICE_ID        = 0x0A
+DEVICE_TYPE_ID        = 0x0A
 MANUFACTURER_ID  = 0x08
 DEVICE_NUMBER    = 33     # default
 
@@ -109,7 +109,7 @@ GAIN_REV         = {v: k for k, v in GAIN.items()}
 # CAN ID Helpers
 # ===============================================================
 def make_can_id(api):
-    return ((DEVICE_ID & 0xFF) << 24) | \
+    return ((DEVICE_TYPE_ID & 0xFF) << 24) | \
            ((MANUFACTURER_ID & 0xFF) << 16) | \
            ((api & 0x3FF) << 6) | \
            (DEVICE_NUMBER & 0x3F)

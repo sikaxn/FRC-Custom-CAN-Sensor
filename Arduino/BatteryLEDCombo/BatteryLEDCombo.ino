@@ -52,7 +52,7 @@ const bool DISABLE_RFID = false; //Use this option to disable RFID if a LED only
 // ==================================================
 
 // FRC Device Identifiers
-#define DEVICE_ID        0x0A   // Do not change
+#define DEVICE_TYPE_ID        0x0A   // Do not change
 #define MANUFACTURER_ID  0x08   // Do not change
 uint8_t DEVICE_NUMBER = 0;
 const uint8_t DEFAULT_DEVICE_NUMBER = 33;
@@ -592,9 +592,9 @@ void TaskLEDWrite(void* pvParameters) {
 
 
 void TaskCANTx(void* pvParameters) {
-  const uint32_t canID_SN     = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, 0x131, DEVICE_NUMBER);
-  const uint32_t canID_Meta   = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, 0x132, DEVICE_NUMBER);
-  const uint32_t canID_Status = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, 0x133, DEVICE_NUMBER);
+  const uint32_t canID_SN     = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, 0x131, DEVICE_NUMBER);
+  const uint32_t canID_Meta   = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, 0x132, DEVICE_NUMBER);
+  const uint32_t canID_Status = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, 0x133, DEVICE_NUMBER);
   uint32_t lastBatteryTx = 0;
   uint32_t lastLedFeedback = 0;
 
@@ -685,7 +685,7 @@ void TaskCANTx(void* pvParameters) {
 
 void sendLedFeedback() {
   twai_message_t tx{};
-  tx.identifier       = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, ESP_FEEDBACK_API, DEVICE_NUMBER);
+  tx.identifier       = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, ESP_FEEDBACK_API, DEVICE_NUMBER);
   tx.extd             = true;
   tx.rtr              = false;
   tx.data_length_code = 8;
@@ -762,7 +762,7 @@ void handleLEDCan(const twai_message_t& msg) {
   uint8_t did = (id >> 24) & 0xFF;
 
   bool isBroadcast = (did == 0);
-  bool isUnicast = (did == DEVICE_ID);
+  bool isUnicast = (did == DEVICE_TYPE_ID);
 
   if (!(isUnicast || isBroadcast)) return;
   if (mfr != MANUFACTURER_ID) return;

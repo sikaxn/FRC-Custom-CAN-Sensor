@@ -17,7 +17,7 @@ LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 #define CMD_WRITE_NEXT  0x04
 #define CMD_ACK         0xAA  // Our new ACK command
 
-#define DEVICE_ID        0x0A
+#define DEVICE_TYPE_ID        0x0A
 #define MANUFACTURER_ID  0x08
 #define DEVICE_NUMBER    33
 #define LCD_API_ID       0x187
@@ -60,8 +60,8 @@ void setup() {
   pinMode(CAN_INT, INPUT);
   attachInterrupt(digitalPinToInterrupt(CAN_INT), MCP2515_ISR, FALLING);
 
-  targetID = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, LCD_API_ID, DEVICE_NUMBER);
-  ackID = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, ACK_API_ID, DEVICE_NUMBER);
+  targetID = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, LCD_API_ID, DEVICE_NUMBER);
+  ackID = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, ACK_API_ID, DEVICE_NUMBER);
 }
 
 void loop() {

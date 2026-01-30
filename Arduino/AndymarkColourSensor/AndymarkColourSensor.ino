@@ -24,7 +24,7 @@
 // --------------------------------------------------
 // FRC-style CAN Constants
 // --------------------------------------------------
-#define DEVICE_ID        0x0A
+#define DEVICE_TYPE_ID        0x0A
 #define MANUFACTURER_ID  0x08
 #define DEVICE_NUMBER    33
 
@@ -168,7 +168,7 @@ void TaskCANTx(void *param)
   while (1) {
     // ---- Message 0x194 ----
     twai_message_t m194 = {};
-    m194.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_194, DEVICE_NUMBER);
+    m194.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_194, DEVICE_NUMBER);
     m194.extd = 1;
     m194.data_length_code = 8;
 
@@ -185,7 +185,7 @@ void TaskCANTx(void *param)
 
     // ---- Message 0x195 ----
     twai_message_t m195 = {};
-    m195.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_195, DEVICE_NUMBER);
+    m195.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_195, DEVICE_NUMBER);
     m195.extd = 1;
     m195.data_length_code = 3;
 

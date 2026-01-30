@@ -17,7 +17,7 @@
     - TaskCANRx      : receives config / reboot frames from RIO
 
   CAN API usage (FRC-style 29-bit ID):
-    CAN_ID = (DEVICE_ID << 24) | (MANUFACTURER_ID << 16) | (API_ID << 6) | (DEVICE_NUMBER & 0x3F)
+    CAN_ID = (DEVICE_TYPE_ID << 24) | (MANUFACTURER_ID << 16) | (API_ID << 6) | (DEVICE_NUMBER & 0x3F)
 
   API IDs and payloads:
 
@@ -67,7 +67,7 @@ static constexpr gpio_num_t CAN_TX_PIN = GPIO_NUM_4;
 static constexpr gpio_num_t CAN_RX_PIN = GPIO_NUM_5;
 
 // ========= CAN/FRC IDs =========
-#define DEVICE_ID        0x0A
+#define DEVICE_TYPE_ID        0x0A
 #define MANUFACTURER_ID  0x08
 //#define DEVICE_NUMBER    33
 
@@ -501,7 +501,7 @@ void TaskCANTx(void *pvParameters)
         twai_message_t msg = {};
         msg.extd = 1;
         msg.data_length_code = 8;
-        msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_COLOR_DATA1, g_deviceNumber);
+        msg.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_COLOR_DATA1, g_deviceNumber);
 
         msg.data[0] = s.red   >> 8;
         msg.data[1] = s.red   & 0xFF;
@@ -520,7 +520,7 @@ void TaskCANTx(void *pvParameters)
         twai_message_t msg = {};
         msg.extd = 1;
         msg.data_length_code = 8;
-        msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_COLOR_DATA2, g_deviceNumber);
+        msg.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_COLOR_DATA2, g_deviceNumber);
 
         msg.data[0] = s.ir >> 8;
         msg.data[1] = s.ir & 0xFF;
@@ -539,7 +539,7 @@ void TaskCANTx(void *pvParameters)
         twai_message_t msg = {};
         msg.extd = 1;
         msg.data_length_code = 8;
-        msg.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_COLOR_STATUS, g_deviceNumber);
+        msg.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_COLOR_STATUS, g_deviceNumber);
 
         msg.data[0] = gn;
         msg.data[1] = onlineFlag ? 1 : 0;
@@ -604,7 +604,7 @@ void TaskCANRx(void *pvParameters)
       // =============================
       // Addressing filters
       // =============================
-      if (deviceID       != DEVICE_ID)        continue;
+      if (deviceID       != DEVICE_TYPE_ID)        continue;
       if (manufacturerID != MANUFACTURER_ID)  continue;
       if (deviceNumber   != g_deviceNumber)   continue;
 

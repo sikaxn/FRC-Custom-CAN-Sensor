@@ -13,7 +13,7 @@
     Bitrate = 1 Mbps, Extended 29-bit IDs
 
   CAN API usage (FRC-style 29-bit ID):
-    CAN_ID = (DEVICE_ID << 24) | (MANUFACTURER_ID << 16) | (API_ID << 6) | (DEVICE_NUMBER & 0x3F)
+    CAN_ID = (DEVICE_TYPE_ID << 24) | (MANUFACTURER_ID << 16) | (API_ID << 6) | (DEVICE_NUMBER & 0x3F)
 
   REV (APDS-9151):
     0x184 ESP -> RIO: Red/Green/Blue/Prox (16-bit each)
@@ -42,7 +42,7 @@ static constexpr gpio_num_t CAN_TX_PIN = GPIO_NUM_4;
 static constexpr gpio_num_t CAN_RX_PIN = GPIO_NUM_5;
 
 // ========= CAN/FRC IDs =========
-#define DEVICE_ID        0x0A
+#define DEVICE_TYPE_ID        0x0A
 #define MANUFACTURER_ID  0x08
 
 #define API_REV_DATA1    0x184
@@ -712,7 +712,7 @@ void TaskRevCANTx(void *pvParameters)
       twai_message_t msg1 = {};
       msg1.extd = 1;
       msg1.data_length_code = 8;
-      msg1.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_REV_DATA1, g_deviceNumber);
+      msg1.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_REV_DATA1, g_deviceNumber);
 
       msg1.data[0] = s.red   >> 8;
       msg1.data[1] = s.red   & 0xFF;
@@ -728,7 +728,7 @@ void TaskRevCANTx(void *pvParameters)
       twai_message_t msg2 = {};
       msg2.extd = 1;
       msg2.data_length_code = 8;
-      msg2.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_REV_DATA2, g_deviceNumber);
+      msg2.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_REV_DATA2, g_deviceNumber);
 
       msg2.data[0] = s.ir >> 8;
       msg2.data[1] = s.ir & 0xFF;
@@ -744,7 +744,7 @@ void TaskRevCANTx(void *pvParameters)
       twai_message_t msg3 = {};
       msg3.extd = 1;
       msg3.data_length_code = 8;
-      msg3.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_REV_STATUS, g_deviceNumber);
+      msg3.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_REV_STATUS, g_deviceNumber);
 
       msg3.data[0] = gn;
       msg3.data[1] = onlineFlag ? 1 : 0;
@@ -768,7 +768,7 @@ void TaskAmCANTx(void *param)
     portEXIT_CRITICAL(&amSampleMux);
 
     twai_message_t m194 = {};
-    m194.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_AM_DATA, g_deviceNumber);
+    m194.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_AM_DATA, g_deviceNumber);
     m194.extd = 1;
     m194.data_length_code = 8;
 
@@ -784,7 +784,7 @@ void TaskAmCANTx(void *param)
     twai_transmit(&m194, pdMS_TO_TICKS(2));
 
     twai_message_t m195 = {};
-    m195.identifier = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, API_AM_STATUS, g_deviceNumber);
+    m195.identifier = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, API_AM_STATUS, g_deviceNumber);
     m195.extd = 1;
     m195.data_length_code = 3;
 
@@ -840,7 +840,7 @@ void TaskCANRx(void *pvParameters)
       uint16_t apiID          = (id >> 6)  & 0x3FF;
       uint8_t  deviceNumber   =  id        & 0x3F;
 
-      if (deviceID       != DEVICE_ID)        continue;
+      if (deviceID       != DEVICE_TYPE_ID)        continue;
       if (manufacturerID != MANUFACTURER_ID)  continue;
       if (deviceNumber   != g_deviceNumber)   continue;
 

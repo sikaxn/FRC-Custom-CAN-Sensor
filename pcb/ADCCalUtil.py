@@ -44,21 +44,21 @@ def fmt(x, digits):
 # -----------------------------
 # FRC-style CAN ID definitions
 # -----------------------------
-DEVICE_ID        = 0x0A
+DEVICE_TYPE_ID        = 0x0A
 MANUFACTURER_ID  = 0x08
 API_ID_ADC_FRAME = 0x195  # ESP32 -> roboRIO: [ain_lo, ain_hi, btnA, btnB, 0,0,0,0]
 
-def make_can_id(device_id, manufacturer_id, api_id, device_number):
+def make_can_id(DEVICE_TYPE_ID, manufacturer_id, api_id, device_number):
     # Full 29-bit FRC-style CAN ID:
     # CAN_ID = (deviceID<<24) | (manufacturerID<<16) | (apiID<<6) | (deviceNumber & 0x3F)
-    return ((device_id & 0xFF) << 24) | ((manufacturer_id & 0xFF) << 16) | ((api_id & 0x7FF) << 6) | (device_number & 0x3F)
+    return ((DEVICE_TYPE_ID & 0xFF) << 24) | ((manufacturer_id & 0xFF) << 16) | ((api_id & 0x7FF) << 6) | (device_number & 0x3F)
 
 def parse_can_id(can_id):
     device_number   = can_id & 0x3F
     api_id          = (can_id >> 6) & 0x7FF
     manufacturer_id = (can_id >> 16) & 0xFF
-    device_id       = (can_id >> 24) & 0xFF
-    return device_id, manufacturer_id, api_id, device_number
+    DEVICE_TYPE_ID       = (can_id >> 24) & 0xFF
+    return DEVICE_TYPE_ID, manufacturer_id, api_id, device_number
 
 # -----------------------------
 # DC310S minimal driver
@@ -153,9 +153,9 @@ class Calibrator(threading.Thread):
             except queue.Empty:
                 continue
             dev_id, man_id, api_id, dev_num = parse_can_id(msg.arbitration_id)
-            if dev_id == DEVICE_ID and man_id == MANUFACTURER_ID and api_id == API_ID_ADC_FRAME:
+            if dev_id == DEVICE_TYPE_ID and man_id == MANUFACTURER_ID and api_id == API_ID_ADC_FRAME:
                 self.device_number = dev_num
-                self.target_can_id = make_can_id(DEVICE_ID, MANUFACTURER_ID, API_ID_ADC_FRAME, self.device_number)
+                self.target_can_id = make_can_id(DEVICE_TYPE_ID, MANUFACTURER_ID, API_ID_ADC_FRAME, self.device_number)
                 self.ui.log(f"✔ Found board: DEVICE_NUMBER={self.device_number}")
                 self.ui.set_can_status(True, f"Board #{self.device_number}")
                 found = True
@@ -304,7 +304,7 @@ class Calibrator(threading.Thread):
             # Save (fixed-point strings to avoid exponent notation)
             out = {
                 "timestamp": datetime.utcnow().isoformat() + "Z",
-                "device_id": DEVICE_ID,
+                "DEVICE_TYPE_ID": DEVICE_TYPE_ID,
                 "manufacturer_id": MANUFACTURER_ID,
                 "api_id": API_ID_ADC_FRAME,
                 "device_number": self.device_number,

@@ -30,7 +30,7 @@
 // ==================================================
 
 // FRC Device Identifiers
-#define DEVICE_ID        0x0A   // Do not change
+#define DEVICE_TYPE_ID        0x0A   // Do not change
 #define MANUFACTURER_ID  0x08   // Do not change
 uint8_t DEVICE_NUMBER = 0;
 const uint8_t DEFAULT_DEVICE_NUMBER = 33;
@@ -537,9 +537,9 @@ void TaskCANRx(void* pvParameters) {
 
 
 void TaskCANTx(void* pvParameters) {
-  const uint32_t canID_SN     = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, 0x131, DEVICE_NUMBER);
-  const uint32_t canID_Meta   = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, 0x132, DEVICE_NUMBER);
-  const uint32_t canID_Status = makeCANMsgID(DEVICE_ID, MANUFACTURER_ID, 0x133, DEVICE_NUMBER);
+  const uint32_t canID_SN     = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, 0x131, DEVICE_NUMBER);
+  const uint32_t canID_Meta   = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, 0x132, DEVICE_NUMBER);
+  const uint32_t canID_Status = makeCANMsgID(DEVICE_TYPE_ID, MANUFACTURER_ID, 0x133, DEVICE_NUMBER);
 
   for (;;) {
     if (canAvailable) {

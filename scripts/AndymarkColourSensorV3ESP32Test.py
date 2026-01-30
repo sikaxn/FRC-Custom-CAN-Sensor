@@ -7,11 +7,11 @@ import time
 # ---------------------------
 # FRC CAN helpers
 # ---------------------------
-DEVICE_ID = 0x0A
+DEVICE_TYPE_ID = 0x0A
 MANUFACTURER_ID = 0x08
 
 def make_can_id(api_id, device_number):
-    return ((DEVICE_ID & 0xFF) << 24) | \
+    return ((DEVICE_TYPE_ID & 0xFF) << 24) | \
            ((MANUFACTURER_ID & 0xFF) << 16) | \
            ((api_id & 0x3FF) << 6) | \
            (device_number & 0x3F)

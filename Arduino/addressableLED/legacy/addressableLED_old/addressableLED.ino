@@ -31,7 +31,7 @@ const uint8_t buttonModes[] = {0, 1, 2, 3, 4, 5, 6, 7, 255}; //What mode IO0 but
 //const uint8_t buttonModes[] = {0}; //use this if you wnat button to turn off all LED. This can be used during competition if you don't want to be annoyed by LEDs.
 
 // —— FRC CAN Constants ——
-#define DEVICE_ID           0x0A //DO NOT change these
+#define DEVICE_TYPE_ID           0x0A //DO NOT change these
 #define MANUFACTURER_ID     0x08 //DO NOT change these
 #define DEVICE_NUMBER       33 //change this if you have multiple custom CAN LED Controller
 #define GENERAL_API         0x350
@@ -94,7 +94,7 @@ uint32_t makeCANMsgID(uint8_t deviceID,
 
 void sendFeedback() {
   twai_message_t tx{};
-  tx.identifier       = makeCANMsgID(DEVICE_ID,
+  tx.identifier       = makeCANMsgID(DEVICE_TYPE_ID,
                                      MANUFACTURER_ID,
                                      ESP_FEEDBACK_API,
                                      DEVICE_NUMBER);
@@ -197,7 +197,7 @@ void TaskCANRx(void* pv) {
           uint8_t  did = (id >> 24) & 0xFF;
 
           bool isBroadcast = (did == 0);
-          bool isUnicast   = (did == DEVICE_ID);
+          bool isUnicast   = (did == DEVICE_TYPE_ID);
 
           if ((isUnicast || isBroadcast) &&
               mfr == MANUFACTURER_ID &&
