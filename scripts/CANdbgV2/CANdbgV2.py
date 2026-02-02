@@ -114,6 +114,18 @@ def decode_signal_value(data, signal):
         raw = (raw_int >> bit_pos) & ((1 << length_bits) - 1)
 
     sig_type = str(signal.get("type", "uint")).lower()
+    if sig_type == "ascii":
+        if bit_pos % 8 != 0 or length_bits % 8 != 0:
+            return None
+        byte_start = bit_pos // 8
+        byte_len = length_bits // 8
+        if byte_start + byte_len > len(data):
+            return None
+        raw_bytes = bytes(data[byte_start:byte_start + byte_len])
+        try:
+            return raw_bytes.decode("ascii", errors="ignore").rstrip("\x00")
+        except Exception:
+            return None
     if sig_type in ("int", "sint", "signed"):
         sign_bit = 1 << (length_bits - 1)
         if raw & sign_bit:

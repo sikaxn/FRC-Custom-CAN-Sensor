@@ -1,0 +1,224 @@
+{
+    "frcJsonSpecVersion": "1.0.0",
+    "framesVersion": "0.1.0",
+    "deviceInfo": {
+        "deviceType": "Miscellaneous",
+        "deviceTypeNumber": 10,
+        "manufacturer": "Team Use",
+        "manufacturerNumber": 8,
+        "name": "Arduino Battery LED Combo"
+    },
+    "periodicFrames": {
+        "BATTERY_SERIAL": {
+            "name": "Battery Serial",
+            "description": "8-byte serial number ASCII payload",
+            "apiClass": 19,
+            "apiIndex": 1,
+            "lengthBytes": 8,
+            "signals": {
+                "SERIAL_NUMBER": { "type": "ascii", "name": "Serial Number", "bitPosition": 0, "isBigEndian": false, "lengthBits": 64, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "BATTERY_METADATA": {
+            "name": "Battery Metadata",
+            "description": "yy mm dd hh mm cycle note",
+            "apiClass": 19,
+            "apiIndex": 2,
+            "lengthBytes": 8,
+            "signals": {
+                "YEAR": { "type": "uint", "name": "Year (YY)", "bitPosition": 0, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "MONTH": { "type": "uint", "name": "Month", "bitPosition": 8, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "DAY": { "type": "uint", "name": "Day", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "HOUR": { "type": "uint", "name": "Hour", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "MINUTE": { "type": "uint", "name": "Minute", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "CYCLE_COUNT": { "type": "uint", "name": "Cycle Count (LSB)", "bitPosition": 40, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "NOTE_TYPE": { "type": "uint", "name": "Note Type", "bitPosition": 48, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "ESP32_STATE": {
+            "name": "ESP32 State",
+            "description": "state, PD type, reader present, auth fail count, total write count",
+            "apiClass": 19,
+            "apiIndex": 3,
+            "lengthBytes": 8,
+            "signals": {
+                "STATE": { "type": "uint", "name": "State", "bitPosition": 0, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "PD_TYPE": { "type": "uint", "name": "PD Type", "bitPosition": 8, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "READER_DETECTED": { "type": "boolean", "name": "Reader Detected", "bitPosition": 16, "isBigEndian": false, "lengthBits": 1, "decodeScaleFactor": 1, "offset": 0 },
+                "AUTH_FAIL_COUNT": { "type": "uint", "name": "Auth Fail Count", "bitPosition": 24, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "TOTAL_WRITE_COUNT": { "type": "uint", "name": "Total Write Count", "bitPosition": 40, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "RIO_CONTROL": {
+            "name": "RIO Control",
+            "description": "RIO to ESP control frame",
+            "apiClass": 19,
+            "apiIndex": 5,
+            "lengthBytes": 8,
+            "signals": {
+                "RIO_VOLTAGE": { "type": "uint", "name": "RIO Voltage (x0.1V)", "bitPosition": 0, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 0.1, "offset": 0 },
+                "OVERRIDE_CMD": { "type": "uint", "name": "Override Command", "bitPosition": 8, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "USE_RIO_ENERGY": { "type": "boolean", "name": "Use RIO Energy", "bitPosition": 16, "isBigEndian": false, "lengthBits": 1, "decodeScaleFactor": 1, "offset": 0 },
+                "RIO_ENERGY": { "type": "uint", "name": "RIO Energy", "bitPosition": 24, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "REBOOT_REQ": { "type": "boolean", "name": "Reboot Request", "bitPosition": 40, "isBigEndian": false, "lengthBits": 1, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "RIO_RESERVED": {
+            "name": "RIO Reserved",
+            "description": "Reserved future telemetry frame",
+            "apiClass": 19,
+            "apiIndex": 6,
+            "lengthBytes": 8,
+            "signals": {}
+        },
+        "LED_GENERAL_1": {
+            "name": "LED General 1",
+            "description": "mode, RGB, brightness, on/off, params",
+            "apiClass": 53,
+            "apiIndex": 0,
+            "lengthBytes": 8,
+            "signals": {
+                "MODE": { "type": "uint", "name": "Mode", "bitPosition": 0, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "R": { "type": "uint", "name": "R", "bitPosition": 8, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G": { "type": "uint", "name": "G", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B": { "type": "uint", "name": "B", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "BRIGHTNESS": { "type": "uint", "name": "Brightness", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "ON_OFF": { "type": "boolean", "name": "On/Off", "bitPosition": 40, "isBigEndian": false, "lengthBits": 1, "decodeScaleFactor": 1, "offset": 0 },
+                "PARAM_0": { "type": "uint", "name": "Param 0", "bitPosition": 48, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "PARAM_1": { "type": "uint", "name": "Param 1", "bitPosition": 56, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "LED_GENERAL_2": {
+            "name": "LED General 2",
+            "description": "pixel count, RGB2, brightness2, on/off2, reboot",
+            "apiClass": 54,
+            "apiIndex": 0,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_COUNT": { "type": "uint", "name": "Pixel Count", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "R2": { "type": "uint", "name": "R2", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G2": { "type": "uint", "name": "G2", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B2": { "type": "uint", "name": "B2", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "BRIGHTNESS2": { "type": "uint", "name": "Brightness2", "bitPosition": 40, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "ON_OFF2": { "type": "boolean", "name": "On/Off2", "bitPosition": 48, "isBigEndian": false, "lengthBits": 1, "decodeScaleFactor": 1, "offset": 0 },
+                "REBOOT_REQ": { "type": "boolean", "name": "Reboot Request", "bitPosition": 56, "isBigEndian": false, "lengthBits": 1, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "CUSTOM_PATTERN_1": {
+            "name": "Custom Pattern 1",
+            "description": "pixel index and RGB",
+            "apiClass": 53,
+            "apiIndex": 1,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_INDEX": { "type": "uint", "name": "Pixel Index", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "R": { "type": "uint", "name": "R", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G": { "type": "uint", "name": "G", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B": { "type": "uint", "name": "B", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "CUSTOM_PATTERN_2": {
+            "name": "Custom Pattern 2",
+            "description": "pixel index and RGB",
+            "apiClass": 53,
+            "apiIndex": 2,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_INDEX": { "type": "uint", "name": "Pixel Index", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "R": { "type": "uint", "name": "R", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G": { "type": "uint", "name": "G", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B": { "type": "uint", "name": "B", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "CUSTOM_PATTERN_3": {
+            "name": "Custom Pattern 3",
+            "description": "pixel index and RGB",
+            "apiClass": 53,
+            "apiIndex": 3,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_INDEX": { "type": "uint", "name": "Pixel Index", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "R": { "type": "uint", "name": "R", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G": { "type": "uint", "name": "G", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B": { "type": "uint", "name": "B", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "CUSTOM_PATTERN_4": {
+            "name": "Custom Pattern 4",
+            "description": "pixel index and RGB",
+            "apiClass": 53,
+            "apiIndex": 4,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_INDEX": { "type": "uint", "name": "Pixel Index", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "R": { "type": "uint", "name": "R", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G": { "type": "uint", "name": "G", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B": { "type": "uint", "name": "B", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "CUSTOM_PATTERN_5": {
+            "name": "Custom Pattern 5",
+            "description": "pixel index and RGB",
+            "apiClass": 53,
+            "apiIndex": 5,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_INDEX": { "type": "uint", "name": "Pixel Index", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "R": { "type": "uint", "name": "R", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G": { "type": "uint", "name": "G", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B": { "type": "uint", "name": "B", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "CUSTOM_PATTERN_6": {
+            "name": "Custom Pattern 6",
+            "description": "pixel index and RGB",
+            "apiClass": 53,
+            "apiIndex": 6,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_INDEX": { "type": "uint", "name": "Pixel Index", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "R": { "type": "uint", "name": "R", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G": { "type": "uint", "name": "G", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B": { "type": "uint", "name": "B", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "CUSTOM_PATTERN_7": {
+            "name": "Custom Pattern 7",
+            "description": "pixel index and RGB",
+            "apiClass": 53,
+            "apiIndex": 7,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_INDEX": { "type": "uint", "name": "Pixel Index", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "R": { "type": "uint", "name": "R", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G": { "type": "uint", "name": "G", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B": { "type": "uint", "name": "B", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "CUSTOM_PATTERN_8": {
+            "name": "Custom Pattern 8",
+            "description": "pixel index and RGB",
+            "apiClass": 53,
+            "apiIndex": 8,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_INDEX": { "type": "uint", "name": "Pixel Index", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "R": { "type": "uint", "name": "R", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "G": { "type": "uint", "name": "G", "bitPosition": 24, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 },
+                "B": { "type": "uint", "name": "B", "bitPosition": 32, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        },
+        "LED_FEEDBACK": {
+            "name": "LED Feedback",
+            "description": "pixel count and current mode",
+            "apiClass": 53,
+            "apiIndex": 9,
+            "lengthBytes": 8,
+            "signals": {
+                "PIXEL_COUNT": { "type": "uint", "name": "Pixel Count", "bitPosition": 0, "isBigEndian": true, "lengthBits": 16, "decodeScaleFactor": 1, "offset": 0 },
+                "MODE": { "type": "uint", "name": "Mode", "bitPosition": 16, "isBigEndian": false, "lengthBits": 8, "decodeScaleFactor": 1, "offset": 0 }
+            }
+        }
+    },
+    "controlFrames": {}
+}
