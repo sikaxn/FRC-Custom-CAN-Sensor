@@ -41,6 +41,20 @@ MANUFACTURER_MAP = {
     14: "Redux Robotics", 15: "AndyMark", 16: "Vivid Hosting"
 }
 
+BROADCAST_API_MAP = {
+    0: "Disable",
+    1: "System Halt",
+    2: "System Reset",
+    3: "Device Assign",
+    4: "Device Query",
+    5: "Heartbeat",
+    6: "Sync",
+    7: "Update",
+    8: "Firmware Version",
+    9: "Enumerate",
+    10: "System Resume"
+}
+
 
 # --- Decode ---
 def get_bits(bitstring, start, length):
@@ -324,6 +338,8 @@ class CANMessageListener(Listener):
                 frame_def = frame_map.get(api_id)
                 if frame_def:
                     decoded_lines = decode_frame(msg.data, frame_def)
+            if decoded_lines is None and device_type == 0 and manufacturer == 0 and api_class == 0:
+                decoded_lines = [f"Broadcast: {BROADCAST_API_MAP.get(api_index, 'Unknown')}"]
 
         can_messages[msg_id] = {
             'device_type': device_type,
