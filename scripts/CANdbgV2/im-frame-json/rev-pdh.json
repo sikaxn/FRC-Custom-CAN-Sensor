@@ -1,0 +1,949 @@
+{
+    "frcJsonSpecVersion": "1.0.0",
+    "framesVersion": "0.1.0",
+    "deviceInfo": {
+        "deviceType": "Power Distribution Module",
+        "deviceTypeNumber": 8,
+        "manufacturer": "REV",
+        "manufacturerNumber": 5,
+        "name": "REV PDH"
+    },
+    "periodicFrames": {
+        "STATUS_0": {
+            "name": "Status 0",
+            "description": "Status 0",
+            "apiClass": 6,
+            "apiIndex": 0,
+            "arbId": 134551552,
+            "lengthBytes": 8,
+            "signals": {
+                "CHANNEL_0_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 0 Current",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_1_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 1 Current",
+                    "bitPosition": 10,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_2_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 2 Current",
+                    "bitPosition": 20,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_0_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 0 Breaker Fault",
+                    "bitPosition": 30,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_1_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 1 Breaker Fault",
+                    "bitPosition": 31,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_3_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 3 Current",
+                    "bitPosition": 32,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_4_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 4 Current",
+                    "bitPosition": 42,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_5_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 5 Current",
+                    "bitPosition": 52,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_2_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 2 Breaker Fault",
+                    "bitPosition": 62,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_3_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 3 Breaker Fault",
+                    "bitPosition": 63,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                }
+            }
+        },
+        "STATUS_1": {
+            "name": "Status 1",
+            "description": "Status 1",
+            "apiClass": 6,
+            "apiIndex": 1,
+            "arbId": 134551616,
+            "lengthBytes": 8,
+            "signals": {
+                "CHANNEL_6_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 6 Current",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_7_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 7 Current",
+                    "bitPosition": 10,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_8_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 8 Current",
+                    "bitPosition": 20,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_4_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 4 Breaker Fault",
+                    "bitPosition": 30,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_5_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 5 Breaker Fault",
+                    "bitPosition": 31,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_9_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 9 Current",
+                    "bitPosition": 32,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_10_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 10 Current",
+                    "bitPosition": 42,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_11_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 11 Current",
+                    "bitPosition": 52,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_6_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 6 Breaker Fault",
+                    "bitPosition": 62,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_7_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 7 Breaker Fault",
+                    "bitPosition": 63,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                }
+            }
+        },
+        "STATUS_2": {
+            "name": "Status 2",
+            "description": "Status 2",
+            "apiClass": 6,
+            "apiIndex": 2,
+            "arbId": 134551680,
+            "lengthBytes": 8,
+            "signals": {
+                "CHANNEL_12_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 12 Current",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_13_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 13 Current",
+                    "bitPosition": 10,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_14_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 14 Current",
+                    "bitPosition": 20,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_8_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 8 Breaker Fault",
+                    "bitPosition": 30,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_9_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 9 Breaker Fault",
+                    "bitPosition": 31,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_15_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 15 Current",
+                    "bitPosition": 32,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_16_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 16 Current",
+                    "bitPosition": 42,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_17_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 17 Current",
+                    "bitPosition": 52,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_10_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 10 Breaker Fault",
+                    "bitPosition": 62,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_11_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 11 Breaker Fault",
+                    "bitPosition": 63,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                }
+            }
+        },
+        "STATUS_3": {
+            "name": "Status 3",
+            "description": "Status 3",
+            "apiClass": 6,
+            "apiIndex": 3,
+            "arbId": 134551744,
+            "lengthBytes": 8,
+            "signals": {
+                "CHANNEL_18_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 18 Current",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_19_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 19 Current",
+                    "bitPosition": 10,
+                    "isBigEndian": false,
+                    "lengthBits": 10,
+                    "decodeScaleFactor": 0.125,
+                    "offset": 0.0
+                },
+                "CHANNEL_12_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 12 Breaker Fault",
+                    "bitPosition": 20,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_13_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 13 Breaker Fault",
+                    "bitPosition": 21,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_14_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 14 Breaker Fault",
+                    "bitPosition": 22,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_15_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 15 Breaker Fault",
+                    "bitPosition": 23,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_20_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 20 Current",
+                    "bitPosition": 24,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 0.0625,
+                    "offset": 0.0
+                },
+                "CHANNEL_21_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 21 Current",
+                    "bitPosition": 32,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 0.0625,
+                    "offset": 0.0
+                },
+                "CHANNEL_22_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 22 Current",
+                    "bitPosition": 40,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 0.0625,
+                    "offset": 0.0
+                },
+                "CHANNEL_23_CURRENT": {
+                    "type": "uint",
+                    "name": "Channel 23 Current",
+                    "bitPosition": 48,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 0.0625,
+                    "offset": 0.0
+                },
+                "CHANNEL_16_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 16 Breaker Fault",
+                    "bitPosition": 56,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_17_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 17 Breaker Fault",
+                    "bitPosition": 57,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_18_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 18 Breaker Fault",
+                    "bitPosition": 58,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_19_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 19 Breaker Fault",
+                    "bitPosition": 59,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_20_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 20 Breaker Fault",
+                    "bitPosition": 60,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_21_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 21 Breaker Fault",
+                    "bitPosition": 61,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_22_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 22 Breaker Fault",
+                    "bitPosition": 62,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CHANNEL_23_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Channel 23 Breaker Fault",
+                    "bitPosition": 63,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                }
+            }
+        },
+        "STATUS_4": {
+            "name": "Status 4",
+            "description": "Status 4",
+            "apiClass": 6,
+            "apiIndex": 4,
+            "arbId": 134551808,
+            "lengthBytes": 8,
+            "signals": {
+                "V_BUS": {
+                    "type": "uint",
+                    "name": "V Bus",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 12,
+                    "decodeScaleFactor": 0.0078125,
+                    "offset": 0.0
+                },
+                "SYSTEM_ENABLE": {
+                    "type": "boolean",
+                    "name": "System Enable",
+                    "bitPosition": 12,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "RSVD0": {
+                    "type": "uint",
+                    "name": "Rsvd0",
+                    "bitPosition": 13,
+                    "isBigEndian": false,
+                    "lengthBits": 3,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "BROWNOUT_FAULT": {
+                    "type": "boolean",
+                    "name": "Brownout Fault",
+                    "bitPosition": 16,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "RSVD1": {
+                    "type": "boolean",
+                    "name": "Rsvd1",
+                    "bitPosition": 17,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "CAN_WARNING_FAULT": {
+                    "type": "boolean",
+                    "name": "Can Warning Fault",
+                    "bitPosition": 18,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "HARDWARE_FAULT": {
+                    "type": "boolean",
+                    "name": "Hardware Fault",
+                    "bitPosition": 19,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "SWITCH_CHANNEL_STATE": {
+                    "type": "boolean",
+                    "name": "Switch Channel State",
+                    "bitPosition": 20,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_BROWNOUT_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Brownout Fault",
+                    "bitPosition": 21,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "RSVD2": {
+                    "type": "boolean",
+                    "name": "Rsvd2",
+                    "bitPosition": 22,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CAN_WARNING_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Can Warning Fault",
+                    "bitPosition": 23,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CAN_BUS_OFF_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Can Bus Off Fault",
+                    "bitPosition": 24,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_HARDWARE_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Hardware Fault",
+                    "bitPosition": 25,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_FIRMWARE_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Firmware Fault",
+                    "bitPosition": 26,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH20_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch20 Breaker Fault",
+                    "bitPosition": 27,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH21_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch21 Breaker Fault",
+                    "bitPosition": 28,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH22_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch22 Breaker Fault",
+                    "bitPosition": 29,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH23_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch23 Breaker Fault",
+                    "bitPosition": 30,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_HAS_RESET_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Has Reset Fault",
+                    "bitPosition": 31,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "TOTAL_CURRENT": {
+                    "type": "uint",
+                    "name": "Total Current",
+                    "bitPosition": 32,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 2.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH0_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch0 Breaker Fault",
+                    "bitPosition": 40,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH1_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch1 Breaker Fault",
+                    "bitPosition": 41,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH2_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch2 Breaker Fault",
+                    "bitPosition": 42,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH3_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch3 Breaker Fault",
+                    "bitPosition": 43,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH4_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch4 Breaker Fault",
+                    "bitPosition": 44,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH5_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch5 Breaker Fault",
+                    "bitPosition": 45,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH6_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch6 Breaker Fault",
+                    "bitPosition": 46,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH7_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch7 Breaker Fault",
+                    "bitPosition": 47,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH8_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch8 Breaker Fault",
+                    "bitPosition": 48,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH9_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch9 Breaker Fault",
+                    "bitPosition": 49,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH10_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch10 Breaker Fault",
+                    "bitPosition": 50,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH11_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch11 Breaker Fault",
+                    "bitPosition": 51,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH12_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch12 Breaker Fault",
+                    "bitPosition": 52,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH13_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch13 Breaker Fault",
+                    "bitPosition": 53,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH14_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch14 Breaker Fault",
+                    "bitPosition": 54,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH15_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch15 Breaker Fault",
+                    "bitPosition": 55,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH16_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch16 Breaker Fault",
+                    "bitPosition": 56,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH17_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch17 Breaker Fault",
+                    "bitPosition": 57,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH18_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch18 Breaker Fault",
+                    "bitPosition": 58,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "STICKY_CH19_BREAKER_FAULT": {
+                    "type": "boolean",
+                    "name": "Sticky Ch19 Breaker Fault",
+                    "bitPosition": 59,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                }
+            }
+        },
+        "VERSION": {
+            "name": "Version",
+            "description": "Version",
+            "apiClass": 9,
+            "apiIndex": 8,
+            "arbId": 134555136,
+            "lengthBytes": 8,
+            "signals": {
+                "FIRMWARE_FIX": {
+                    "type": "uint",
+                    "name": "Firmware Fix",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "FIRMWARE_MINOR": {
+                    "type": "uint",
+                    "name": "Firmware Minor",
+                    "bitPosition": 8,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "FIRMWARE_YEAR": {
+                    "type": "uint",
+                    "name": "Firmware Year",
+                    "bitPosition": 16,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "HARDWARE_MINOR": {
+                    "type": "uint",
+                    "name": "Hardware Minor",
+                    "bitPosition": 24,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "HARDWARE_MAJOR": {
+                    "type": "uint",
+                    "name": "Hardware Major",
+                    "bitPosition": 32,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                },
+                "UNIQUE_ID": {
+                    "type": "uint",
+                    "name": "Unique Id",
+                    "bitPosition": 40,
+                    "isBigEndian": false,
+                    "lengthBits": 24,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                }
+            }
+        }
+    },
+    "controlFrames": {
+        "SET_SWITCH_CHANNEL": {
+            "name": "Set Switch Channel",
+            "description": "Set Switch Channel",
+            "apiClass": 2,
+            "apiIndex": 1,
+            "arbId": 134547520,
+            "lengthBytes": 1,
+            "signals": {
+                "OUTPUT_SET_VALUE": {
+                    "type": "boolean",
+                    "name": "Output Set Value",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1.0,
+                    "offset": 0.0
+                }
+            }
+        },
+        "CLEAR_FAULTS": {
+            "name": "Clear Faults",
+            "description": "Clear Faults",
+            "apiClass": 6,
+            "apiIndex": 14,
+            "arbId": 134552448,
+            "lengthBytes": 0,
+            "signals": {}
+        }
+    }
+}
