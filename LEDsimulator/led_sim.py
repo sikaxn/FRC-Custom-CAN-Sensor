@@ -2,18 +2,40 @@ import time
 import math
 import os
 import sys
+import glob
 import tkinter as tk
 from tkinter import ttk
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for base in ("build-py312", "build"):
-    for sub in ("Release", "Debug"):
-        candidate = os.path.join(HERE, base, sub)
-        if os.path.isdir(candidate):
-            sys.path.insert(0, candidate)
+found = False
+
+env_dir = os.environ.get("LEDSIM_PYD_DIR")
+if env_dir and os.path.isdir(env_dir):
+    sys.path.insert(0, env_dir)
+    found = True
+
+if not found:
+    for base in ("build-py312", "build"):
+        for sub in ("Release", "Debug"):
+            candidate = os.path.join(HERE, base, sub)
+            if os.path.isdir(candidate):
+                if glob.glob(os.path.join(candidate, "ledsim*.pyd")):
+                    sys.path.insert(0, candidate)
+                    found = True
+                    break
+        if found:
             break
 
-import ledsim
+try:
+    import ledsim
+except ModuleNotFoundError as exc:
+    raise RuntimeError(
+        "Could not find ledsim module. Build it first:\n"
+        "  LEDsimulator\\buildbinding.bat\n"
+        "Then run with Python 3.12:\n"
+        "  py -3.12 LEDsimulator\\led_sim.py\n"
+        "Or set LEDSIM_PYD_DIR to the folder containing ledsim*.pyd."
+    ) from exc
 
 WINDOW_W = 1200
 WINDOW_H = 900
