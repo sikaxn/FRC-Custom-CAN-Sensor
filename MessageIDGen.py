@@ -15,6 +15,14 @@ def encode_id(device_type, manufacturer_id, api_id, device_number):
     # Rebuild 29-bit CAN ID
     return ((device_type & 0xFF) << 24) | ((manufacturer_id & 0xFF) << 16) | ((api_id & 0x3FF) << 6) | (device_number & 0x3F)
 
+def split_api_id(api_id):
+    api_class = (api_id >> 4) & 0x3F
+    api_index = api_id & 0x0F
+    return api_class, api_index
+
+def combine_api_id(api_class, api_index):
+    return ((api_class & 0x3F) << 4) | (api_index & 0x0F)
+
 def on_decode():
     raw = decode_var.get().strip()
     try:
@@ -23,17 +31,47 @@ def on_decode():
         messagebox.showerror("Invalid Input", f"Cannot parse '{raw}' as hex or int")
         return
     dt, man, api, dn = decode_id(msg)
+    api_class, api_index = split_api_id(api)
     decode_result_var.set(f"0x{msg:08X}")
     decode_dt_var.set(f"0x{dt:02X} ({dt})")
     decode_man_var.set(f"0x{man:02X} ({man})")
     decode_api_var.set(f"0x{api:03X} ({api})")
+    decode_api_class_var.set(f"0x{api_class:02X} ({api_class})")
+    decode_api_index_var.set(f"0x{api_index:X} ({api_index})")
     decode_dn_var.set(f"{dn}")
+
+def on_api_to_class_index():
+    try:
+        api = int(encode_api_var.get().strip(), 0)
+    except ValueError as e:
+        messagebox.showerror("Invalid Input", str(e))
+        return
+    api_class, api_index = split_api_id(api)
+    encode_api_class_var.set(f"0x{api_class:02X}")
+    encode_api_index_var.set(f"0x{api_index:X}")
+
+def on_class_index_to_api():
+    try:
+        api_class = int(encode_api_class_var.get().strip(), 0)
+        api_index = int(encode_api_index_var.get().strip(), 0)
+    except ValueError as e:
+        messagebox.showerror("Invalid Input", str(e))
+        return
+    api = combine_api_id(api_class, api_index)
+    encode_api_var.set(f"0x{api:03X}")
 
 def on_encode():
     try:
         dt = int(encode_dt_var.get().strip(), 0)
         man = int(encode_man_var.get().strip(), 0)
-        api = int(encode_api_var.get().strip(), 0)
+        if encode_api_mode_var.get() == "api":
+            api_raw = encode_api_var.get().strip()
+            api = int(api_raw, 0)
+        else:
+            api_class = int(encode_api_class_var.get().strip(), 0)
+            api_index = int(encode_api_index_var.get().strip(), 0)
+            api = combine_api_id(api_class, api_index)
+            encode_api_var.set(f"0x{api:03X}")
         dn = int(encode_dn_var.get().strip(), 0)
     except ValueError as e:
         messagebox.showerror("Invalid Input", str(e))
@@ -72,9 +110,17 @@ decode_api_var = tk.StringVar()
 ttk.Label(dec_frame, text="API ID:").grid(column=0, row=4, sticky=tk.W)
 ttk.Label(dec_frame, textvariable=decode_api_var).grid(column=1, row=4, columnspan=2, sticky=tk.W)
 
+decode_api_class_var = tk.StringVar()
+ttk.Label(dec_frame, text="API Class:").grid(column=0, row=5, sticky=tk.W)
+ttk.Label(dec_frame, textvariable=decode_api_class_var).grid(column=1, row=5, columnspan=2, sticky=tk.W)
+
+decode_api_index_var = tk.StringVar()
+ttk.Label(dec_frame, text="API Index:").grid(column=0, row=6, sticky=tk.W)
+ttk.Label(dec_frame, textvariable=decode_api_index_var).grid(column=1, row=6, columnspan=2, sticky=tk.W)
+
 decode_dn_var = tk.StringVar()
-ttk.Label(dec_frame, text="Device Number:").grid(column=0, row=5, sticky=tk.W)
-ttk.Label(dec_frame, textvariable=decode_dn_var).grid(column=1, row=5, columnspan=2, sticky=tk.W)
+ttk.Label(dec_frame, text="Device Number:").grid(column=0, row=7, sticky=tk.W)
+ttk.Label(dec_frame, textvariable=decode_dn_var).grid(column=1, row=7, columnspan=2, sticky=tk.W)
 
 # Encode section
 enc_frame = ttk.LabelFrame(main, text="Encode to CAN ID", padding=10)
@@ -92,15 +138,31 @@ ttk.Label(enc_frame, text="API ID:").grid(column=0, row=2, sticky=tk.W)
 encode_api_var = tk.StringVar(value="0x180")
 ttk.Entry(enc_frame, textvariable=encode_api_var, width=10).grid(column=1, row=2, sticky=tk.W)
 
-ttk.Label(enc_frame, text="Device Number:").grid(column=0, row=3, sticky=tk.W)
-encode_dn_var = tk.StringVar(value="0")
-ttk.Entry(enc_frame, textvariable=encode_dn_var, width=10).grid(column=1, row=3, sticky=tk.W)
+encode_api_mode_var = tk.StringVar(value="api")
+ttk.Radiobutton(enc_frame, text="Use API ID", variable=encode_api_mode_var, value="api").grid(column=2, row=2, padx=5, sticky=tk.W)
 
-ttk.Button(enc_frame, text="Encode", command=on_encode).grid(column=2, row=1, rowspan=3, padx=5)
+ttk.Label(enc_frame, text="API Class:").grid(column=0, row=3, sticky=tk.W)
+encode_api_class_var = tk.StringVar(value="0x18")
+ttk.Entry(enc_frame, textvariable=encode_api_class_var, width=10).grid(column=1, row=3, sticky=tk.W)
+
+ttk.Label(enc_frame, text="API Index:").grid(column=0, row=4, sticky=tk.W)
+encode_api_index_var = tk.StringVar(value="0x0")
+ttk.Entry(enc_frame, textvariable=encode_api_index_var, width=10).grid(column=1, row=4, sticky=tk.W)
+
+ttk.Radiobutton(enc_frame, text="Use Class/Index", variable=encode_api_mode_var, value="class_index").grid(column=2, row=4, padx=5, sticky=tk.W)
+
+ttk.Button(enc_frame, text="API → Class/Index", command=on_api_to_class_index).grid(column=2, row=3, padx=5, sticky=tk.W)
+ttk.Button(enc_frame, text="Class/Index → API", command=on_class_index_to_api).grid(column=2, row=5, padx=5, sticky=tk.W)
+
+ttk.Label(enc_frame, text="Device Number:").grid(column=0, row=5, sticky=tk.W)
+encode_dn_var = tk.StringVar(value="0")
+ttk.Entry(enc_frame, textvariable=encode_dn_var, width=10).grid(column=1, row=5, sticky=tk.W)
+
+ttk.Button(enc_frame, text="Encode", command=on_encode).grid(column=2, row=6, padx=5, pady=(6, 0), sticky=tk.W)
 
 encode_result_var = tk.StringVar()
-ttk.Label(enc_frame, text="Full CAN ID:").grid(column=0, row=4, sticky=tk.W)
-ttk.Label(enc_frame, textvariable=encode_result_var).grid(column=1, row=4, columnspan=2, sticky=tk.W)
+ttk.Label(enc_frame, text="Full CAN ID:").grid(column=0, row=7, sticky=tk.W)
+ttk.Label(enc_frame, textvariable=encode_result_var).grid(column=1, row=7, columnspan=2, sticky=tk.W)
 
 # Layout adjustments
 app.columnconfigure(0, weight=1)
