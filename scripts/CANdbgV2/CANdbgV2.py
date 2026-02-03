@@ -345,6 +345,8 @@ class CANMessageListener(Listener):
         data_dec = ' '.join(str(b) for b in msg.data)
 
         decoded_entries = None
+        frame_name = None
+        frame_desc = None
         if msg_id == HEARTBEAT_ID:
             try:
                 decoded = decode_frc_payload(msg.data)
@@ -367,6 +369,8 @@ class CANMessageListener(Listener):
                 frame_def = frame_map.get(api_id)
                 if frame_def:
                     decoded_entries = decode_frame(msg.data, frame_def)
+                    frame_name = frame_def.get("name")
+                    frame_desc = frame_def.get("description")
             if decoded_entries is None and device_type == 0 and manufacturer == 0 and api_class == 0:
                 decoded_entries = [{
                     "name": "Broadcast",
@@ -384,7 +388,9 @@ class CANMessageListener(Listener):
             'api_index': api_index,
             'raw_hex': data_hex,
             'raw_dec': data_dec,
-            'decoded_entries': decoded_entries
+            'decoded_entries': decoded_entries,
+            'frame_name': frame_name,
+            'frame_desc': frame_desc
         }
         last_updated[msg_id] = time.time()
 
@@ -511,7 +517,7 @@ def open_decode_window(event=None):
 
     win = tk.Toplevel(root)
     win.title(f"Decoded Message 0x{msg_id:08X}")
-    win.geometry("700x260")
+    win.geometry("700x520")
     win.attributes("-topmost", True)
     win.transient(root)
     win.lift()
@@ -527,15 +533,8 @@ def open_decode_window(event=None):
     raw_frame = ttk.Frame(win)
     raw_frame.pack(fill="both", expand=True)
 
-    info_label = tk.Label(raw_frame, anchor="w", justify="left", wraplength=660)
-    info_label.pack(fill="x", padx=10, pady=(10, 6))
-
-    raw_text = entry['raw_hex'] if show_hex else entry['raw_dec']
-    raw_label = tk.Label(raw_frame, text=raw_text, anchor="w", justify="left", wraplength=660)
-    raw_label.pack(fill="x", padx=10, pady=(0, 6))
-
     decode_frame = ttk.Frame(raw_frame)
-    decode_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+    decode_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
     decode_vsb = ttk.Scrollbar(decode_frame, orient="vertical")
     decode_vsb.pack(side="right", fill="y")
@@ -548,6 +547,7 @@ def open_decode_window(event=None):
         yscrollcommand=decode_vsb.set,
         height=8
     )
+    decode_tree.tag_configure("meta", background="#d1e7dd")
     for col in decode_columns:
         decode_tree.heading(col, text=col.upper())
     decode_tree.column("name", width=180)
@@ -578,34 +578,53 @@ def open_decode_window(event=None):
         api_index_str = f"0x{current['api_index']:01X}"
         msg_id_str = f"0x{msg_id:08X}"
         decode_available = "Yes" if current.get("decoded_lines") else "No"
-        info_label.config(text=(
-            f"MSG ID: {msg_id_str} | "
-            f"DEVICE: {dev_type_str} | "
-            f"MANUF: {manuf_str} | "
-            f"DEV NUM: {dev_num_str} | "
-            f"API ID: {api_id_str} | "
-            f"API CLASS: {api_class_str} | "
-            f"API INDEX: {api_index_str} | "
-            f"DECODE AVAILABLE: {decode_available}"
-        ))
         raw_text = current['raw_hex'] if show_hex else current['raw_dec']
-        raw_label.config(text=raw_text)
-
+        selected_names = [decode_tree.item(item, "values")[0] for item in decode_tree.selection()]
         decode_tree.delete(*decode_tree.get_children())
+        meta_rows = [
+            ("MSG ID", msg_id_str),
+            ("DEVICE", dev_type_str),
+            ("MANUF", manuf_str),
+            ("DEV NUM", dev_num_str),
+            ("API ID", api_id_str),
+            ("API CLASS", api_class_str),
+            ("API INDEX", api_index_str),
+            ("FRAME NAME", current.get("frame_name") or ""),
+            ("FRAME DESC", current.get("frame_desc") or ""),
+            ("DECODE AVAILABLE", decode_available),
+            ("RAW", raw_text)
+        ]
+        row_index = 0
+        for name, value in meta_rows:
+            iid = f"meta_{row_index}_{name}"
+            decode_tree.insert("", "end", iid=iid, values=(name, value, "metadata", ""), tags=("meta",))
+            if name in selected_names:
+                decode_tree.selection_add(iid)
+            row_index += 1
+
         entries = current.get("decoded_entries") or []
         if not entries:
-            decode_tree.insert("", "end", values=("No decoded data available.", "", "", ""))
+            iid = f"row_{row_index}_No decoded data available."
+            decode_tree.insert("", "end", iid=iid, values=("No decoded data available.", "", "", ""))
+            if "No decoded data available." in selected_names:
+                decode_tree.selection_add(iid)
         else:
             for item in entries:
+                name = item.get("name", "")
+                iid = f"row_{row_index}_{name}"
                 decode_tree.insert(
                     "",
                     "end",
-                    values=(item.get("name", ""),
+                    iid=iid,
+                    values=(name,
                             item.get("value", ""),
                             item.get("type", ""),
                             item.get("range", ""))
                 )
-        win.after(200, refresh_decode_text)
+                if name in selected_names:
+                    decode_tree.selection_add(iid)
+                row_index += 1
+        win.after(50, refresh_decode_text)
 
     refresh_decode_text()
 
