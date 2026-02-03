@@ -107,6 +107,30 @@ def format_value(value):
         return f"{value:.3f}".rstrip("0").rstrip(".")
     return str(value)
 
+def format_range(signal):
+    sig_type = str(signal.get("type", "")).lower()
+    if sig_type == "boolean":
+        return "true or false"
+
+    decoded_min = signal.get("decodedMin")
+    decoded_max = signal.get("decodedMax")
+    if decoded_min is not None or decoded_max is not None:
+        return f"{decoded_min} <-> {decoded_max}"
+
+    encoded_min = signal.get("encodedMin")
+    encoded_max = signal.get("encodedMax")
+    if encoded_min is None or encoded_max is None:
+        return ""
+
+    scale = signal.get("decodeScaleFactor", 1)
+    offset = signal.get("offset", 0)
+    try:
+        decoded_min = (encoded_min * scale) + offset
+        decoded_max = (encoded_max * scale) + offset
+        return f"{decoded_min} <-> {decoded_max}"
+    except Exception:
+        return f"{encoded_min} <-> {encoded_max}"
+
 
 def decode_signal_value(data, signal):
     bit_pos = int(signal.get("bitPosition", 0))
@@ -158,7 +182,7 @@ def decode_signal_value(data, signal):
 
 def decode_frame(data, frame_def):
     signals = frame_def.get("signals", {})
-    decoded_parts = []
+    decoded_entries = []
     signal_items = []
     for key, spec in signals.items():
         name = spec.get("name") or key
@@ -168,12 +192,17 @@ def decode_frame(data, frame_def):
         value = decode_signal_value(data, spec)
         if value is None:
             continue
-        decoded_parts.append(f"{name}: {format_value(value)}")
+        decoded_entries.append({
+            "name": name,
+            "value": format_value(value),
+            "type": str(spec.get("type", "uint")),
+            "range": format_range(spec)
+        })
 
-    if not decoded_parts:
+    if not decoded_entries:
         return None
 
-    return decoded_parts
+    return decoded_entries
 
 
 def load_frame_definitions(folder):
@@ -274,7 +303,7 @@ def refresh_table_named():
             api_class = f"0x{entry['api_class']:02X}"
             api_index = f"0x{entry['api_index']:01X}"
             data = build_message_text(entry)
-            decoded_available = "Yes" if entry.get("decoded_lines") else "No"
+            decoded_available = "Yes" if entry.get("decoded_entries") else "No"
             dev_type_str = get_name(DEVICE_TYPE_MAP, entry['device_type'])
             manuf_str = get_name(MANUFACTURER_MAP, entry['manufacturer'])
             dev_num_str = f"0x{entry['device_number']:02X} / {entry['device_number']}"
@@ -315,31 +344,36 @@ class CANMessageListener(Listener):
         data_hex = ' '.join(f'{b:02X}' for b in msg.data)
         data_dec = ' '.join(str(b) for b in msg.data)
 
-        decoded_lines = None
+        decoded_entries = None
         if msg_id == HEARTBEAT_ID:
             try:
                 decoded = decode_frc_payload(msg.data)
                 decoded_heartbeat = decoded
                 last_heartbeat_time = time.time()
-                decoded_lines = [
-                    f"Timestamp: {format_time(decoded)}",
-                    f"Alliance: {'RED' if decoded['red_alliance'] else 'BLUE'}",
-                    f"Enabled: {'Yes' if decoded['enabled'] else 'No'}",
-                    f"Mode: {'AUTO' if decoded['autonomous'] else 'TELEOP'}",
-                    f"Match: {decoded['match_number']}",
-                    f"Replay: {decoded['replay_number']}",
-                    f"Time Left (s): {decoded['match_time']}"
+                decoded_entries = [
+                    {"name": "Timestamp", "value": format_time(decoded), "type": "datetime", "range": ""},
+                    {"name": "Alliance", "value": "RED" if decoded["red_alliance"] else "BLUE", "type": "enum", "range": ""},
+                    {"name": "Enabled", "value": "Yes" if decoded["enabled"] else "No", "type": "bool", "range": ""},
+                    {"name": "Mode", "value": "AUTO" if decoded["autonomous"] else "TELEOP", "type": "enum", "range": ""},
+                    {"name": "Match", "value": decoded["match_number"], "type": "uint", "range": ""},
+                    {"name": "Replay", "value": decoded["replay_number"], "type": "uint", "range": ""},
+                    {"name": "Time Left (s)", "value": decoded["match_time"], "type": "uint", "range": ""}
                 ]
             except Exception:
-                decoded_lines = None
+                decoded_entries = None
         else:
             frame_map = FRAME_DEFS.get((device_type, manufacturer))
             if frame_map:
                 frame_def = frame_map.get(api_id)
                 if frame_def:
-                    decoded_lines = decode_frame(msg.data, frame_def)
-            if decoded_lines is None and device_type == 0 and manufacturer == 0 and api_class == 0:
-                decoded_lines = [f"Broadcast: {BROADCAST_API_MAP.get(api_index, 'Unknown')}"]
+                    decoded_entries = decode_frame(msg.data, frame_def)
+            if decoded_entries is None and device_type == 0 and manufacturer == 0 and api_class == 0:
+                decoded_entries = [{
+                    "name": "Broadcast",
+                    "value": BROADCAST_API_MAP.get(api_index, "Unknown"),
+                    "type": "enum",
+                    "range": ""
+                }]
 
         can_messages[msg_id] = {
             'device_type': device_type,
@@ -350,7 +384,7 @@ class CANMessageListener(Listener):
             'api_index': api_index,
             'raw_hex': data_hex,
             'raw_dec': data_dec,
-            'decoded_lines': decoded_lines
+            'decoded_entries': decoded_entries
         }
         last_updated[msg_id] = time.time()
 
@@ -500,9 +534,37 @@ def open_decode_window(event=None):
     raw_label = tk.Label(raw_frame, text=raw_text, anchor="w", justify="left", wraplength=660)
     raw_label.pack(fill="x", padx=10, pady=(0, 6))
 
-    decoded_text = tk.Text(raw_frame, height=10, wrap="word")
-    decoded_text.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-    decoded_text.config(state="disabled")
+    decode_frame = ttk.Frame(raw_frame)
+    decode_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+    decode_vsb = ttk.Scrollbar(decode_frame, orient="vertical")
+    decode_vsb.pack(side="right", fill="y")
+
+    decode_columns = ("name", "value", "type", "range")
+    decode_tree = ttk.Treeview(
+        decode_frame,
+        columns=decode_columns,
+        show="headings",
+        yscrollcommand=decode_vsb.set,
+        height=8
+    )
+    for col in decode_columns:
+        decode_tree.heading(col, text=col.upper())
+    decode_tree.column("name", width=180)
+    decode_tree.column("value", width=200)
+    decode_tree.column("type", width=80)
+    decode_tree.column("range", width=180)
+    decode_tree.pack(side="left", fill="both", expand=True)
+    decode_vsb.config(command=decode_tree.yview)
+
+    def copy_decode_selection(event=None):
+        selection = decode_tree.selection()
+        rows = ['\t'.join(decode_tree.item(item, "values")) for item in selection]
+        if rows:
+            win.clipboard_clear()
+            win.clipboard_append('\n'.join(rows))
+
+    decode_tree.bind("<Control-c>", copy_decode_selection)
 
     def refresh_decode_text():
         current = can_messages.get(msg_id)
@@ -529,11 +591,20 @@ def open_decode_window(event=None):
         raw_text = current['raw_hex'] if show_hex else current['raw_dec']
         raw_label.config(text=raw_text)
 
-        lines = current.get("decoded_lines") or ["No decoded data available."]
-        decoded_text.config(state="normal")
-        decoded_text.delete("1.0", "end")
-        decoded_text.insert("1.0", "\n".join(lines))
-        decoded_text.config(state="disabled")
+        decode_tree.delete(*decode_tree.get_children())
+        entries = current.get("decoded_entries") or []
+        if not entries:
+            decode_tree.insert("", "end", values=("No decoded data available.", "", "", ""))
+        else:
+            for item in entries:
+                decode_tree.insert(
+                    "",
+                    "end",
+                    values=(item.get("name", ""),
+                            item.get("value", ""),
+                            item.get("type", ""),
+                            item.get("range", ""))
+                )
         win.after(200, refresh_decode_text)
 
     refresh_decode_text()
