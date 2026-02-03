@@ -577,7 +577,6 @@ def open_decode_window(event=None):
         api_class_str = f"0x{current['api_class']:02X}"
         api_index_str = f"0x{current['api_index']:01X}"
         msg_id_str = f"0x{msg_id:08X}"
-        decode_available = "Yes" if current.get("decoded_lines") else "No"
         raw_text = current['raw_hex'] if show_hex else current['raw_dec']
         selected_names = [decode_tree.item(item, "values")[0] for item in decode_tree.selection()]
         decode_tree.delete(*decode_tree.get_children())
@@ -591,7 +590,6 @@ def open_decode_window(event=None):
             ("API INDEX", api_index_str),
             ("FRAME NAME", current.get("frame_name") or ""),
             ("FRAME DESC", current.get("frame_desc") or ""),
-            ("DECODE AVAILABLE", decode_available),
             ("RAW", raw_text)
         ]
         row_index = 0
