@@ -368,6 +368,7 @@ FRAME_DEFS.update(load_frame_definitions(os.path.join(base_dir, "im-frame-json")
 root = tk.Tk()
 root.title("CAN Message Viewer V2")
 root.geometry("1120x600")
+root.attributes("-topmost", True)
 
 frame = tk.Frame(root)
 frame.pack(fill="both", expand=True)
@@ -409,6 +410,9 @@ hex_btn.pack(side="left")
 decode_hint = tk.Label(control_frame, text="Double-click a row to open decode window")
 decode_hint.pack(side="left", padx=12)
 
+close_all_btn = tk.Button(control_frame, text="Close All Decode Windows", command=lambda: close_all_decode_windows())
+close_all_btn.pack(side="left", padx=10)
+
 heartbeat_label = tk.Label(root, text=heartbeat_status_text, anchor="w")
 heartbeat_label.pack(fill="x", padx=10, pady=(0, 5))
 update_heartbeat_display()
@@ -434,6 +438,12 @@ def copy_selection(event=None):
     if rows:
         root.clipboard_clear()
         root.clipboard_append('\n'.join(rows))
+
+def close_all_decode_windows():
+    for msg_id, win in list(decode_windows.items()):
+        if win.winfo_exists():
+            win.destroy()
+        decode_windows.pop(msg_id, None)
 
 
 tree.bind("<Control-c>", copy_selection)
@@ -469,6 +479,8 @@ def open_decode_window(event=None):
     win.title(f"Decoded Message 0x{msg_id:08X}")
     win.geometry("700x260")
     win.attributes("-topmost", True)
+    win.transient(root)
+    win.lift()
     decode_windows[msg_id] = win
 
     def on_close():
