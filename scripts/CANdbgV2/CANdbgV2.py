@@ -26,6 +26,12 @@ heartbeat_status_text = "No roboRIO heartbeat detected."
 
 # JSON Frame Definitions
 FRAME_DEFS = {}
+LOAD_ERRORS = []
+LOADED_SPECS = []
+
+# Config
+ALWAYS_ON_TOP = True
+DEBUG_ENABLED = False
 
 # Maps
 DEVICE_TYPE_MAP = {
@@ -205,7 +211,7 @@ def decode_frame(data, frame_def):
     return decoded_entries
 
 
-def load_frame_definitions(folder):
+def load_frame_definitions(folder, loaded_specs, load_errors):
     device_frames = {}
     if not os.path.isdir(folder):
         return device_frames
@@ -214,24 +220,30 @@ def load_frame_definitions(folder):
         path = os.path.join(folder, filename)
         if not os.path.isfile(path):
             continue
-        if filename.lower().endswith(".html"):
+        lower_name = filename.lower()
+        if not lower_name.endswith(".json"):
             continue
 
         try:
             with open(path, "r", encoding="utf-8") as f:
                 spec = json.load(f)
         except Exception as exc:
-            print(f"JSON load failed for {filename}: {exc}")
+            load_errors.append(f"{filename}: {exc}")
+            if DEBUG_ENABLED:
+                print(f"[CANdbgV2] JSON load failed: {filename}: {exc}")
             continue
 
         device_info = spec.get("deviceInfo", {})
         device_type = device_info.get("deviceTypeNumber")
         manufacturer = device_info.get("manufacturerNumber")
         if device_type is None or manufacturer is None:
+            load_errors.append(f"{filename}: missing deviceInfo type/manufacturer")
+            if DEBUG_ENABLED:
+                print(f"[CANdbgV2] JSON missing deviceInfo: {filename}")
             continue
 
         frame_map = {}
-        for group_key in ("periodicFrames", "controlFrames", "faultFrames", "statusFrames", "frames"):
+        for group_key in ("periodicFrames", "nonPeriodicFrames", "controlFrames", "faultFrames", "statusFrames", "frames"):
             frames = spec.get(group_key, {})
             if not isinstance(frames, dict):
                 continue
@@ -244,6 +256,9 @@ def load_frame_definitions(folder):
                 frame_map[api_id] = frame_def
 
         device_frames[(int(device_type), int(manufacturer))] = frame_map
+        loaded_specs.append(f"{filename} ({device_type},{manufacturer})")
+        if DEBUG_ENABLED:
+            print(f"[CANdbgV2] Loaded {filename} for device ({device_type},{manufacturer}) with {len(frame_map)} frames")
 
     return device_frames
 
@@ -347,6 +362,8 @@ class CANMessageListener(Listener):
         decoded_entries = None
         frame_name = None
         frame_desc = None
+        frame_found = False
+        frame_map_size = 0
         if msg_id == HEARTBEAT_ID:
             try:
                 decoded = decode_frc_payload(msg.data)
@@ -366,11 +383,21 @@ class CANMessageListener(Listener):
         else:
             frame_map = FRAME_DEFS.get((device_type, manufacturer))
             if frame_map:
+                frame_map_size = len(frame_map)
                 frame_def = frame_map.get(api_id)
                 if frame_def:
                     decoded_entries = decode_frame(msg.data, frame_def)
                     frame_name = frame_def.get("name")
                     frame_desc = frame_def.get("description")
+                    frame_found = True
+                else:
+                    if DEBUG_ENABLED:
+                        print(f"[CANdbgV2] No frame for API 0x{api_id:03X} ({api_class},{api_index}) "
+                              f"device ({device_type},{manufacturer}) devnum {device_number} data {data_hex}")
+            else:
+                if DEBUG_ENABLED:
+                    print(f"[CANdbgV2] No frame map for device ({device_type},{manufacturer}) "
+                          f"API 0x{api_id:03X} ({api_class},{api_index}) devnum {device_number} data {data_hex}")
             if decoded_entries is None and device_type == 0 and manufacturer == 0 and api_class == 0:
                 decoded_entries = [{
                     "name": "Broadcast",
@@ -390,7 +417,9 @@ class CANMessageListener(Listener):
             'raw_dec': data_dec,
             'decoded_entries': decoded_entries,
             'frame_name': frame_name,
-            'frame_desc': frame_desc
+            'frame_desc': frame_desc,
+            'frame_found': frame_found,
+            'frame_map_size': frame_map_size
         }
         last_updated[msg_id] = time.time()
 
@@ -400,15 +429,48 @@ class CANMessageListener(Listener):
 
 
 base_dir = os.path.dirname(__file__)
+repo_root = os.path.abspath(os.path.join(base_dir, os.pardir, os.pardir))
+config_path = os.path.join(repo_root, "config.json")
+
+def load_config():
+    global ALWAYS_ON_TOP, DEBUG_ENABLED
+    defaults = {"always_on_top": True, "debug_trace": False}
+    if not os.path.isfile(config_path):
+        try:
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(defaults, f, indent=4)
+                f.write("\n")
+        except Exception:
+            return
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        ALWAYS_ON_TOP = bool(cfg.get("always_on_top", True))
+        DEBUG_ENABLED = bool(cfg.get("debug_trace", False))
+    except Exception:
+        ALWAYS_ON_TOP = True
+        DEBUG_ENABLED = False
+
+def save_config():
+    cfg = {"always_on_top": bool(ALWAYS_ON_TOP), "debug_trace": bool(DEBUG_ENABLED)}
+    try:
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=4)
+            f.write("\n")
+    except Exception:
+        pass
+
+load_config()
+
 FRAME_DEFS = {}
-FRAME_DEFS.update(load_frame_definitions(os.path.join(base_dir, "frame-json")))
-FRAME_DEFS.update(load_frame_definitions(os.path.join(base_dir, "im-frame-json")))
+FRAME_DEFS.update(load_frame_definitions(os.path.join(base_dir, "frame-json"), LOADED_SPECS, LOAD_ERRORS))
+FRAME_DEFS.update(load_frame_definitions(os.path.join(base_dir, "im-frame-json"), LOADED_SPECS, LOAD_ERRORS))
 
 # --- UI Setup ---
 root = tk.Tk()
 root.title("CAN Message Viewer V2")
 root.geometry("1120x600")
-root.attributes("-topmost", True)
+root.attributes("-topmost", ALWAYS_ON_TOP)
 
 frame = tk.Frame(root)
 frame.pack(fill="both", expand=True)
@@ -453,9 +515,43 @@ decode_hint.pack(side="left", padx=12)
 close_all_btn = tk.Button(control_frame, text="Close All Decode Windows", command=lambda: close_all_decode_windows())
 close_all_btn.pack(side="left", padx=10)
 
+always_on_top_var = tk.BooleanVar(value=ALWAYS_ON_TOP)
+debug_trace_var = tk.BooleanVar(value=DEBUG_ENABLED)
+
+def apply_always_on_top():
+    global ALWAYS_ON_TOP
+    ALWAYS_ON_TOP = bool(always_on_top_var.get())
+    root.attributes("-topmost", ALWAYS_ON_TOP)
+    for win in decode_windows.values():
+        if win.winfo_exists():
+            win.attributes("-topmost", ALWAYS_ON_TOP)
+            win.lift()
+    save_config()
+
+def apply_debug_trace():
+    global DEBUG_ENABLED
+    DEBUG_ENABLED = bool(debug_trace_var.get())
+    save_config()
+
+always_on_top_chk = tk.Checkbutton(control_frame, text="Always On Top", variable=always_on_top_var, command=apply_always_on_top)
+always_on_top_chk.pack(side="left", padx=10)
+
+debug_trace_chk = tk.Checkbutton(control_frame, text="Print Debug Trace", variable=debug_trace_var, command=apply_debug_trace)
+debug_trace_chk.pack(side="left", padx=10)
+
 heartbeat_label = tk.Label(root, text=heartbeat_status_text, anchor="w")
 heartbeat_label.pack(fill="x", padx=10, pady=(0, 5))
 update_heartbeat_display()
+
+def build_load_status():
+    specs = ", ".join(LOADED_SPECS) if LOADED_SPECS else "none"
+    if LOAD_ERRORS:
+        errors = "; ".join(LOAD_ERRORS)
+        return f"Loaded specs: {specs} | Errors: {errors}"
+    return f"Loaded specs: {specs}"
+
+load_status_label = tk.Label(root, text=build_load_status(), anchor="w")
+load_status_label.pack(fill="x", padx=10, pady=(0, 5))
 
 
 def toggle_pause():
@@ -518,7 +614,7 @@ def open_decode_window(event=None):
     win = tk.Toplevel(root)
     win.title(f"Decoded Message 0x{msg_id:08X}")
     win.geometry("700x520")
-    win.attributes("-topmost", True)
+    win.attributes("-topmost", ALWAYS_ON_TOP)
     win.transient(root)
     win.lift()
     decode_windows[msg_id] = win
@@ -588,6 +684,8 @@ def open_decode_window(event=None):
             ("API ID", api_id_str),
             ("API CLASS", api_class_str),
             ("API INDEX", api_index_str),
+            ("FRAME FOUND", "Yes" if current.get("frame_found") else "No"),
+            ("FRAME MAP SIZE", current.get("frame_map_size", 0)),
             ("FRAME NAME", current.get("frame_name") or ""),
             ("FRAME DESC", current.get("frame_desc") or ""),
             ("RAW", raw_text)
