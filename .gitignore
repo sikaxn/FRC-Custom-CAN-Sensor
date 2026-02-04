@@ -17,3 +17,4 @@ pcb/CAD-Resources/~$demo_backplate.SLDDRW
 /LEDsimulator/.venv/
 *.pyd
 /scripts/CANdbgV2/frame-json/*.json
+/scripts/CANdbgV2/__pycache__

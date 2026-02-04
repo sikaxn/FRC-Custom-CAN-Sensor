@@ -1,0 +1,7 @@
+{
+    "always_on_top": true,
+    "debug_trace": false,
+    "show_hex": false,
+    "interface": "canalystii",
+    "channel": "0"
+}
