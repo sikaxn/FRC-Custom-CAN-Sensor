@@ -3,7 +3,8 @@ import os
 import threading
 import time
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
+import platform
 
 import can
 from can.notifier import Notifier, Listener
@@ -32,6 +33,12 @@ LOADED_SPECS = []
 # Config
 ALWAYS_ON_TOP = True
 DEBUG_ENABLED = False
+SHOW_HEX_DEFAULT = True
+
+# CAN runtime
+can_bus = None
+can_notifier = None
+can_thread = None
 
 # Maps
 DEVICE_TYPE_MAP = {
@@ -429,12 +436,11 @@ class CANMessageListener(Listener):
 
 
 base_dir = os.path.dirname(__file__)
-repo_root = os.path.abspath(os.path.join(base_dir, os.pardir, os.pardir))
-config_path = os.path.join(repo_root, "config.json")
+config_path = os.path.join(base_dir, "config.json")
 
 def load_config():
-    global ALWAYS_ON_TOP, DEBUG_ENABLED
-    defaults = {"always_on_top": True, "debug_trace": False}
+    global ALWAYS_ON_TOP, DEBUG_ENABLED, SHOW_HEX_DEFAULT
+    defaults = {"always_on_top": True, "debug_trace": False, "show_hex": True}
     if not os.path.isfile(config_path):
         try:
             with open(config_path, "w", encoding="utf-8") as f:
@@ -447,12 +453,18 @@ def load_config():
             cfg = json.load(f)
         ALWAYS_ON_TOP = bool(cfg.get("always_on_top", True))
         DEBUG_ENABLED = bool(cfg.get("debug_trace", False))
+        SHOW_HEX_DEFAULT = bool(cfg.get("show_hex", True))
     except Exception:
         ALWAYS_ON_TOP = True
         DEBUG_ENABLED = False
+        SHOW_HEX_DEFAULT = True
 
 def save_config():
-    cfg = {"always_on_top": bool(ALWAYS_ON_TOP), "debug_trace": bool(DEBUG_ENABLED)}
+    cfg = {
+        "always_on_top": bool(ALWAYS_ON_TOP),
+        "debug_trace": bool(DEBUG_ENABLED),
+        "show_hex": bool(show_hex)
+    }
     try:
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=4)
@@ -461,6 +473,7 @@ def save_config():
         pass
 
 load_config()
+show_hex = SHOW_HEX_DEFAULT
 
 FRAME_DEFS = {}
 FRAME_DEFS.update(load_frame_definitions(os.path.join(base_dir, "frame-json"), LOADED_SPECS, LOAD_ERRORS))
@@ -469,51 +482,17 @@ FRAME_DEFS.update(load_frame_definitions(os.path.join(base_dir, "im-frame-json")
 # --- UI Setup ---
 root = tk.Tk()
 root.title("CAN Message Viewer V2")
-root.geometry("1120x600")
+root.geometry("1300x650")
 root.attributes("-topmost", ALWAYS_ON_TOP)
 
-frame = tk.Frame(root)
-frame.pack(fill="both", expand=True)
+top_bar = tk.Frame(root)
+top_bar.pack(fill="x", pady=5)
 
-vsb = ttk.Scrollbar(frame, orient="vertical")
-vsb.pack(side="right", fill="y")
-
-columns = ("msg_id", "device_id", "manuf_id", "dev_num", "api_id", "api_class", "api_index", "decode_available", "message")
-tree = ttk.Treeview(frame, columns=columns, show="tree headings", yscrollcommand=vsb.set)
-tree.heading("#0", text="Group")
-tree.column("#0", width=30, anchor="w")
-tree.tag_configure("group", background="#d1e7dd")
-tree.tag_configure("stale", background="#e0e0e0")
-
-for col in columns:
-    tree.heading(col, text=col.replace("_", " ").upper())
-tree.column("msg_id", width=100)
-tree.column("device_id", width=160)
-tree.column("manuf_id", width=160)
-tree.column("dev_num", width=90)
-tree.column("api_id", width=80)
-tree.column("api_class", width=90)
-tree.column("api_index", width=80)
-tree.column("decode_available", width=120)
-tree.column("message", width=520)
-tree.pack(side="left", fill="both", expand=True)
-vsb.config(command=tree.yview)
-
-# Controls
-control_frame = tk.Frame(root)
-control_frame.pack(fill="x", pady=5)
-
-pause_btn = tk.Button(control_frame, text="Pause", command=lambda: toggle_pause())
+pause_btn = tk.Button(top_bar, text="Pause", command=lambda: toggle_pause())
 pause_btn.pack(side="left", padx=10)
 
-hex_btn = tk.Button(control_frame, text="Show Decimal", command=lambda: toggle_hex())
+hex_btn = tk.Button(top_bar, text="Show Decimal", command=lambda: toggle_hex())
 hex_btn.pack(side="left")
-
-decode_hint = tk.Label(control_frame, text="Double-click a row to open decode window")
-decode_hint.pack(side="left", padx=12)
-
-close_all_btn = tk.Button(control_frame, text="Close All Decode Windows", command=lambda: close_all_decode_windows())
-close_all_btn.pack(side="left", padx=10)
 
 always_on_top_var = tk.BooleanVar(value=ALWAYS_ON_TOP)
 debug_trace_var = tk.BooleanVar(value=DEBUG_ENABLED)
@@ -533,11 +512,185 @@ def apply_debug_trace():
     DEBUG_ENABLED = bool(debug_trace_var.get())
     save_config()
 
-always_on_top_chk = tk.Checkbutton(control_frame, text="Always On Top", variable=always_on_top_var, command=apply_always_on_top)
+always_on_top_chk = tk.Checkbutton(top_bar, text="Always On Top", variable=always_on_top_var, command=apply_always_on_top)
 always_on_top_chk.pack(side="left", padx=10)
 
-debug_trace_chk = tk.Checkbutton(control_frame, text="Print Debug Trace", variable=debug_trace_var, command=apply_debug_trace)
+close_all_btn = tk.Button(top_bar, text="Close All Decode Windows", command=lambda: close_all_decode_windows())
+close_all_btn.pack(side="left", padx=10)
+
+debug_trace_chk = tk.Checkbutton(top_bar, text="Print Debug Trace", variable=debug_trace_var, command=apply_debug_trace)
 debug_trace_chk.pack(side="left", padx=10)
+
+def show_about():
+    messagebox.showinfo(
+        "About",
+        "Iron Maple FRC-Custom-CAN-Sensor CAN analyzer\n"
+        "https://github.com/sikaxn/FRC-Custom-CAN-Sensor"
+    )
+
+about_btn = tk.Button(top_bar, text="About", command=show_about)
+about_btn.pack(side="right", padx=10)
+
+frame = tk.Frame(root)
+frame.pack(fill="both", expand=True)
+
+vsb = ttk.Scrollbar(frame, orient="vertical")
+vsb.pack(side="right", fill="y")
+hscroll = ttk.Scrollbar(frame, orient="horizontal")
+hscroll.pack(side="bottom", fill="x")
+
+columns = ("msg_id", "device_id", "manuf_id", "dev_num", "api_id", "api_class", "api_index", "decode_available", "message")
+tree = ttk.Treeview(frame, columns=columns, show="tree headings", yscrollcommand=vsb.set, xscrollcommand=hscroll.set)
+tree.heading("#0", text="Group")
+tree.column("#0", width=30, anchor="w")
+tree.tag_configure("group", background="#d1e7dd")
+tree.tag_configure("stale", background="#e0e0e0")
+
+for col in columns:
+    tree.heading(col, text=col.replace("_", " ").upper())
+tree.column("msg_id", width=100)
+tree.column("device_id", width=160)
+tree.column("manuf_id", width=160)
+tree.column("dev_num", width=90)
+tree.column("api_id", width=80)
+tree.column("api_class", width=90)
+tree.column("api_index", width=80)
+tree.column("decode_available", width=120)
+tree.column("message", width=520)
+tree.pack(side="left", fill="both", expand=True)
+vsb.config(command=tree.yview)
+hscroll.config(command=tree.xview)
+
+bottom_bar = tk.Frame(root)
+bottom_bar.pack(fill="x", pady=5)
+
+decode_hint = tk.Label(bottom_bar, text="Double-click a row to open decode window")
+decode_hint.pack(side="left", padx=12)
+
+clear_all_btn = tk.Button(bottom_bar, text="Clear All", command=lambda: clear_all_messages())
+clear_all_btn.pack(side="left", padx=10)
+
+clear_line_btn = tk.Button(bottom_bar, text="Clear Line", command=lambda: clear_selected_line())
+clear_line_btn.pack(side="left", padx=10)
+
+collapse_all_btn = tk.Button(bottom_bar, text="Collapse All", command=lambda: collapse_all_groups())
+collapse_all_btn.pack(side="left", padx=10)
+
+clear_inactive_btn = tk.Button(bottom_bar, text="Clear Inactive", command=lambda: clear_inactive_messages())
+clear_inactive_btn.pack(side="left", padx=10)
+
+def get_serial_ports():
+    try:
+        import serial.tools.list_ports as list_ports
+    except Exception:
+        return []
+    return [port.device for port in list_ports.comports()]
+
+def get_vcan_interfaces():
+    if platform.system() == "Windows":
+        return []
+    try:
+        return sorted([name for name in os.listdir("/sys/class/net") if name.startswith("vcan")])
+    except Exception:
+        return []
+
+can_interface_var = tk.StringVar(value="canalystii")
+can_channel_var = tk.StringVar(value="0")
+
+can_interface_lbl = tk.Label(bottom_bar, text="CAN Interface:")
+can_interface_lbl.pack(side="left", padx=(20, 6))
+
+can_interface_combo = ttk.Combobox(bottom_bar, textvariable=can_interface_var, width=12, state="readonly")
+if platform.system() == "Windows":
+    can_interface_combo["values"] = ("canalystii", "slcan", "socketcan (disabled)")
+else:
+    can_interface_combo["values"] = ("canalystii", "slcan", "socketcan")
+can_interface_combo.pack(side="left")
+if platform.system() == "Windows":
+    socketcan_note = tk.Label(bottom_bar, text="socketcan disabled on Windows", fg="gray")
+    socketcan_note.pack(side="left", padx=8)
+
+can_channel_lbl = tk.Label(bottom_bar, text="Channel:")
+can_channel_lbl.pack(side="left", padx=(10, 6))
+
+can_channel_combo = ttk.Combobox(bottom_bar, textvariable=can_channel_var, width=10)
+can_channel_combo.pack(side="left")
+
+def refresh_can_channel_options():
+    iface = can_interface_var.get()
+    if iface == "socketcan (disabled)":
+        iface = "socketcan"
+    if iface == "canalystii":
+        can_channel_combo["values"] = ("0", "1")
+        can_channel_var.set("0" if can_channel_var.get() not in ("0", "1") else can_channel_var.get())
+        can_channel_combo.config(state="readonly")
+    elif iface == "slcan":
+        ports = get_serial_ports()
+        can_channel_combo["values"] = ports
+        if ports and can_channel_var.get() not in ports:
+            can_channel_var.set(ports[0])
+        can_channel_combo.config(state="normal")
+    else:
+        if platform.system() == "Windows":
+            can_channel_combo["values"] = ()
+            can_channel_var.set("")
+            can_channel_combo.config(state="disabled")
+        else:
+            vcans = get_vcan_interfaces()
+            can_channel_combo["values"] = vcans
+            if vcans and can_channel_var.get() not in vcans:
+                can_channel_var.set(vcans[0])
+            elif not vcans:
+                can_channel_var.set("vcan0")
+            can_channel_combo.config(state="normal")
+
+def on_interface_changed(event=None):
+    refresh_can_channel_options()
+
+can_interface_combo.bind("<<ComboboxSelected>>", on_interface_changed)
+refresh_can_channel_options()
+
+def connect_can():
+    global can_bus, can_notifier
+    try:
+        if can_notifier:
+            can_notifier.stop()
+            can_notifier = None
+        if can_bus:
+            can_bus.shutdown()
+            can_bus = None
+    except Exception:
+        pass
+
+    iface = can_interface_var.get()
+    if iface == "socketcan (disabled)":
+        iface = "socketcan"
+    chan = can_channel_var.get().strip()
+
+    try:
+        if iface == "canalystii":
+            channel_num = int(chan) if chan else 0
+            can_bus = can.Bus(interface="canalystii", channel=channel_num, device=0, bitrate=1000000)
+        elif iface == "slcan":
+            if not chan:
+                raise ValueError("COM port required for slcan")
+            can_bus = can.Bus(bustype="slcan", channel=chan, bitrate=1000000)
+        else:
+            if platform.system() == "Windows":
+                raise ValueError("socketcan is not available on Windows")
+            channel_name = chan or "vcan0"
+            can_bus = can.Bus(channel=channel_name, interface="socketcan")
+
+        can_notifier = Notifier(can_bus, [CANMessageListener()], timeout=1)
+        print("CAN interface ready.")
+    except Exception as e:
+        print(f"CAN init error: {e}")
+
+def connect_can_threaded():
+    threading.Thread(target=connect_can, daemon=True).start()
+
+connect_btn = tk.Button(bottom_bar, text="Connect", command=connect_can_threaded)
+connect_btn.pack(side="left", padx=10)
 
 heartbeat_label = tk.Label(root, text=heartbeat_status_text, anchor="w")
 heartbeat_label.pack(fill="x", padx=10, pady=(0, 5))
@@ -566,6 +719,7 @@ def toggle_hex():
     show_hex = not show_hex
     hex_btn.config(text="Show Decimal" if show_hex else "Show Hex")
     refresh_table_named()
+    save_config()
 
 
 def copy_selection(event=None):
@@ -580,6 +734,70 @@ def close_all_decode_windows():
         if win.winfo_exists():
             win.destroy()
         decode_windows.pop(msg_id, None)
+
+def clear_all_messages():
+    can_messages.clear()
+    last_updated.clear()
+    tree_items.clear()
+    for item in tree.get_children():
+        tree.delete(item)
+
+def clear_selected_line():
+    selection = tree.selection()
+    if not selection:
+        return
+    item_id = selection[0]
+    if tree.parent(item_id) == "":
+        # Root device group selected
+        try:
+            device_type, manufacturer, device_number = map(int, item_id.split("_"))
+        except Exception:
+            return
+        msg_ids = [
+            msg_id for msg_id, entry in can_messages.items()
+            if entry['device_type'] == device_type
+            and entry['manufacturer'] == manufacturer
+            and entry['device_number'] == device_number
+        ]
+        for msg_id in msg_ids:
+            can_messages.pop(msg_id, None)
+            last_updated.pop(msg_id, None)
+            tree_items.pop(msg_id, None)
+        if tree.exists(item_id):
+            tree.delete(item_id)
+    else:
+        # Leaf row selected
+        try:
+            msg_id = int(item_id.split("_")[-1], 16)
+        except ValueError:
+            return
+        parent = tree.parent(item_id) if tree.exists(item_id) else ""
+        can_messages.pop(msg_id, None)
+        last_updated.pop(msg_id, None)
+        tree_items.pop(msg_id, None)
+        if tree.exists(item_id):
+            tree.delete(item_id)
+        if parent and not tree.get_children(parent):
+            if tree.exists(parent):
+                tree.delete(parent)
+
+def collapse_all_groups():
+    for item in tree.get_children():
+        tree.item(item, open=False)
+
+def clear_inactive_messages():
+    now = time.time()
+    stale_ids = [msg_id for msg_id, ts in last_updated.items() if (now - ts) > 1.0]
+    for msg_id in stale_ids:
+        last_updated.pop(msg_id, None)
+        entry = can_messages.pop(msg_id, None)
+        iid = tree_items.pop(msg_id, None)
+        if iid and tree.exists(iid):
+            tree.delete(iid)
+        if entry:
+            parent_key = f"{entry['device_type']}_{entry['manufacturer']}_{entry['device_number']}"
+            if tree.exists(parent_key) and not tree.get_children(parent_key):
+                tree.delete(parent_key)
 
 
 tree.bind("<Control-c>", copy_selection)
@@ -729,17 +947,5 @@ tree.bind("<Double-1>", open_decode_window)
 
 
 # --- Start CAN Listener ---
-def start_can():
-    try:
-        bus = can.Bus(interface='canalystii', channel=0, device=0, bitrate=1000000)  # canalystii
-        # bus = can.Bus(interface='gs_usb', channel=0, bitrate=1000000)  # Canable
-        # bus = can.Bus(bustype='slcan', channel='COM8', bitrate=1000000)
-
-        Notifier(bus, [CANMessageListener()], timeout=1)
-        print("CAN interface ready.")
-    except Exception as e:
-        print(f"CAN init error: {e}")
-
-
-threading.Thread(target=start_can, daemon=True).start()
+connect_can_threaded()
 root.mainloop()
