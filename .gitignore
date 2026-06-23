@@ -18,3 +18,4 @@ pcb/CAD-Resources/~$demo_backplate.SLDDRW
 *.pyd
 /scripts/CANdbgV2/frame-json/*.json
 /scripts/CANdbgV2/__pycache__
+/.arduino-build

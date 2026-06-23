@@ -17,6 +17,8 @@ import edu.wpi.first.wpilibj.Timer;
 import java.util.concurrent.ThreadLocalRandom;
 import edu.wpi.first.hal.LEDJNI; // NEW: radio LED control
 
+import au.grapplerobotics.CanBridge;
+
 public class Robot extends TimedRobot {
   // ----------------------------
   // Addressable LED (your class)
@@ -72,9 +74,12 @@ public class Robot extends TimedRobot {
   // NEW: radio LED state mirror (0=off, 1=on)
   private int radioLEDState = 0;
 
+  
+
+
   @Override
   public void robotInit() {
-
+    CanBridge.runTCP();
     m_motor = new TalonFX(0);
 
     // ---- Addressable LEDs (existing UI) ----
