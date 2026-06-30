@@ -1,0 +1,192 @@
+package frc.robot.drivers;
+
+import org.wpilib.hardware.bus.CAN;
+import org.wpilib.hardware.hal.can.CANReceiveMessage;
+
+/**
+ * ESP32 FRC-CAN helper
+ *
+ * FRC fields are implied by WPILib's CAN class (team manufacturer/type). We
+ * keep the same simple ctor style as your addressableLEDCAN: new CAN(busId, deviceNumber).
+ *
+ * Protocol:
+ *  RIO -> ESP32
+ *    0x185 : [R,G,B,relay,0,0,0,0]
+ *    0x186 : [software_ver, uptime_lo, uptime_hi, 0,0,0,0,0]
+ *  ESP32 -> RIO
+ *    0x195 : [ain_lo,ain_hi,btnA,btnB,0,0,0,0]
+ *    0x196 : [reset_device,0,0,0,0,0,0,0]
+ */
+public class imesp32demofw implements AutoCloseable {
+  // API IDs
+  public static final int API_TX_CONTROL = 0x185; // R,G,B,relay
+  public static final int API_TX_STATUS  = 0x186; // sw ver + uptime
+  public static final int API_RX_INPUTS  = 0x195; // analog + buttons
+  public static final int API_RX_RESET   = 0x196; // reset flag (from ESP)
+
+  private final CAN can;
+  private final int deviceNumber;
+  private final int busId;
+  private int lastSentR = -1;
+  private int lastSentG = -1;
+  private int lastSentB = -1;
+  private boolean lastSentRelay = false;
+  private int analogRaw = -1;
+  private boolean buttonAReleased = true;
+  private boolean buttonBReleased = true;
+  private double inputsLastUpdateS = 0.0;
+  private int lastResetFlag = 0;
+
+  public imesp32demofw(int deviceNumber, int busId) {
+    if (deviceNumber < 0 || deviceNumber > 63) {
+      throw new IllegalArgumentException("deviceNumber must be 0..63");
+    }
+    this.deviceNumber = deviceNumber;
+    this.busId = busId;
+    this.can = new CAN(busId, deviceNumber);
+  }
+
+  public int getDeviceNumber() { return deviceNumber; }
+  public int getBusId() { return busId; }
+
+  // ----------------- TX -----------------
+
+  /** Send only when the RGB/relay state changes. */
+  public void setOutputs(int r, int g, int b, boolean relay) {
+    if (r == lastSentR && g == lastSentG && b == lastSentB && relay == lastSentRelay) {
+      return;
+    }
+
+    sendRgbRelay(r, g, b, relay);
+    lastSentR = r;
+    lastSentG = g;
+    lastSentB = b;
+    lastSentRelay = relay;
+  }
+
+  /** Send 0x185: RGB (0..255) + relay (0/1). */
+  public void sendRgbRelay(int r, int g, int b, boolean relay) {
+    byte[] data = new byte[8];
+    data[0] = (byte) (r & 0xFF);
+    data[1] = (byte) (g & 0xFF);
+    data[2] = (byte) (b & 0xFF);
+    data[3] = (byte) (relay ? 1 : 0);
+    try {
+      can.writePacket(API_TX_CONTROL, data, data.length, 0);
+    } catch (Exception e) {
+      System.err.println("[imesp32demofw] sendRgbRelay failed: " + e.getMessage());
+    }
+  }
+
+  /** Send 0x186: software version (0..255) + uptime seconds (16-bit LE, saturating). */
+  public void sendStatus(int softwareVer, int uptimeSeconds) {
+    int up = Math.max(0, Math.min(0xFFFF, uptimeSeconds));
+    byte[] data = new byte[8];
+    data[0] = (byte) (softwareVer & 0xFF);
+    data[1] = (byte) (up & 0xFF);         // lo
+    data[2] = (byte) ((up >>> 8) & 0xFF); // hi
+    try {
+      can.writePacket(API_TX_STATUS, data, data.length, 0);
+    } catch (Exception e) {
+      System.err.println("[imesp32demofw] sendStatus failed: " + e.getMessage());
+    }
+  }
+
+  /** Optional: ask the ESP32 to reboot (it reboots if it receives 0x196 with data[0]==1). */
+  public void requestReset() {
+    byte[] data = new byte[8];
+    data[0] = 1;
+    try {
+      can.writePacket(API_RX_RESET, data, data.length, 0);
+    } catch (Exception e) {
+      System.err.println("[imesp32demofw] requestReset failed: " + e.getMessage());
+    }
+  }
+
+  // ----------------- RX -----------------
+
+  /** Poll and cache the latest input/reset frames. */
+  public void poll(double timestampSeconds) {
+    CANReceiveMessage inputsFrame;
+    while ((inputsFrame = readInputsNewFrame()) != null) {
+      if (inputsFrame.length >= 4) {
+        analogRaw = parseAnalogFrom195(inputsFrame);
+        buttonAReleased = parseBtnAFrom195(inputsFrame);
+        buttonBReleased = parseBtnBFrom195(inputsFrame);
+        inputsLastUpdateS = timestampSeconds;
+      }
+    }
+
+    CANReceiveMessage resetFrame;
+    while ((resetFrame = readResetNewFrame()) != null) {
+      lastResetFlag = parseResetFlagFrom196(resetFrame);
+    }
+  }
+
+  public int getAnalogRaw() { return analogRaw; }
+
+  public boolean isButtonAReleased() { return buttonAReleased; }
+
+  public boolean isButtonBReleased() { return buttonBReleased; }
+
+  public double getInputsAgeMs(double timestampSeconds) {
+    return (timestampSeconds - inputsLastUpdateS) * 1000.0;
+  }
+
+  public boolean isInputsStale(double timestampSeconds, double staleThresholdMs) {
+    return getInputsAgeMs(timestampSeconds) > staleThresholdMs;
+  }
+
+  public int getLastResetFlag() { return lastResetFlag; }
+
+  /** Read NEW 0x195 (analog & buttons), once per new frame. Returns null if none. */
+  private CANReceiveMessage readInputsNewFrame() {
+    CANReceiveMessage d = new CANReceiveMessage();
+    if (can.readPacketNew(API_RX_INPUTS, d)) {
+      return d;
+    }
+    return null;
+  }
+
+  /** Read NEW 0x196 (reset flag), once per new frame. Returns null if none. */
+  private CANReceiveMessage readResetNewFrame() {
+    CANReceiveMessage d = new CANReceiveMessage();
+    if (can.readPacketNew(API_RX_RESET, d)) {
+      return d;
+    }
+    return null;
+  }
+
+  // ----------------- Parsers -----------------
+
+  /** 0..4095; -1 if invalid. */
+  private static int parseAnalogFrom195(CANReceiveMessage d) {
+    if (d == null || d.length < 2) return -1;
+    int lo = d.data[0] & 0xFF;
+    int hi = d.data[1] & 0xFF;
+    return (hi << 8) | lo;
+  }
+
+  /** true = released (INPUT_PULLUP), false = pressed. */
+  private static boolean parseBtnAFrom195(CANReceiveMessage d) {
+    if (d == null || d.length < 3) return false;
+    return (d.data[2] & 0xFF) != 0;
+  }
+
+  /** true = released (INPUT_PULLUP), false = pressed. */
+  private static boolean parseBtnBFrom195(CANReceiveMessage d) {
+    if (d == null || d.length < 4) return false;
+    return (d.data[3] & 0xFF) != 0;
+  }
+
+  /** 0 or 1 from 0x196. */
+  private static int parseResetFlagFrom196(CANReceiveMessage d) {
+    if (d == null || d.length < 1) return 0;
+    return d.data[0] & 0xFF;
+  }
+
+  @Override
+  public void close() {
+    can.close();
+  }
+}

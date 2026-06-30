@@ -1,0 +1,163 @@
+{
+    "frcJsonSpecVersion": "1.0.0",
+    "framesVersion": "0.1.0",
+    "deviceInfo": {
+        "deviceType": "Miscellaneous",
+        "deviceTypeNumber": 10,
+        "manufacturer": "Team Use",
+        "manufacturerNumber": 8,
+        "name": "Full Demo FW C3"
+    },
+    "periodicFrames": {
+        "INPUT_STATUS": {
+            "name": "Input Status",
+            "description": "ESP32-C3 to host frame with fake 12-bit analog value and button states",
+            "apiClass": 25,
+            "apiIndex": 5,
+            "lengthBytes": 8,
+            "signals": {
+                "ANALOG_BITS": {
+                    "type": "uint",
+                    "name": "Analog Bits",
+                    "description": "Random 12-bit test value carried in bytes 0-1",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 16,
+                    "decodeScaleFactor": 1,
+                    "offset": 0,
+                    "encodedMin": 0,
+                    "encodedMax": 4095
+                },
+                "BUTTON_A_RELEASED": {
+                    "type": "boolean",
+                    "name": "Button A Released",
+                    "description": "BOOT button on GPIO0; 1 = released, 0 = pressed",
+                    "bitPosition": 16,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1,
+                    "offset": 0
+                },
+                "BUTTON_B_RELEASED": {
+                    "type": "boolean",
+                    "name": "Button B Released",
+                    "description": "Always true on this board because Button B is unavailable",
+                    "bitPosition": 24,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1,
+                    "offset": 0
+                }
+            }
+        }
+    },
+    "controlFrames": {
+        "LED_CONTROL": {
+            "name": "LED Control",
+            "description": "Host to ESP32-C3 RGB command plus compatibility aux byte",
+            "apiClass": 24,
+            "apiIndex": 5,
+            "lengthBytes": 8,
+            "signals": {
+                "RED": {
+                    "type": "uint",
+                    "name": "Red",
+                    "description": "WS2812 red channel",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 1,
+                    "offset": 0,
+                    "encodedMin": 0,
+                    "encodedMax": 255
+                },
+                "GREEN": {
+                    "type": "uint",
+                    "name": "Green",
+                    "description": "WS2812 green channel",
+                    "bitPosition": 8,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 1,
+                    "offset": 0,
+                    "encodedMin": 0,
+                    "encodedMax": 255
+                },
+                "BLUE": {
+                    "type": "uint",
+                    "name": "Blue",
+                    "description": "WS2812 blue channel",
+                    "bitPosition": 16,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 1,
+                    "offset": 0,
+                    "encodedMin": 0,
+                    "encodedMax": 255
+                },
+                "AUX_FLAG": {
+                    "type": "boolean",
+                    "name": "Aux Flag",
+                    "description": "Accepted for compatibility but ignored by the C3 hardware",
+                    "bitPosition": 24,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1,
+                    "offset": 0
+                }
+            }
+        },
+        "RIO_STATUS": {
+            "name": "RIO Status",
+            "description": "Host to ESP32-C3 software version and uptime seconds",
+            "apiClass": 24,
+            "apiIndex": 6,
+            "lengthBytes": 8,
+            "signals": {
+                "SOFTWARE_VERSION": {
+                    "type": "uint",
+                    "name": "Software Version",
+                    "description": "Version byte sent by the host",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 8,
+                    "decodeScaleFactor": 1,
+                    "offset": 0,
+                    "encodedMin": 0,
+                    "encodedMax": 255
+                },
+                "UPTIME_SECONDS": {
+                    "type": "uint",
+                    "name": "Uptime Seconds",
+                    "description": "Host uptime in seconds, little-endian, saturating at 65535",
+                    "bitPosition": 8,
+                    "isBigEndian": false,
+                    "lengthBits": 16,
+                    "decodeScaleFactor": 1,
+                    "offset": 0,
+                    "encodedMin": 0,
+                    "encodedMax": 65535
+                }
+            }
+        },
+        "RESET_COMPAT": {
+            "name": "Reset Compat",
+            "description": "Bit 0 requests reboot when sent to the device; the device also transmits this frame periodically with bit 0 cleared",
+            "apiClass": 25,
+            "apiIndex": 6,
+            "lengthBytes": 8,
+            "signals": {
+                "REBOOT_REQUEST": {
+                    "type": "boolean",
+                    "name": "Reboot Request",
+                    "description": "True reboots the device when received; false is the normal periodic compatibility value",
+                    "bitPosition": 0,
+                    "isBigEndian": false,
+                    "lengthBits": 1,
+                    "decodeScaleFactor": 1,
+                    "offset": 0
+                }
+            }
+        }
+    }
+}
