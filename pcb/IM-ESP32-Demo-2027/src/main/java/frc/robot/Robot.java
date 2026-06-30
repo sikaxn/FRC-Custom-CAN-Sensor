@@ -60,12 +60,21 @@ public class Robot extends TimedRobot {
   private NetworkTableEntry ledOnOffEntry;
   private NetworkTableEntry ledParam0Entry;
   private NetworkTableEntry ledParam1Entry;
+  private NetworkTableEntry ledTotalPixelsEntry;
+  private NetworkTableEntry ledSecondaryREntry;
+  private NetworkTableEntry ledSecondaryGEntry;
+  private NetworkTableEntry ledSecondaryBEntry;
+  private NetworkTableEntry ledSecondaryBrightnessEntry;
+  private NetworkTableEntry ledSecondaryEnableEntry;
   private NetworkTableEntry ledPixelIndexEntry;
   private NetworkTableEntry ledPixelREntry;
   private NetworkTableEntry ledPixelGEntry;
   private NetworkTableEntry ledPixelBEntry;
   private NetworkTableEntry ledPixelBrightnessEntry;
   private NetworkTableEntry ledWritePixelEntry;
+  private NetworkTableEntry ledFeedbackModeEntry;
+  private NetworkTableEntry ledFeedbackLedCountEntry;
+  private NetworkTableEntry ledOnlineEntry;
 
   private NetworkTableEntry espREntry;
   private NetworkTableEntry espGEntry;
@@ -80,6 +89,7 @@ public class Robot extends TimedRobot {
   private NetworkTableEntry espResetFlagSeenEntry;
   private NetworkTableEntry espInputsAgeMsEntry;
   private NetworkTableEntry espInputsStaleEntry;
+  private NetworkTableEntry espOnlineEntry;
   private NetworkTableEntry espRadioLEDStateEntry;
   private NetworkTableEntry espCanBusIdEntry;
 
@@ -121,12 +131,21 @@ public class Robot extends TimedRobot {
     ledOnOffEntry = ledTable.getEntry("OnOff");
     ledParam0Entry = ledTable.getEntry("Param0");
     ledParam1Entry = ledTable.getEntry("Param1");
+    ledTotalPixelsEntry = ledTable.getEntry("TotalPixels");
+    ledSecondaryREntry = ledTable.getEntry("SecondaryR");
+    ledSecondaryGEntry = ledTable.getEntry("SecondaryG");
+    ledSecondaryBEntry = ledTable.getEntry("SecondaryB");
+    ledSecondaryBrightnessEntry = ledTable.getEntry("SecondaryBrightness");
+    ledSecondaryEnableEntry = ledTable.getEntry("SecondaryEnable");
     ledPixelIndexEntry = ledTable.getEntry("PixelIndex");
     ledPixelREntry = ledTable.getEntry("PixelR");
     ledPixelGEntry = ledTable.getEntry("PixelG");
     ledPixelBEntry = ledTable.getEntry("PixelB");
     ledPixelBrightnessEntry = ledTable.getEntry("PixelBrightness");
     ledWritePixelEntry = ledTable.getEntry("WritePixel");
+    ledFeedbackModeEntry = ledTable.getEntry("FeedbackMode");
+    ledFeedbackLedCountEntry = ledTable.getEntry("FeedbackLedCount");
+    ledOnlineEntry = ledTable.getEntry("Online");
 
     ledModeEntry.setDefaultDouble(1);
     ledREntry.setDefaultDouble(255);
@@ -136,12 +155,21 @@ public class Robot extends TimedRobot {
     ledOnOffEntry.setDefaultDouble(1);
     ledParam0Entry.setDefaultDouble(20);
     ledParam1Entry.setDefaultDouble(20);
+    ledTotalPixelsEntry.setDefaultDouble(150);
+    ledSecondaryREntry.setDefaultDouble(0);
+    ledSecondaryGEntry.setDefaultDouble(0);
+    ledSecondaryBEntry.setDefaultDouble(0);
+    ledSecondaryBrightnessEntry.setDefaultDouble(0);
+    ledSecondaryEnableEntry.setDefaultBoolean(false);
     ledPixelIndexEntry.setDefaultDouble(0);
     ledPixelREntry.setDefaultDouble(255);
     ledPixelGEntry.setDefaultDouble(0);
     ledPixelBEntry.setDefaultDouble(0);
     ledPixelBrightnessEntry.setDefaultDouble(128);
     ledWritePixelEntry.setDefaultBoolean(false);
+    ledFeedbackModeEntry.setDouble(-1);
+    ledFeedbackLedCountEntry.setDouble(-1);
+    ledOnlineEntry.setBoolean(false);
 
     espREntry = espTable.getEntry("R");
     espGEntry = espTable.getEntry("G");
@@ -156,6 +184,7 @@ public class Robot extends TimedRobot {
     espResetFlagSeenEntry = espTable.getEntry("ResetFlagSeen");
     espInputsAgeMsEntry = espTable.getEntry("InputsAgeMs");
     espInputsStaleEntry = espTable.getEntry("InputsStale");
+    espOnlineEntry = espTable.getEntry("Online");
     espRadioLEDStateEntry = espTable.getEntry("RadioLEDState");
     espCanBusIdEntry = espTable.getEntry("CANBusId");
 
@@ -172,6 +201,7 @@ public class Robot extends TimedRobot {
     espResetFlagSeenEntry.setDouble(0);
     espInputsAgeMsEntry.setDouble(-1);
     espInputsStaleEntry.setBoolean(true);
+    espOnlineEntry.setBoolean(false);
     espRadioLEDStateEntry.setDouble(radioLEDState);
     espCanBusIdEntry.setInteger(SYSTEMCORE_CAN_BUS);
 
@@ -216,6 +246,16 @@ public class Robot extends TimedRobot {
     int onOff = getInt(ledOnOffEntry, 1);
     int param0 = getInt(ledParam0Entry, 20);
     int param1 = getInt(ledParam1Entry, 20);
+    int totalPixels = getInt(ledTotalPixelsEntry, 150);
+    int secondaryR = getInt(ledSecondaryREntry, 0);
+    int secondaryG = getInt(ledSecondaryGEntry, 0);
+    int secondaryB = getInt(ledSecondaryBEntry, 0);
+    int secondaryBrightness = getInt(ledSecondaryBrightnessEntry, 0);
+    int secondaryEnable = ledSecondaryEnableEntry.getBoolean(false) ? 1 : 0;
+
+    leds.setTotalPixel(totalPixels);
+    leds.setSecondaryColor(
+        secondaryEnable, secondaryR, secondaryG, secondaryB, secondaryBrightness);
 
     boolean changed =
         mode != lastMode
@@ -251,6 +291,10 @@ public class Robot extends TimedRobot {
       ledWritePixelEntry.setBoolean(false);
     }
     lastWritePixel = writePixel;
+
+    ledFeedbackModeEntry.setDouble(leds.getFeedbackMode());
+    ledFeedbackLedCountEntry.setDouble(leds.getFeedbackLedCount());
+    ledOnlineEntry.setBoolean(leds.getIsESPOnline());
 
     boolean rainbowEnabled = espRainbowEntry.getBoolean(false);
     int er = getInt(espREntry, 0);
@@ -309,6 +353,7 @@ public class Robot extends TimedRobot {
     double ageMs = esp32.getInputsAgeMs(nowS);
     espInputsAgeMsEntry.setDouble(ageMs);
     espInputsStaleEntry.setBoolean(esp32.isInputsStale(nowS, ESP_INPUTS_STALE_MS));
+    espOnlineEntry.setBoolean(esp32.getIsESPOnline());
     espResetFlagSeenEntry.setDouble(esp32.getLastResetFlag());
 
     /*

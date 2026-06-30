@@ -21,8 +21,12 @@ import org.wpilib.hardware.hal.can.CANReceiveMessage;
  *    0x196 : [reset_device,0,0,0,0,0,0,0]
  */
 public class imesp32demofw implements AutoCloseable {
-  private static final int OUTPUT_PERIOD_MS = 20;
+  private static final int OUTPUT_TASK_PERIOD_MS = 20;
+  private static final long ONLINE_TX_PERIOD_MS = 20L;
+  private static final long OFFLINE_TX_PERIOD_MS = 250L;
+  private static final long MANUAL_KEEPALIVE_PERIOD_MS = 250L;
   private static final double DEFAULT_RAINBOW_PERIOD_S = 3.0;
+  private static final double ESP_TIMEOUT_S = 1.0;
 
   // API IDs
   public static final int API_TX_CONTROL = 0x185; // R,G,B,relay
@@ -45,10 +49,20 @@ public class imesp32demofw implements AutoCloseable {
   private int currentOutputR = 0;
   private int currentOutputG = 0;
   private int currentOutputB = 0;
+  private int lastSentR = -1;
+  private int lastSentG = -1;
+  private int lastSentB = -1;
+  private boolean lastSentRelay = false;
+  private long lastTxAttemptTimeMs = 0L;
+  private long lastTxSuccessTimeMs = 0L;
+  private boolean canWriteError = false;
   private int analogRaw = -1;
   private boolean buttonAReleased = true;
   private boolean buttonBReleased = true;
   private double inputsLastUpdateS = 0.0;
+  private double lastAnyRxUpdateS = 0.0;
+  private boolean hasSeenAnyRxFrame = false;
+  private boolean espOnline = false;
   private int lastResetFlag = 0;
 
   public imesp32demofw(int deviceNumber, int busId) {
@@ -110,7 +124,7 @@ public class imesp32demofw implements AutoCloseable {
   }
 
   /** Send 0x185: RGB (0..255) + relay (0/1). */
-  public void sendRgbRelay(int r, int g, int b, boolean relay) {
+  public boolean sendRgbRelay(int r, int g, int b, boolean relay) {
     byte[] data = new byte[8];
     data[0] = (byte) (r & 0xFF);
     data[1] = (byte) (g & 0xFF);
@@ -118,8 +132,20 @@ public class imesp32demofw implements AutoCloseable {
     data[3] = (byte) (relay ? 1 : 0);
     try {
       can.writePacket(API_TX_CONTROL, data, data.length, 0);
+      if (canWriteError) {
+        System.out.println("[imesp32demofw] CAN bus recovered.");
+        canWriteError = false;
+      }
+      return true;
     } catch (Exception e) {
-      System.err.println("[imesp32demofw] sendRgbRelay failed: " + e.getMessage());
+      String message = e.getMessage();
+      if (!canWriteError && message != null && message.contains("Socket Buffer full")) {
+        System.out.println("[imesp32demofw] CAN socket buffer full while sending RGB.");
+      } else if (!canWriteError) {
+        System.out.println("[imesp32demofw] sendRgbRelay failed: " + e.getMessage());
+      }
+      canWriteError = true;
+      return false;
     }
   }
 
@@ -152,6 +178,8 @@ public class imesp32demofw implements AutoCloseable {
 
   /** Poll and cache the latest input/reset frames. */
   public void poll(double timestampSeconds) {
+    boolean gotAnyFrame = false;
+
     CANReceiveMessage inputsFrame;
     while ((inputsFrame = readInputsNewFrame()) != null) {
       if (inputsFrame.length >= 4) {
@@ -159,12 +187,30 @@ public class imesp32demofw implements AutoCloseable {
         buttonAReleased = parseBtnAFrom195(inputsFrame);
         buttonBReleased = parseBtnBFrom195(inputsFrame);
         inputsLastUpdateS = timestampSeconds;
+        hasSeenAnyRxFrame = true;
+        gotAnyFrame = true;
       }
     }
 
     CANReceiveMessage resetFrame;
     while ((resetFrame = readResetNewFrame()) != null) {
       lastResetFlag = parseResetFlagFrom196(resetFrame);
+      hasSeenAnyRxFrame = true;
+      gotAnyFrame = true;
+    }
+
+    if (gotAnyFrame) {
+      lastAnyRxUpdateS = timestampSeconds;
+    }
+
+    boolean newOnline = hasSeenAnyRxFrame && (timestampSeconds - lastAnyRxUpdateS) <= ESP_TIMEOUT_S;
+    if (newOnline != espOnline) {
+      espOnline = newOnline;
+      if (espOnline) {
+        System.out.println("[imesp32demofw] ESP32 reconnected.");
+      } else {
+        System.out.println("[imesp32demofw] ESP32 offline.");
+      }
     }
   }
 
@@ -181,6 +227,8 @@ public class imesp32demofw implements AutoCloseable {
   public boolean isInputsStale(double timestampSeconds, double staleThresholdMs) {
     return getInputsAgeMs(timestampSeconds) > staleThresholdMs;
   }
+
+  public boolean getIsESPOnline() { return espOnline; }
 
   public int getLastResetFlag() { return lastResetFlag; }
 
@@ -245,11 +293,13 @@ public class imesp32demofw implements AutoCloseable {
             int g;
             int b;
             boolean relay;
+            boolean rainbowActive;
 
             synchronized (outputLock) {
               relay = manualRelay;
+              rainbowActive = rainbowEnabled;
 
-              if (rainbowEnabled) {
+              if (rainbowActive) {
                 int[] rgb =
                     getRainbowRgb(
                         (System.nanoTime() - rainbowStartTimeNanos) * 1.0e-9, rainbowPeriodSeconds);
@@ -267,11 +317,34 @@ public class imesp32demofw implements AutoCloseable {
               currentOutputB = b;
             }
 
-            sendRgbRelay(r, g, b, relay);
+            long nowMs = System.currentTimeMillis();
+            boolean changed =
+                r != lastSentR || g != lastSentG || b != lastSentB || relay != lastSentRelay;
+            long minIntervalMs = espOnline ? ONLINE_TX_PERIOD_MS : OFFLINE_TX_PERIOD_MS;
+            boolean periodicRetryDue = (nowMs - lastTxAttemptTimeMs) >= minIntervalMs;
+            boolean manualKeepaliveDue =
+                !rainbowActive && (nowMs - lastTxSuccessTimeMs) >= MANUAL_KEEPALIVE_PERIOD_MS;
+            boolean shouldSend =
+                (changed && periodicRetryDue)
+                    || (rainbowActive && periodicRetryDue)
+                    || (manualKeepaliveDue && periodicRetryDue);
+
+            if (!shouldSend) {
+              return;
+            }
+
+            lastTxAttemptTimeMs = nowMs;
+            if (sendRgbRelay(r, g, b, relay)) {
+              lastSentR = r;
+              lastSentG = g;
+              lastSentB = b;
+              lastSentRelay = relay;
+              lastTxSuccessTimeMs = nowMs;
+            }
           }
         },
         0,
-        OUTPUT_PERIOD_MS);
+        OUTPUT_TASK_PERIOD_MS);
   }
 
   private static int clampToByte(int value) {

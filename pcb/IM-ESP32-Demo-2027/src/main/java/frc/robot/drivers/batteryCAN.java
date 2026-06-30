@@ -2,185 +2,318 @@ package frc.robot.drivers;
 
 import org.wpilib.hardware.bus.CAN;
 import org.wpilib.hardware.hal.can.CANReceiveMessage;
-import org.wpilib.hardware.power.PowerDistribution;
 import org.wpilib.system.RobotController;
+import org.wpilib.system.Timer;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.util.Timer;
 import java.util.TimerTask;
-import java.time.ZoneOffset;
 
+/**
+ * Battery CAN driver for the battery + LED combo firmware.
+ *
+ * ESP32 -> RIO:
+ *   0x131: Battery Serial (8 bytes)
+ *   0x132: Metadata (yy mm dd HH mm cycle note)
+ *   0x133: System State (espState, pdType, readerLock, authFail, writeCount)
+ *
+ * RIO -> ESP32:
+ *   0x135: [voltage*10, overrideState, useRIOEnergy, energyMSB, energyLSB, reboot, 0, 0]
+ */
+public class batteryCAN implements AutoCloseable {
+  private static final int API_ESP_SN = 0x131;
+  private static final int API_ESP_META = 0x132;
+  private static final int API_ESP_STATE = 0x133;
+  private static final int API_RIO_CTRL = 0x135;
 
-public class batteryCAN {
-    private final CAN can;
-    private final PowerDistribution pdh;
-    private final int deviceNumber;
-    private final int busId;
+  private static final double SEND_INTERVAL_S = 0.050;
+  private static final long SEND_INTERVAL_MS = 50L;
+  private static final double ESP_TIMEOUT_S = 1.0;
 
-    private final int apiIdMeta1 = 0x131;
-    private final int apiIdMeta2 = 0x132;
-    private final int apiIdMeta3 = 0x133;
+  private final CAN can;
+  private final int deviceNumber;
+  private final int busId;
+  private final java.util.Timer updateTimer;
 
-    private final int apiIdStatus1 = 0x135;
-    private final int apiIdStatus2 = 0x136;
+  private String serial = "";
+  private int year = 0;
+  private int month = 0;
+  private int day = 0;
+  private int hour = 0;
+  private int minute = 0;
+  private int cycleCount = 0;
+  private int note = 0;
+  private int espState = 0;
+  private int pdType = 0;
+  private boolean readerDetected = false;
+  private int authFailCount = 0;
+  private int writeCount = 0;
+  private boolean valid = false;
+  private double lastUpdateSeconds = 0.0;
 
-    private Timer pollTimer;
-    private Timer sendTimer;
+  private int energyKJ = 0;
+  private boolean useRIOEnergy = false;
+  private int overrideState = 0;
+  private boolean espRebootRequested = false;
+  private double lastRebootRequestTimeSeconds = 0.0;
 
-    public String serialNumber = "";
-    public int firstUseYear = 0;
-    public int firstUseMonth = 0;
-    public int firstUseDay = 0;
-    public int cycleCount = 0;
-    public int note = 0;
-    public String noteText = "Unknown";
-    public boolean valid = false;
-    public int firstUseHour = 0;
-    public int firstUseMinute = 0;
-    public int firstUseSecond = 0;
-    public volatile String lastTimeVoltagePayload = "";
-    public volatile String lastEnergyPayload = "";
+  private boolean espOnline = false;
+  private boolean canWriteError = false;
 
-
-    public batteryCAN(int deviceNumber, int busId) {
-        this.deviceNumber = deviceNumber;
-        this.busId = busId;
-        can = new CAN(busId, deviceNumber);
-        pdh = new PowerDistribution(busId);
-        startPolling();
-        startSending();
+  public batteryCAN(int deviceNumber, int busId) {
+    if (deviceNumber < 0 || deviceNumber > 63) {
+      throw new IllegalArgumentException("deviceNumber must be 0..63");
     }
 
-    private void startPolling() {
-        pollTimer = new Timer("BatteryCANReader", true);
-        pollTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                try {
-                    CANReceiveMessage rx1 = new CANReceiveMessage();
-                    CANReceiveMessage rx2 = new CANReceiveMessage();
-                    CANReceiveMessage rx3 = new CANReceiveMessage();
+    this.deviceNumber = deviceNumber;
+    this.busId = busId;
+    this.can = new CAN(busId, deviceNumber);
+    this.updateTimer = new java.util.Timer("BatteryCANUpdate", true);
+    startUpdateTask();
+  }
 
-                    byte[] snPart1 = new byte[8];
-                    byte[] snPart2 = new byte[8];
+  public int getDeviceNumber() {
+    return deviceNumber;
+  }
 
-                    boolean got1 = can.readPacketLatest(apiIdMeta1, rx1) && rx1.length >= 1;
-                    boolean got2 = can.readPacketLatest(apiIdMeta2, rx2);
-                    boolean got3 = can.readPacketLatest(apiIdMeta3, rx3) && rx3.length >= 3;
+  public int getBusId() {
+    return busId;
+  }
 
-                    if (!got1 || !got2 || !got3) return;
+  public synchronized void setEnergyKJ(int value) {
+    energyKJ = clampToUnsignedShort(value);
+  }
 
-                    // Serial number
-                    System.arraycopy(rx1.data, 0, snPart1, 0, Math.min(rx1.length, 8));
-                    System.arraycopy(rx2.data, 0, snPart2, 0, Math.min(rx2.length, 8));
+  public synchronized void setEnergyKJAndSend(int value) {
+    energyKJ = clampToUnsignedShort(value);
+    useRIOEnergy = true;
+    sendControl();
+  }
 
-                    byte[] full = new byte[16];
-                    System.arraycopy(snPart1, 0, full, 0, 8);
-                    System.arraycopy(snPart2, 0, full, 8, 8);
+  public synchronized void setUseRIOEnergy(boolean value) {
+    useRIOEnergy = value;
+  }
 
-                    int len = 0;
-                    while (len < full.length && full[len] >= 32 && full[len] <= 126) len++;
-                    serialNumber = new String(full, 0, len, StandardCharsets.US_ASCII);
+  public synchronized void setOverrideState(int state) {
+    int newState = clampToByte(state);
+    if (overrideState == 0 && newState != 0) {
+      System.out.println(
+          "[batteryCAN] Dangerous debug override enabled. Prefer an ESP reboot when possible.");
+    }
+    overrideState = newState;
+  }
 
-                    // First use date (if valid)
-                    if (rx2.length >= 8) {
-                        // Correct: Year = (MSB << 8) | LSB
-                        int yearRaw = ((rx2.data[5] & 0xFF) << 8) | (rx2.data[6] & 0xFF);
-                        if (yearRaw >= 2000 && yearRaw <= 2100) {
-                            firstUseYear = yearRaw;
-                            firstUseMonth = rx2.data[4] & 0xFF;
-                            firstUseDay   = rx2.data[7] & 0xFF;
-                        }
-                        
-                    }
-                    
-           
-                    
+  public synchronized void requestReboot() {
+    double nowSeconds = Timer.getTimestamp();
+    if (!espRebootRequested && (nowSeconds - lastRebootRequestTimeSeconds) > 1.0) {
+      espRebootRequested = true;
+      lastRebootRequestTimeSeconds = nowSeconds;
+      System.out.println("[batteryCAN] ESP32 reboot requested.");
+    }
+  }
 
-                    // Cycle count and note
-                    cycleCount = ((rx3.data[0] & 0xFF) << 8) | (rx3.data[1] & 0xFF);
-                    note = rx3.data[2] & 0xFF;
-                    noteText = interpretNote(note);
+  public synchronized String getSerial() {
+    return serial;
+  }
 
-                    valid = true;
+  public synchronized int getCycleCount() {
+    return cycleCount;
+  }
 
-                } catch (Exception ignored) {
-                    // do not throw in timer
-                }
-            }
-        }, 0, 100);
+  public synchronized int getNote() {
+    if (!espOnline || serial.isEmpty()) {
+      return -1;
+    }
+    return note;
+  }
+
+  public synchronized int getESPState() {
+    return espState;
+  }
+
+  public synchronized int getPDType() {
+    return pdType;
+  }
+
+  public synchronized boolean isReaderDetected() {
+    return readerDetected;
+  }
+
+  public synchronized int getWriteFailCount() {
+    return authFailCount;
+  }
+
+  public synchronized int getWriteCount() {
+    return writeCount;
+  }
+
+  public synchronized boolean isValid() {
+    return valid;
+  }
+
+  public synchronized double getLastUpdate() {
+    return lastUpdateSeconds;
+  }
+
+  public synchronized String getFirstUseDateTime() {
+    return String.format("%04d-%02d-%02d %02d:%02d", year, month, day, hour, minute);
+  }
+
+  public synchronized boolean getIsESPOnline() {
+    return espOnline;
+  }
+
+  @Override
+  public void close() {
+    updateTimer.cancel();
+    can.close();
+  }
+
+  private void startUpdateTask() {
+    updateTimer.scheduleAtFixedRate(
+        new TimerTask() {
+          @Override
+          public void run() {
+            update();
+          }
+        },
+        0,
+        SEND_INTERVAL_MS);
+  }
+
+  private synchronized void update() {
+    double nowSeconds = Timer.getTimestamp();
+    boolean gotAnyFrame = false;
+
+    CANReceiveMessage frame;
+
+    while ((frame = readNewFrame(API_ESP_SN)) != null) {
+      parseSerial(frame);
+      gotAnyFrame = true;
     }
 
-private int tickCount = 0;
-
-private void startSending() {
-    sendTimer = new Timer("BatteryCANSend", true);
-    sendTimer.scheduleAtFixedRate(new TimerTask() {
-        @Override
-        public void run() {
-            try {
-                byte[] timeVoltage = buildTimeVoltagePayload();
-                byte[] energy = buildEnergyPayload();
-
-                can.writePacket(apiIdStatus1, timeVoltage, timeVoltage.length, 0);
-                can.writePacket(apiIdStatus2, energy, energy.length, 0);
-
-                lastTimeVoltagePayload = formatBytes(timeVoltage);
-                lastEnergyPayload = formatBytes(energy);
-
-            } catch (Exception ignored) {}
-        }
-    }, 0, 100);
-}
-
-
-    private byte[] buildTimeVoltagePayload() {
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        int voltageRaw = (int) (RobotController.getBatteryVoltage() * 10); // 0.1V precision
-
-        byte[] payload = new byte[8];
-        payload[0] = (byte) (now.getYear() - 2000);
-        payload[1] = (byte) now.getMonthValue();
-        payload[2] = (byte) now.getDayOfMonth();
-        payload[3] = (byte) now.getHour();
-        payload[4] = (byte) now.getMinute();
-        payload[5] = (byte) now.getSecond();
-        payload[6] = (byte) voltageRaw;
-        payload[7] = 0;
-        //stem.out.println(voltageRaw);
-        return payload;
+    while ((frame = readNewFrame(API_ESP_META)) != null) {
+      parseMeta(frame);
+      gotAnyFrame = true;
     }
 
-    private byte[] buildEnergyPayload() {
-        int energyRaw = (int) (pdh.getTotalEnergy() * 10); // 0.1J precision
-        return new byte[] {
-            (byte) ((energyRaw >> 8) & 0xFF),
-            (byte) (energyRaw & 0xFF)
-        };
+    while ((frame = readNewFrame(API_ESP_STATE)) != null) {
+      parseState(frame);
+      gotAnyFrame = true;
     }
 
-    private String interpretNote(int noteVal) {
-        return switch (noteVal) {
-            case 0 -> "Normal";
-            case 1 -> "Practice Only";
-            case 2 -> "Scrap";
-            case 3 -> "Other";
-            default -> "Unknown";
-        };
+    if (gotAnyFrame) {
+      lastUpdateSeconds = nowSeconds;
     }
 
-    public void stop() {
-        if (pollTimer != null) pollTimer.cancel();
-        if (sendTimer != null) sendTimer.cancel();
+    boolean newOnline = (nowSeconds - lastUpdateSeconds) <= ESP_TIMEOUT_S;
+    if (newOnline != espOnline) {
+      espOnline = newOnline;
+      if (espOnline) {
+        System.out.println("[batteryCAN] ESP32 reconnected.");
+      } else {
+        System.out.println("[batteryCAN] ESP32 offline.");
+      }
     }
 
-    private String formatBytes(byte[] data) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : data) {
-            sb.append((b & 0xFF)).append(" ");
-        }
-        return sb.toString().trim();
+    sendControl();
+  }
+
+  private CANReceiveMessage readNewFrame(int apiId) {
+    CANReceiveMessage frame = new CANReceiveMessage();
+    if (can.readPacketNew(apiId, frame)) {
+      return frame;
     }
-    
+    return null;
+  }
+
+  private void parseSerial(CANReceiveMessage frame) {
+    int length = 0;
+    while (length < frame.length && frame.data[length] != 0) {
+      length++;
+    }
+
+    synchronized (this) {
+      serial = new String(frame.data, 0, length, StandardCharsets.US_ASCII).trim();
+      valid = true;
+    }
+  }
+
+  private void parseMeta(CANReceiveMessage frame) {
+    if (frame.length < 6) {
+      return;
+    }
+
+    synchronized (this) {
+      year = 2000 + (frame.data[0] & 0xFF);
+      month = frame.data[1] & 0xFF;
+      day = frame.data[2] & 0xFF;
+      hour = frame.data[3] & 0xFF;
+      minute = frame.data[4] & 0xFF;
+      cycleCount = frame.data[5] & 0xFF;
+      note = frame.length > 6 ? frame.data[6] & 0xFF : 0;
+      valid = true;
+    }
+  }
+
+  private void parseState(CANReceiveMessage frame) {
+    if (frame.length < 3) {
+      return;
+    }
+
+    synchronized (this) {
+      espState = frame.data[0] & 0xFF;
+      pdType = frame.data[1] & 0xFF;
+      readerDetected = (frame.data[2] & 0xFF) != 0;
+      if (frame.length >= 5) {
+        authFailCount = ((frame.data[3] & 0xFF) << 8) | (frame.data[4] & 0xFF);
+      }
+      if (frame.length >= 7) {
+        writeCount = ((frame.data[5] & 0xFF) << 8) | (frame.data[6] & 0xFF);
+      }
+      valid = true;
+    }
+  }
+
+  private synchronized void sendControl() {
+    byte[] payload = new byte[8];
+    int voltageTimesTen = clampToByte((int) Math.round(RobotController.getBatteryVoltage() * 10.0));
+
+    payload[0] = (byte) voltageTimesTen;
+    payload[1] = (byte) overrideState;
+    payload[2] = (byte) (useRIOEnergy ? 1 : 0);
+    payload[3] = (byte) ((energyKJ >> 8) & 0xFF);
+    payload[4] = (byte) (energyKJ & 0xFF);
+    payload[5] = (byte) (espRebootRequested ? 1 : 0);
+    payload[6] = 0;
+    payload[7] = 0;
+
+    try {
+      can.writePacket(API_RIO_CTRL, payload, payload.length, 0);
+      if (canWriteError) {
+        System.out.println("[batteryCAN] CAN bus recovered.");
+        canWriteError = false;
+      }
+    } catch (Exception e) {
+      String message = e.getMessage();
+      if (!canWriteError && message != null && message.contains("CAN Output Buffer Full")) {
+        System.out.println("[batteryCAN] CAN buffer full while sending control.");
+      } else if (!canWriteError) {
+        System.out.println(
+            "[batteryCAN] Unexpected CAN write exception while sending control: "
+                + e.getMessage());
+      }
+      canWriteError = true;
+      return;
+    }
+
+    espRebootRequested = false;
+  }
+
+  private static int clampToByte(int value) {
+    return Math.max(0, Math.min(255, value));
+  }
+
+  private static int clampToUnsignedShort(int value) {
+    return Math.max(0, Math.min(0xFFFF, value));
+  }
 }
