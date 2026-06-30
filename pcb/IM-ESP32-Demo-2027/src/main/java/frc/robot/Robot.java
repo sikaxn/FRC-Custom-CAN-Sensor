@@ -9,7 +9,7 @@ import org.wpilib.networktables.NetworkTableEntry;
 import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.system.Timer;
 
-// import frc.robot.drivers.addressableLEDCAN;
+import frc.robot.drivers.addressableLEDCAN;
 // import frc.robot.drivers.batteryCAN;
 import frc.robot.drivers.imesp32demofw;
 
@@ -17,9 +17,7 @@ public class Robot extends TimedRobot {
   private static final int SYSTEMCORE_CAN_BUS = 1;
   private static final double ESP_INPUTS_STALE_MS = 500.0;
 
-  // Addressable LED is disabled until the hardware is connected.
-  /*
-  private static final int LEDS_DN = 10;
+  private static final int LEDS_DN = 33;
   private addressableLEDCAN leds;
   private int lastMode = -1;
   private int lastR = -1;
@@ -30,7 +28,6 @@ public class Robot extends TimedRobot {
   private int lastParam0 = -1;
   private int lastParam1 = -1;
   private boolean lastWritePixel = false;
-  */
 
   // ESP32 demo firmware controller
   private static final int ESP32_DN = 9;
@@ -55,7 +52,6 @@ public class Robot extends TimedRobot {
 
   private NetworkTableEntry userButtonEntry;
 
-  /*
   private NetworkTableEntry ledModeEntry;
   private NetworkTableEntry ledREntry;
   private NetworkTableEntry ledGEntry;
@@ -70,7 +66,6 @@ public class Robot extends TimedRobot {
   private NetworkTableEntry ledPixelBEntry;
   private NetworkTableEntry ledPixelBrightnessEntry;
   private NetworkTableEntry ledWritePixelEntry;
-  */
 
   private NetworkTableEntry espREntry;
   private NetworkTableEntry espGEntry;
@@ -99,9 +94,7 @@ public class Robot extends TimedRobot {
   */
 
   public Robot() {
-    /*
     leds = new addressableLEDCAN(LEDS_DN, SYSTEMCORE_CAN_BUS);
-    */
     esp32 = new imesp32demofw(ESP32_DN, SYSTEMCORE_CAN_BUS);
     esp32.setRainbowPeriodSeconds(ESP_RAINBOW_PERIOD_S);
     /*
@@ -110,9 +103,7 @@ public class Robot extends TimedRobot {
 
     NetworkTable root = NetworkTableInstance.getDefault().getTable("IMDemo");
     NetworkTable controlsTable = root.getSubTable("Controls");
-    /*
     NetworkTable ledTable = root.getSubTable("LED");
-    */
     NetworkTable espTable = root.getSubTable("ESP");
     /*
     NetworkTable batteryTable = root.getSubTable("Battery");
@@ -122,7 +113,6 @@ public class Robot extends TimedRobot {
     userButtonEntry = controlsTable.getEntry("UserButton");
     userButtonEntry.setDefaultBoolean(false);
 
-    /*
     ledModeEntry = ledTable.getEntry("Mode");
     ledREntry = ledTable.getEntry("R");
     ledGEntry = ledTable.getEntry("G");
@@ -152,7 +142,6 @@ public class Robot extends TimedRobot {
     ledPixelBEntry.setDefaultDouble(0);
     ledPixelBrightnessEntry.setDefaultDouble(128);
     ledWritePixelEntry.setDefaultBoolean(false);
-    */
 
     espREntry = espTable.getEntry("R");
     espGEntry = espTable.getEntry("G");
@@ -219,8 +208,6 @@ public class Robot extends TimedRobot {
     }
     prevUserButton = userButton;
 
-    // Addressable LED is disabled until the hardware is connected.
-    /*
     int mode = getInt(ledModeEntry, 1);
     int r = getInt(ledREntry, 255);
     int g = getInt(ledGEntry, 255);
@@ -264,7 +251,6 @@ public class Robot extends TimedRobot {
       ledWritePixelEntry.setBoolean(false);
     }
     lastWritePixel = writePixel;
-    */
 
     boolean rainbowEnabled = espRainbowEntry.getBoolean(false);
     int er = getInt(espREntry, 0);
