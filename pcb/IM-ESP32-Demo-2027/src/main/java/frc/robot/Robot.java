@@ -103,6 +103,7 @@ public class Robot extends TimedRobot {
     leds = new addressableLEDCAN(LEDS_DN, SYSTEMCORE_CAN_BUS);
     */
     esp32 = new imesp32demofw(ESP32_DN, SYSTEMCORE_CAN_BUS);
+    esp32.setRainbowPeriodSeconds(ESP_RAINBOW_PERIOD_S);
     /*
     batteryCan = new batteryCAN(BATTERY_DN, SYSTEMCORE_CAN_BUS);
     */
@@ -269,18 +270,16 @@ public class Robot extends TimedRobot {
     int er = getInt(espREntry, 0);
     int eg = getInt(espGEntry, 0);
     int eb = getInt(espBEntry, 0);
-    if (rainbowEnabled) {
-      int[] rainbowRgb = getRainbowRgb(Timer.getTimestamp(), ESP_RAINBOW_PERIOD_S);
-      er = rainbowRgb[0];
-      eg = rainbowRgb[1];
-      eb = rainbowRgb[2];
-      espREntry.setDouble(er);
-      espGEntry.setDouble(eg);
-      espBEntry.setDouble(eb);
-    }
     boolean erelay = espRelayEntry.getBoolean(false);
 
-    esp32.setOutputs(er, eg, eb, erelay);
+    esp32.setManualOutputs(er, eg, eb, erelay);
+    esp32.setRainbowEnabled(rainbowEnabled);
+
+    if (rainbowEnabled) {
+      espREntry.setDouble(esp32.getCurrentOutputR());
+      espGEntry.setDouble(esp32.getCurrentOutputG());
+      espBEntry.setDouble(esp32.getCurrentOutputB());
+    }
 
     if (espRequestResetEntry.getBoolean(false)) {
       esp32.requestReset();
@@ -381,43 +380,5 @@ public class Robot extends TimedRobot {
 
   private static int getInt(NetworkTableEntry entry, int defaultValue) {
     return (int) entry.getDouble(defaultValue);
-  }
-
-  private static int[] getRainbowRgb(double timestampSeconds, double periodSeconds) {
-    double wrapped = (timestampSeconds / periodSeconds) % 1.0;
-    double hue = wrapped * 6.0;
-    double x = 1.0 - Math.abs((hue % 2.0) - 1.0);
-
-    double r;
-    double g;
-    double b;
-
-    if (hue < 1.0) {
-      r = 1.0;
-      g = x;
-      b = 0.0;
-    } else if (hue < 2.0) {
-      r = x;
-      g = 1.0;
-      b = 0.0;
-    } else if (hue < 3.0) {
-      r = 0.0;
-      g = 1.0;
-      b = x;
-    } else if (hue < 4.0) {
-      r = 0.0;
-      g = x;
-      b = 1.0;
-    } else if (hue < 5.0) {
-      r = x;
-      g = 0.0;
-      b = 1.0;
-    } else {
-      r = 1.0;
-      g = 0.0;
-      b = x;
-    }
-
-    return new int[] {(int) (r * 255.0), (int) (g * 255.0), (int) (b * 255.0)};
   }
 }

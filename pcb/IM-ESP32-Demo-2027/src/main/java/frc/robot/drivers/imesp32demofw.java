@@ -1,5 +1,8 @@
 package frc.robot.drivers;
 
+import java.util.Timer;
+import java.util.TimerTask;
+
 import org.wpilib.hardware.bus.CAN;
 import org.wpilib.hardware.hal.can.CANReceiveMessage;
 
@@ -18,6 +21,9 @@ import org.wpilib.hardware.hal.can.CANReceiveMessage;
  *    0x196 : [reset_device,0,0,0,0,0,0,0]
  */
 public class imesp32demofw implements AutoCloseable {
+  private static final int OUTPUT_PERIOD_MS = 20;
+  private static final double DEFAULT_RAINBOW_PERIOD_S = 3.0;
+
   // API IDs
   public static final int API_TX_CONTROL = 0x185; // R,G,B,relay
   public static final int API_TX_STATUS  = 0x186; // sw ver + uptime
@@ -27,10 +33,18 @@ public class imesp32demofw implements AutoCloseable {
   private final CAN can;
   private final int deviceNumber;
   private final int busId;
-  private int lastSentR = -1;
-  private int lastSentG = -1;
-  private int lastSentB = -1;
-  private boolean lastSentRelay = false;
+  private final Timer outputTimer;
+  private final Object outputLock = new Object();
+  private int manualR = 0;
+  private int manualG = 0;
+  private int manualB = 0;
+  private boolean manualRelay = false;
+  private boolean rainbowEnabled = false;
+  private double rainbowPeriodSeconds = DEFAULT_RAINBOW_PERIOD_S;
+  private long rainbowStartTimeNanos = System.nanoTime();
+  private int currentOutputR = 0;
+  private int currentOutputG = 0;
+  private int currentOutputB = 0;
   private int analogRaw = -1;
   private boolean buttonAReleased = true;
   private boolean buttonBReleased = true;
@@ -44,6 +58,8 @@ public class imesp32demofw implements AutoCloseable {
     this.deviceNumber = deviceNumber;
     this.busId = busId;
     this.can = new CAN(busId, deviceNumber);
+    this.outputTimer = new Timer("IMESP32DemoFWTx", true);
+    startOutputTask();
   }
 
   public int getDeviceNumber() { return deviceNumber; }
@@ -51,17 +67,46 @@ public class imesp32demofw implements AutoCloseable {
 
   // ----------------- TX -----------------
 
-  /** Send only when the RGB/relay state changes. */
-  public void setOutputs(int r, int g, int b, boolean relay) {
-    if (r == lastSentR && g == lastSentG && b == lastSentB && relay == lastSentRelay) {
-      return;
+  public void setManualOutputs(int r, int g, int b, boolean relay) {
+    synchronized (outputLock) {
+      manualR = clampToByte(r);
+      manualG = clampToByte(g);
+      manualB = clampToByte(b);
+      manualRelay = relay;
     }
+  }
 
-    sendRgbRelay(r, g, b, relay);
-    lastSentR = r;
-    lastSentG = g;
-    lastSentB = b;
-    lastSentRelay = relay;
+  public void setRainbowEnabled(boolean enabled) {
+    synchronized (outputLock) {
+      if (enabled && !rainbowEnabled) {
+        rainbowStartTimeNanos = System.nanoTime();
+      }
+      rainbowEnabled = enabled;
+    }
+  }
+
+  public void setRainbowPeriodSeconds(double periodSeconds) {
+    synchronized (outputLock) {
+      rainbowPeriodSeconds = Math.max(0.1, periodSeconds);
+    }
+  }
+
+  public int getCurrentOutputR() {
+    synchronized (outputLock) {
+      return currentOutputR;
+    }
+  }
+
+  public int getCurrentOutputG() {
+    synchronized (outputLock) {
+      return currentOutputG;
+    }
+  }
+
+  public int getCurrentOutputB() {
+    synchronized (outputLock) {
+      return currentOutputB;
+    }
   }
 
   /** Send 0x185: RGB (0..255) + relay (0/1). */
@@ -187,6 +232,87 @@ public class imesp32demofw implements AutoCloseable {
 
   @Override
   public void close() {
+    outputTimer.cancel();
     can.close();
+  }
+
+  private void startOutputTask() {
+    outputTimer.scheduleAtFixedRate(
+        new TimerTask() {
+          @Override
+          public void run() {
+            int r;
+            int g;
+            int b;
+            boolean relay;
+
+            synchronized (outputLock) {
+              relay = manualRelay;
+
+              if (rainbowEnabled) {
+                int[] rgb =
+                    getRainbowRgb(
+                        (System.nanoTime() - rainbowStartTimeNanos) * 1.0e-9, rainbowPeriodSeconds);
+                r = rgb[0];
+                g = rgb[1];
+                b = rgb[2];
+              } else {
+                r = manualR;
+                g = manualG;
+                b = manualB;
+              }
+
+              currentOutputR = r;
+              currentOutputG = g;
+              currentOutputB = b;
+            }
+
+            sendRgbRelay(r, g, b, relay);
+          }
+        },
+        0,
+        OUTPUT_PERIOD_MS);
+  }
+
+  private static int clampToByte(int value) {
+    return Math.max(0, Math.min(255, value));
+  }
+
+  private static int[] getRainbowRgb(double elapsedSeconds, double periodSeconds) {
+    double wrapped = (elapsedSeconds / periodSeconds) % 1.0;
+    double hue = wrapped * 6.0;
+    double x = 1.0 - Math.abs((hue % 2.0) - 1.0);
+
+    double r;
+    double g;
+    double b;
+
+    if (hue < 1.0) {
+      r = 1.0;
+      g = x;
+      b = 0.0;
+    } else if (hue < 2.0) {
+      r = x;
+      g = 1.0;
+      b = 0.0;
+    } else if (hue < 3.0) {
+      r = 0.0;
+      g = 1.0;
+      b = x;
+    } else if (hue < 4.0) {
+      r = 0.0;
+      g = x;
+      b = 1.0;
+    } else if (hue < 5.0) {
+      r = x;
+      g = 0.0;
+      b = 1.0;
+    } else {
+      r = 1.0;
+      g = 0.0;
+      b = x;
+    }
+
+    return new int[] {(int) (r * 255.0), (int) (g * 255.0), (int) (b * 255.0)};
   }
 }
