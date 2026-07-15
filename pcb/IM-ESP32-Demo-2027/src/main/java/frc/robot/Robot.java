@@ -1,8 +1,11 @@
 package frc.robot;
 
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkMax;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.wpilib.command2.CommandScheduler;
+import org.wpilib.driverstation.Gamepad;
 import org.wpilib.framework.TimedRobot;
 import org.wpilib.networktables.NetworkTable;
 import org.wpilib.networktables.NetworkTableEntry;
@@ -32,6 +35,11 @@ public class Robot extends TimedRobot {
   // ESP32 demo firmware controller
   private static final int ESP32_DN = 9;
   private imesp32demofw esp32;
+  private static final int SPARK_MAX_DN = 12;
+  private static final int DRIVER_CONTROLLER_PORT = 0;
+  private static final double DRIVE_AXIS_DEADBAND = 0.05;
+  private SparkMax sparkMax;
+  private Gamepad driverController;
 
   // Battery CAN is disabled until the hardware is connected.
   /*
@@ -106,6 +114,8 @@ public class Robot extends TimedRobot {
   public Robot() {
     leds = new addressableLEDCAN(LEDS_DN, SYSTEMCORE_CAN_BUS);
     esp32 = new imesp32demofw(ESP32_DN, SYSTEMCORE_CAN_BUS);
+    sparkMax = new SparkMax(SYSTEMCORE_CAN_BUS, SPARK_MAX_DN, MotorType.kBrushed);
+    driverController = new Gamepad(DRIVER_CONTROLLER_PORT);
     esp32.setRainbowPeriodSeconds(ESP_RAINBOW_PERIOD_S);
     /*
     batteryCan = new batteryCAN(BATTERY_DN, SYSTEMCORE_CAN_BUS);
@@ -380,19 +390,29 @@ public class Robot extends TimedRobot {
   }
 
   @Override
-  public void autonomousInit() {}
+  public void autonomousInit() {
+    sparkMax.stopMotor();
+  }
 
   @Override
   public void autonomousPeriodic() {}
 
   @Override
-  public void teleopInit() {}
+  public void teleopInit() {
+    sparkMax.stopMotor();
+  }
 
   @Override
-  public void teleopPeriodic() {}
+  public void teleopPeriodic() {
+    // Gamepad left Y is positive when pulled back, so negate it for forward-positive output.
+    double motorOutput = -applyDeadband(driverController.getLeftY(), DRIVE_AXIS_DEADBAND);
+    sparkMax.setThrottle(motorOutput);
+  }
 
   @Override
-  public void disabledInit() {}
+  public void disabledInit() {
+    sparkMax.stopMotor();
+  }
 
   @Override
   public void disabledPeriodic() {}
@@ -411,5 +431,9 @@ public class Robot extends TimedRobot {
 
   private static int getInt(NetworkTableEntry entry, int defaultValue) {
     return (int) entry.getDouble(defaultValue);
+  }
+
+  private static double applyDeadband(double value, double deadband) {
+    return Math.abs(value) > deadband ? value : 0.0;
   }
 }
