@@ -21,7 +21,7 @@
 typedef struct { uint32_t port; uint8_t pin; } board_pin_t;
 #define BOARD_PIN_MASK(pin) (1UL << (pin))
 
-/* RGB LED: all outputs high = on. */
+/* RGB LED control nets: active high; all three outputs high = white on. */
 #define BOARD_LED_BLUE_PORT BOARD_GPIOH_BASE
 #define BOARD_LED_BLUE_PIN  10U
 #define BOARD_LED_GREEN_PORT BOARD_GPIOH_BASE

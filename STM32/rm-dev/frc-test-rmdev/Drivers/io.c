@@ -141,6 +141,7 @@ void io_init(void)
 
 void io_led_set(uint8_t red, uint8_t green, uint8_t blue)
 {
+    /* On-board transistor stages make the MCU-facing controls active high. */
     write(BOARD_LED_RED_PORT, BOARD_LED_RED_PIN, red != 0U);
     write(BOARD_LED_GREEN_PORT, BOARD_LED_GREEN_PIN, green != 0U);
     write(BOARD_LED_BLUE_PORT, BOARD_LED_BLUE_PIN, blue != 0U);

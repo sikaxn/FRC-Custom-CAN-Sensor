@@ -32,6 +32,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/files.cmake)
 target_sources(${PROJECT_NAME} PRIVATE
   # User defined sources
   Drivers/io.c
+  Drivers/frc_can.c
   Drivers/uart.c
   Drivers/dbus.c
   Drivers/pwm.c
@@ -121,4 +122,19 @@ target_link_directories(${PROJECT_NAME} PRIVATE
 # Add additional linker libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
   # Add additional linker libraries here
+)
+
+# Keep the directly flashable image synchronized with the linked ELF.
+get_filename_component(ARM_TOOLCHAIN_BIN_DIR "${CMAKE_C_COMPILER}" DIRECTORY)
+find_program(ARM_NONE_EABI_OBJCOPY
+  NAMES arm-none-eabi-objcopy arm-none-eabi-objcopy.exe
+  HINTS "${ARM_TOOLCHAIN_BIN_DIR}"
+  NO_DEFAULT_PATH
+  REQUIRED
+)
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+  COMMAND ${ARM_NONE_EABI_OBJCOPY} -O binary
+          $<TARGET_FILE:${PROJECT_NAME}>
+          $<TARGET_FILE_DIR:${PROJECT_NAME}>/${PROJECT_NAME}.bin
+  COMMENT "Generating ${PROJECT_NAME}.bin"
 )

@@ -34,8 +34,13 @@ MEMORY
 {
   CCMRAM    (xrw)    : ORIGIN = 0x10000000,   LENGTH = 64K
   RAM    (xrw)    : ORIGIN = 0x20000000,   LENGTH = 128K
-  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 1024K
+  /* Sector 11 (0x080E0000-0x080FFFFF) is reserved for persistent settings. */
+  FLASH    (rx)    : ORIGIN = 0x8000000,   LENGTH = 896K
+  CONFIG   (r)     : ORIGIN = 0x80E0000,   LENGTH = 128K
 }
+
+__frc_can_config_start = ORIGIN(CONFIG);
+__frc_can_config_end = ORIGIN(CONFIG) + LENGTH(CONFIG);
 
 /* Entry Point */
 ENTRY(Reset_Handler)

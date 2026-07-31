@@ -162,8 +162,10 @@ bool can_receive(can_bus_t bus, can_frame_t *frame)
     const uint32_t dlr = CAN_RDLR(base);
     const uint32_t dhr = CAN_RDHR(base);
     frame->bus = bus;
-    frame->identifier = (rir & (1UL << 2)) ? (rir >> 3U) : (rir >> 21U);
+    frame->extended = (rir & (1UL << 2)) != 0U;
+    frame->identifier = frame->extended ? (rir >> 3U) : (rir >> 21U);
     frame->length = (uint8_t)(CAN_RDTR(base) & 0x0FU);
+    if (frame->length > 8U) frame->length = 8U;
     for (uint32_t i = 0; i < 4U; ++i) {
         frame->data[i] = (uint8_t)(dlr >> (i * 8U));
         frame->data[i + 4U] = (uint8_t)(dhr >> (i * 8U));
@@ -174,7 +176,10 @@ bool can_receive(can_bus_t bus, can_frame_t *frame)
 
 bool can_transmit(const can_frame_t *frame)
 {
-    if ((frame == 0) || (frame->bus > CAN_BUS_2) || (frame->length > 8U) || (frame->identifier > 0x7FFU)) return false;
+    if ((frame == 0) || (frame->bus > CAN_BUS_2) || (frame->length > 8U) ||
+        (frame->identifier > (frame->extended ? 0x1FFFFFFFUL : 0x7FFUL))) {
+        return false;
+    }
     const uint32_t base = frame->bus == CAN_BUS_1 ? CAN1_BASE : CAN2_BASE;
     const uint32_t tsr = CAN_TSR(base);
     uint32_t mailbox = (tsr & (1UL << 26)) ? 0U : ((tsr & (1UL << 27)) ? 1U : ((tsr & (1UL << 28)) ? 2U : 3U));
@@ -182,9 +187,17 @@ bool can_transmit(const can_frame_t *frame)
     const uint32_t offset = 0x180UL + mailbox * 0x10UL;
     *(volatile uint32_t *)(base + offset + 0x04UL) = frame->length;
     uint32_t low = 0U, high = 0U;
-    for (uint32_t i = 0; i < 4U; ++i) { low |= (uint32_t)frame->data[i] << (i * 8U); high |= (uint32_t)frame->data[i + 4U] << (i * 8U); }
+    for (uint32_t i = 0U; i < frame->length; ++i) {
+        if (i < 4U) {
+            low |= (uint32_t)frame->data[i] << (i * 8U);
+        } else {
+            high |= (uint32_t)frame->data[i] << ((i - 4U) * 8U);
+        }
+    }
     *(volatile uint32_t *)(base + offset + 0x08UL) = low;
     *(volatile uint32_t *)(base + offset + 0x0CUL) = high;
-    *(volatile uint32_t *)(base + offset + 0x00UL) = (frame->identifier << 21U) | 1UL;
+    *(volatile uint32_t *)(base + offset + 0x00UL) = frame->extended
+        ? ((frame->identifier << 3U) | (1UL << 2U) | 1UL)
+        : ((frame->identifier << 21U) | 1UL);
     return true;
 }

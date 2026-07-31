@@ -20,6 +20,7 @@
 #include "board_clock.h"
 #include "can.h"
 #include "FreeRTOS.h"
+#include "frc_can.h"
 #include "imu.h"
 #include "io.h"
 #include "stm32f4xx_hal.h"
@@ -34,6 +35,7 @@ int main(void)
     }
 
     io_init();
+    frc_can_config_init();
     MX_USB_DEVICE_Init();
 
     if (!can_init(BOARD_APB1_CLOCK_HZ, CAN_FRC_BIT_RATE_HZ)) {

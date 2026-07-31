@@ -43,3 +43,38 @@ calibration captured at 14.950 V (`battery_raw = 1783.750`,
 
 USB CDC is packetized and reads may split or combine records. Host software
 must buffer bytes and only parse complete newline-terminated records.
+
+## CAN device-number commands
+
+The device accepts the protocol used by `webIDTool.html`. Commands are ASCII or
+UTF-8 text terminated by LF; CRLF is also accepted. The nominal serial setting
+is 115200, 8 data bits, no parity, and one stop bit.
+
+```text
+&CANID GET
+&CANID SET <device_number>
+&CANID SAVE
+```
+
+- `GET` reports the current runtime number, saved number, and default number.
+- `SET` requires a decimal integer from 0 through 63 and takes effect on the
+  next CAN publication. It does not modify flash.
+- `SAVE` appends the current number to flash, acknowledges, waits approximately
+  one second, and resets the MCU.
+
+Responses follow the companion ESP32 firmware's text format so the existing
+web tool can show them directly:
+
+```text
+[CANID] Current=55, EEPROM=55, Default=55
+[CANID] Running DEVICE_NUMBER set to 42
+[CANID] Invalid value. Must be 0-63.
+[CANID] Saved to EEPROM. Rebooting...
+[CANID] Save failed.
+```
+
+`EEPROM` is retained in the response for tool compatibility; the STM32 stores
+records in an append-only journal in reserved flash sector 11. It has 8,192
+slots and reports `Save failed` rather than erasing the sector after they are
+used. Normal telemetry is paused for five seconds after each recognized command
+so responses are not buried by the 100 Hz IMU stream.

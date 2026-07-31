@@ -11,6 +11,7 @@ typedef enum { CAN_BUS_1 = 0, CAN_BUS_2 = 1 } can_bus_t;
 typedef struct {
     can_bus_t bus;
     uint32_t identifier;
+    bool extended;
     uint8_t length;
     uint8_t data[8];
 } can_frame_t;

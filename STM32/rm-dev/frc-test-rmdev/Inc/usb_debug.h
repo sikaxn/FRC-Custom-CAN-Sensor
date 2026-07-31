@@ -10,4 +10,8 @@
  */
 size_t usb_debug_write(const uint8_t *data, size_t length);
 
+/* Non-blocking access to bytes received from the CDC host. */
+size_t usb_cdc_read(uint8_t *data, size_t capacity);
+uint8_t usb_cdc_connected(void);
+
 #endif /* USB_DEBUG_H */
