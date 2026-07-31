@@ -1,0 +1,270 @@
+{
+  "name": "frc-test-rmdev",
+  "configurations": [
+    {
+      "name": "Debug",
+      "type": "Executable",
+      "output_filename": "frc-test-rmdev",
+      "mcu": "STM32F407IGH6TR",
+      "toolchain_type": "GCC",
+      "toolchain_prefix": "",
+      "sources": [
+        {
+          "path": "Src/syscall.c"
+        },
+        {
+          "path": "Src/sysmem.c"
+        },
+        {
+          "path": "Src/main.c"
+        },
+        {
+          "path": "Drivers/can.c"
+        },
+        {
+          "path": "Drivers/io.c"
+        },
+        {
+          "path": "Drivers/uart.c"
+        },
+        {
+          "path": "Drivers/dbus.c"
+        },
+        {
+          "path": "Drivers/pwm.c"
+        },
+        {
+          "path": "Drivers/buzzer.c"
+        },
+        {
+          "path": "Drivers/imu.c"
+        },
+        {
+          "path": "Src/app_tasks.c"
+        },
+        {
+          "path": "Src/startup_stm32f407xx.S"
+        }
+      ],
+      "tools": [
+        {
+          "type": "c_assembler",
+          "flags": [
+            "-fdata-sections",
+            "-ffunction-sections",
+            "-std=gnu11",
+            "-Wl,--gc-sections",
+            "-Wno-comment",
+            "-fstack-usage",
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-Wno-unused-parameter",
+            "-O0",
+            "-g3",
+            "-ggdb",
+            "-IInc",
+            "-DRTE_DEVICE_STARTUP_STM32F4XX",
+            "-DDEBUG",
+            "-x",
+            "assembler-with-cpp",
+            "-MMD",
+            "-MP"
+          ]
+        },
+        {
+          "type": "c_compiler",
+          "flags": [
+            "-fdata-sections",
+            "-ffunction-sections",
+            "-std=gnu11",
+            "-Wl,--gc-sections",
+            "-Wno-comment",
+            "-fstack-usage",
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-Wno-unused-parameter",
+            "-O0",
+            "-g3",
+            "-ggdb",
+            "-IInc",
+            "-DRTE_DEVICE_STARTUP_STM32F4XX",
+            "-DDEBUG"
+          ]
+        },
+        {
+          "type": "cpp_compiler",
+          "flags": [
+            "-fdata-sections",
+            "-ffunction-sections",
+            "-std=gnu11",
+            "-Wl,--gc-sections",
+            "-Wno-comment",
+            "-fstack-usage",
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-Wno-unused-parameter",
+            "-O0",
+            "-g3",
+            "-ggdb",
+            "-IInc",
+            "-DRTE_DEVICE_STARTUP_STM32F4XX",
+            "-DDEBUG",
+            "-fno-rtti",
+            "-fno-exceptions",
+            "-fno-threadsafe-statics"
+          ]
+        },
+        {
+          "type": "c_linker",
+          "flags": [
+            "-Tstm32f407xg_flash.ld",
+            "-Wl,-Map=frc-test-rmdev.map",
+            "-u",
+            "_printf_float",
+            "--specs=nosys.specs",
+            "-Wl,--start-group",
+            "-lc",
+            "-lm",
+            "-lstdc++",
+            "-lsupc++",
+            "-Wl,--end-group",
+            "-Wl,-z,max-page-size=8",
+            "-Wl,--print-memory-usage"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Release",
+      "type": "Executable",
+      "output_filename": "frc-test-rmdev",
+      "mcu": "STM32F407IGH6TR",
+      "toolchain_type": "GCC",
+      "toolchain_prefix": "",
+      "sources": [
+        {
+          "path": "Src/syscall.c"
+        },
+        {
+          "path": "Src/sysmem.c"
+        },
+        {
+          "path": "Src/main.c"
+        },
+        {
+          "path": "Drivers/can.c"
+        },
+        {
+          "path": "Drivers/io.c"
+        },
+        {
+          "path": "Drivers/uart.c"
+        },
+        {
+          "path": "Drivers/dbus.c"
+        },
+        {
+          "path": "Drivers/pwm.c"
+        },
+        {
+          "path": "Drivers/buzzer.c"
+        },
+        {
+          "path": "Drivers/imu.c"
+        },
+        {
+          "path": "Src/app_tasks.c"
+        },
+        {
+          "path": "Src/startup_stm32f407xx.S"
+        }
+      ],
+      "tools": [
+        {
+          "type": "c_assembler",
+          "flags": [
+            "-fdata-sections",
+            "-ffunction-sections",
+            "-std=gnu11",
+            "-Wl,--gc-sections",
+            "-Wno-comment",
+            "-fstack-usage",
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-Wno-unused-parameter",
+            "-Os",
+            "-IInc",
+            "-DRTE_DEVICE_STARTUP_STM32F4XX",
+            "-x",
+            "assembler-with-cpp",
+            "-MMD",
+            "-MP"
+          ]
+        },
+        {
+          "type": "c_compiler",
+          "flags": [
+            "-fdata-sections",
+            "-ffunction-sections",
+            "-std=gnu11",
+            "-Wl,--gc-sections",
+            "-Wno-comment",
+            "-fstack-usage",
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-Wno-unused-parameter",
+            "-Os",
+            "-IInc",
+            "-DRTE_DEVICE_STARTUP_STM32F4XX"
+          ]
+        },
+        {
+          "type": "cpp_compiler",
+          "flags": [
+            "-fdata-sections",
+            "-ffunction-sections",
+            "-std=gnu11",
+            "-Wl,--gc-sections",
+            "-Wno-comment",
+            "-fstack-usage",
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-Wno-unused-parameter",
+            "-Os",
+            "-IInc",
+            "-DRTE_DEVICE_STARTUP_STM32F4XX",
+            "-fno-rtti",
+            "-fno-exceptions",
+            "-fno-threadsafe-statics"
+          ]
+        },
+        {
+          "type": "c_linker",
+          "flags": [
+            "-Tstm32f407xg_flash.ld",
+            "-Wl,-Map=frc-test-rmdev.map",
+            "-u",
+            "_printf_float",
+            "--specs=nosys.specs",
+            "-Wl,--start-group",
+            "-lc",
+            "-lm",
+            "-lstdc++",
+            "-lsupc++",
+            "-Wl,--end-group",
+            "-Wl,-z,max-page-size=8",
+            "-Wl,--print-memory-usage"
+          ]
+        }
+      ]
+    }
+  ],
+  "source_ide": "Empty",
+  "path": "C:\\Users\\Nathan\\AppData\\Local\\Temp\\stm32cube_for_vscode_empty_project_Kim4Gs"
+}

@@ -35,7 +35,7 @@ public class Robot extends TimedRobot {
   // ESP32 demo firmware controller
   private static final int ESP32_DN = 9;
   private imesp32demofw esp32;
-  private static final int SPARK_MAX_DN = 12;
+  private static final int SPARK_MAX_DN = 50;
   private static final int DRIVER_CONTROLLER_PORT = 0;
   private static final double DRIVE_AXIS_DEADBAND = 0.05;
   private SparkMax sparkMax;

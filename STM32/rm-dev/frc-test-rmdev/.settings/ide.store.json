@@ -1,0 +1,9 @@
+{
+  "device": "STM32F407IGH6TR",
+  "core": "Cortex-M4",
+  "order": 0,
+  "toolchain": "GCC",
+  "source": {
+    "sourceType": "Empty"
+  }
+}
