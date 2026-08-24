@@ -4,16 +4,13 @@
 
 * **ESP32 I2C Pins**:
 
-  * `SDA → GPIO 21`
-  * `SCL → GPIO 22`
-* **Shared among all sensors**:
+  * `SDA → GP5`
+  * `SCL → GP4`
 
-  * All VL53L1X sensors connect to **the same SDA/SCL lines**.
-
-| ESP32   | VL53L1X (all) |
+| ESP32   | VL53L1X |
 | ------- | ------------- |
-| GPIO 21 | SDA           |
-| GPIO 22 | SCL           |
+| GP5     | SDA           |
+| GP4     | SCL           |
 | 3.3V    | VIN           |
 | GND     | GND           |
 
@@ -21,16 +18,11 @@
 
 ## 🧭 **2. XSHUT (Sensor Power Sequencing)**
 
-Used to assign unique I2C addresses during boot.
+The single sensor is enabled during boot through XSHUT.
 
 | ESP32 GPIO | Sensor   | Connects to |
 | ---------- | -------- | ----------- |
-| GPIO 16    | Sensor 0 | XSHUT pin   |
-| GPIO 17    | Sensor 1 | XSHUT pin   |
-| GPIO 18    | Sensor 2 | XSHUT pin   |
-| GPIO 19    | Sensor 3 | XSHUT pin   |
-
-> All other pins of the sensors can remain connected to shared I2C.
+| GP6        | Sensor 0 | XSHUT pin   |
 
 ---
 
@@ -40,8 +32,39 @@ ESP32 TWAI uses dedicated GPIOs for CAN TX/RX.
 
 | ESP32 GPIO | Connects to                   |
 | ---------- | ----------------------------- |
-| GPIO 4     | CAN **TX** (to transceiver)   |
-| GPIO 5     | CAN **RX** (from transceiver) |
+| GP9        | CAN **TX** / TWAI TX (to transceiver)   |
+| GP10       | CAN **RX** / TWAI RX (from transceiver) |
+
+---
+
+## 💡 **4. Status LED**
+
+One WS281x LED is connected to GP21 and uses FastLED at 50/255 brightness:
+
+| Distance | LED behavior |
+| -------- | ------------ |
+| `0 mm` | Solid red (invalid/timeout reading) |
+| `1–50 mm` | Red blink at 50 Hz |
+| `51–999 mm` | Red blink rate scales linearly from 50 Hz down to 0 Hz |
+| `≥1000 mm` | Off |
+
+## 🔌 **5. USB serial (ESP32-S3 Zero)**
+
+The sketch requires ESP32-S3 native USB CDC. In the Arduino IDE, select **Tools → USB CDC On Boot → Enabled** before compiling and uploading. `Serial` then outputs through the board's USB-C connector at 115200 baud.
+
+## 🔢 **6. CAN device number**
+
+The CAN device number is persisted in EEPROM and defaults to `50` when EEPROM is uninitialized. Send one of these newline-terminated commands through USB serial:
+
+| Command | Result |
+| ------- | ------ |
+| `&CANID SET <0-63>` | Changes the running device number immediately. |
+| `&CANID SAVE` | Persists the running device number and reboots the board. |
+| `&CANID GET` | Reports the running, saved, and default device numbers. |
+
+## 🔎 **7. I²C scanner**
+
+[i2cScanner.ino](i2cScanner/i2cScanner.ino) is a standalone scanner for the same GP5 (SDA) and GP4 (SCL) bus. It reports detected I²C addresses over USB serial at 115200 baud every two seconds.
 
 ---
 
@@ -49,16 +72,9 @@ ESP32 TWAI uses dedicated GPIOs for CAN TX/RX.
 
 ### 📤 **Sensor → roboRIO** (ESP32 sends sensor status)
 
-#### API ID Range: `0x0301` to `0x0304` (`SENSOR_BASE_API_ID + i`)
+#### API ID: `0x0301` (`SENSOR_BASE_API_ID`)
 
-* One frame per sensor (i = 0–3)
-
-* **API IDs**:
-
-  * Sensor 0: `0x0301`
-  * Sensor 1: `0x0302`
-  * Sensor 2: `0x0303`
-  * Sensor 3: `0x0304`
+* One frame for Sensor 0.
 
 * **Payload (8 bytes)**:
 
@@ -77,16 +93,9 @@ Byte 6–7: Measurement timing budget (uint16_t, µs / 1e3 resolution)
 
 ### 📥 **roboRIO → Sensor** (ESP32 receives sensor config)
 
-#### API ID Range: `0x0305` to `0x0308` (`SENSOR_CONFIG_API_ID + i`)
+#### API ID: `0x0305` (`SENSOR_CONFIG_API_ID`)
 
-* One config frame per sensor
-
-* **API IDs**:
-
-  * Sensor 0: `0x0305`
-  * Sensor 1: `0x0306`
-  * Sensor 2: `0x0307`
-  * Sensor 3: `0x0308`
+* One configuration frame for Sensor 0.
 
 * **Payload (4 bytes)**:
 
@@ -97,6 +106,6 @@ Byte 2: ROI size X (4–16, must be even)
 Byte 3: ROI size Y (4–16, must be even)
 ```
 
-Only one config frame should be sent per 200 ms per sensor to allow safe I2C update delay.
+Only one config frame should be sent per 200 ms to allow a safe I2C update delay.
 
 ---
