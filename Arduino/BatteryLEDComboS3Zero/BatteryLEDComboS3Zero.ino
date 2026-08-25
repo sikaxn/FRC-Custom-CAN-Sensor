@@ -953,18 +953,19 @@ void TaskCANGlobalHandler(void* pvParameters) {
 
     // --- Debug print every 10 seconds or on loss events ---
     if (now - lastPrintTime > 3000)  {
+      const float internalTempC = temperatureRead();
       if (DISABLE_RFID) {
-        Serial.printf("[CANGlobal] RFID Disabled! CAN:%d HB:%d | Robot:%s\n",
+        Serial.printf("[CANGlobal] RFID Disabled! CAN:%d HB:%d | Robot:%s | ESP32:%.1f C\n",
                       canOnline, heartbeatOnline,
-                      currentlyEnabled ? "EN" : "DIS");
+                      currentlyEnabled ? "EN" : "DIS", internalTempC);
       } else {
-        Serial.printf("[CANGlobal] CAN:%d HB:%d PD:%d Java:%d | PDType:%s | Robot:%s | V=%.2fV I=%.2fA E=%d kJ | LowestV=%.2f | %04d-%02d-%02d %02d:%02d:%02d\n",
+        Serial.printf("[CANGlobal] CAN:%d HB:%d PD:%d Java:%d | PDType:%s | Robot:%s | V=%.2fV I=%.2fA E=%d kJ | LowestV=%.2f | ESP32:%.1f C | %04d-%02d-%02d %02d:%02d:%02d\n",
                       canOnline, heartbeatOnline, pdOnline, javaOnline,
                       (pdType == REV_PDH) ? "REV_PDH" :
                       (pdType == CTRE_PDP) ? "CTRE_PDP" : "NONE",
                       currentlyEnabled ? "EN" : "DIS",
                       globalVoltage, PDcurrent, energy,
-                      lowestVoltage,
+                      lowestVoltage, internalTempC,
                       year, month, day, hour, minute, second);
       }
 
