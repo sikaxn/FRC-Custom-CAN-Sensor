@@ -1,4 +1,5 @@
 #include <Arduino.h>  // Needed for FreeRTOS in Arduino context
+#include "esp32-hal-cpu.h"
 
 // This board uses the ESP32-S3's direct USB CDC/JTAG serial interface.
 // Enable Tools > USB CDC On Boot so Serial is USB CDC instead of UART0.
@@ -61,7 +62,13 @@ constexpr uint8_t STATUS_LED_PIN = 21;
 // the external WS2812B strip.
 #define STATUS_LED_TYPE WS2812B
 #define STATUS_LED_COLOR_ORDER RGB
+#define STATUS_LED_BRIGHTNESS 10
 CRGB statusLeds[1];
+
+// Thermal output cap. CAN brightness values remain unchanged; this sets the
+// maximum FastLED output brightness allowed by the ESP32-S3 temperature.
+volatile uint8_t thermalLedBrightnessLimit = LED_BRIGHTNESS;
+volatile uint8_t thermalLedBrightnessTarget = LED_BRIGHTNESS;
 
 #define DISABLE_WRITE_DELAY_MS 1000
 
@@ -323,7 +330,9 @@ void writeStatusLed() {
   const uint8_t red = scaleStatusComponent(statusLedOn ? statusLedR : 0);
   const uint8_t green = scaleStatusComponent(statusLedOn ? statusLedG : 0);
   const uint8_t blue = scaleStatusComponent(statusLedOn ? statusLedB : 0);
-  statusLeds[0] = CRGB(red, green, blue);
+  CRGB statusColor(red, green, blue);
+  statusColor.nscale8_video(STATUS_LED_BRIGHTNESS);
+  statusLeds[0] = statusColor;
   FastLED.show();
   statusLedDirty = false;
 }
@@ -332,11 +341,71 @@ void showLeds() {
   FastLED.show();
 }
 
+void updateThermalLedBrightnessLimit() {
+  static uint32_t lastTemperatureCheckMs = 0;
+  static uint32_t fadeStartMs = 0;
+  static uint8_t fadeStartBrightness = LED_BRIGHTNESS;
+  const uint32_t now = millis();
+  if (lastTemperatureCheckMs == 0 || now - lastTemperatureCheckMs >= 1000) {
+    lastTemperatureCheckMs = now;
+
+    const float internalTempC = temperatureRead();
+    uint8_t brightnessTarget = LED_BRIGHTNESS;
+    if (internalTempC > 80.0f) {
+      brightnessTarget = 20;
+    } else if (internalTempC > 75.0f) {
+      brightnessTarget = 64;
+    } else if (internalTempC > 65.0f) {
+      brightnessTarget = 128;
+    } else if (internalTempC > 55.0f) {
+      brightnessTarget = 190;
+    }
+
+    if (brightnessTarget != thermalLedBrightnessTarget) {
+      fadeStartBrightness = thermalLedBrightnessLimit;
+      fadeStartMs = now;
+      thermalLedBrightnessTarget = brightnessTarget;
+      Serial.printf("[LED] Thermal brightness cap -> %u (ESP32: %.1f C, 1 s fade)\n",
+                    thermalLedBrightnessTarget, internalTempC);
+    }
+  }
+
+  if (thermalLedBrightnessLimit != thermalLedBrightnessTarget) {
+    const float fadeProgress = std::min(1.0f, (now - fadeStartMs) / 1000.0f);
+    const int brightnessDelta = (int)thermalLedBrightnessTarget - (int)fadeStartBrightness;
+    const uint8_t nextBrightness = (uint8_t)roundf(
+      fadeStartBrightness + brightnessDelta * fadeProgress);
+    if (nextBrightness != thermalLedBrightnessLimit) {
+      thermalLedBrightnessLimit = nextBrightness;
+      FastLED.setBrightness(thermalLedBrightnessLimit);
+    }
+  }
+}
+
+uint8_t thermalWarningBlinkHz() {
+  if (thermalLedBrightnessTarget <= 20) {
+    return 7;  // Above 80 C
+  }
+  if (thermalLedBrightnessTarget <= 64) {
+    return 6;  // Above 75 C
+  }
+  if (thermalLedBrightnessTarget <= 128) {
+    return 4;  // Above 65 C
+  }
+  return 0;  // No status warning at the 190 cap (above 55 C)
+}
+
 void setup() {
   Serial.begin(115200);
   unsigned long serialWaitStart = millis();
   while (!Serial && (millis() - serialWaitStart) < 2000) {
     delay(10);
+  }
+  if (setCpuFrequencyMhz(80)) {
+    Serial.printf("[CPU] Frequency capped at %lu MHz\n",
+                  (unsigned long)getCpuFrequencyMhz());
+  } else {
+    Serial.println(F("[CPU] Failed to cap frequency at 80 MHz."));
   }
   pinMode(MODE_BUTTON_PIN, INPUT_PULLUP);
 
@@ -638,6 +707,8 @@ void TaskLEDWrite(void* pvParameters) {
   bool stripEnabled = canOnOff;
   bool lastModeButton = digitalRead(MODE_BUTTON_PIN);
   for (;;) {
+    updateThermalLedBrightnessLimit();
+
     const bool modeButton = digitalRead(MODE_BUTTON_PIN);
     if (lastModeButton == HIGH && modeButton == LOW) {
       currentModeIndex = (currentModeIndex + 1) % numButtonModes;
@@ -955,17 +1026,18 @@ void TaskCANGlobalHandler(void* pvParameters) {
     if (now - lastPrintTime > 3000)  {
       const float internalTempC = temperatureRead();
       if (DISABLE_RFID) {
-        Serial.printf("[CANGlobal] RFID Disabled! CAN:%d HB:%d | Robot:%s | ESP32:%.1f C\n",
+        Serial.printf("[CANGlobal] RFID Disabled! CAN:%d HB:%d | Robot:%s | ESP32:%.1f C | LED cap:%u\n",
                       canOnline, heartbeatOnline,
-                      currentlyEnabled ? "EN" : "DIS", internalTempC);
+                      currentlyEnabled ? "EN" : "DIS", internalTempC,
+                      thermalLedBrightnessLimit);
       } else {
-        Serial.printf("[CANGlobal] CAN:%d HB:%d PD:%d Java:%d | PDType:%s | Robot:%s | V=%.2fV I=%.2fA E=%d kJ | LowestV=%.2f | ESP32:%.1f C | %04d-%02d-%02d %02d:%02d:%02d\n",
+        Serial.printf("[CANGlobal] CAN:%d HB:%d PD:%d Java:%d | PDType:%s | Robot:%s | V=%.2fV I=%.2fA E=%d kJ | LowestV=%.2f | ESP32:%.1f C | LED cap:%u | %04d-%02d-%02d %02d:%02d:%02d\n",
                       canOnline, heartbeatOnline, pdOnline, javaOnline,
                       (pdType == REV_PDH) ? "REV_PDH" :
                       (pdType == CTRE_PDP) ? "CTRE_PDP" : "NONE",
                       currentlyEnabled ? "EN" : "DIS",
                       globalVoltage, PDcurrent, energy,
-                      lowestVoltage, internalTempC,
+                      lowestVoltage, internalTempC, thermalLedBrightnessLimit,
                       year, month, day, hour, minute, second);
       }
 
@@ -1160,6 +1232,8 @@ void TaskLEDIndicator(void* pvParameters) {
   for (;;) {
     uint8_t blinkHz = 0;  // 0 = solid
     uint8_t r = 0, g = 0, b = 0;
+    const uint8_t thermalBlinkHz = thermalWarningBlinkHz();
+    bool thermalWarningActive = false;
 
     if (DISABLE_RFID) {
       if (!canOnline) {
@@ -1168,6 +1242,10 @@ void TaskLEDIndicator(void* pvParameters) {
       } else if (!heartbeatOnline) {
         r = 255;
         blinkHz = 3;  // no heartbeat
+      } else if (thermalBlinkHz > 0) {
+        r = 255;
+        blinkHz = thermalBlinkHz;
+        thermalWarningActive = true;
       } else if (currentlyEnabled) {
         r = g = b = 255;  // enabled
         blinkHz = 0;
@@ -1229,6 +1307,13 @@ void TaskLEDIndicator(void* pvParameters) {
         blinkHz = 5;  // 5 Hz blink → recent write/auth failure
       }
 
+      // ---------------- Priority 3.5: Yellow (thermal limit) ----------------
+      else if (thermalBlinkHz > 0) {
+        r = 255;
+        blinkHz = thermalBlinkHz;
+        thermalWarningActive = true;
+      }
+
       // ---------------- Priority 3: Yellow (other cautions) ----------------
       else if (currentState == STATE_WAIT_FOR_TAG) {
         r = 255; g = 255;
@@ -1267,7 +1352,24 @@ void TaskLEDIndicator(void* pvParameters) {
 
     // --- Blink Timing ---
     bool on = true;
-    if (blinkHz > 0) {
+    if (thermalWarningActive) {
+      // Thermal warnings alternate red with a color that identifies severity.
+      const unsigned long halfPeriod = 1000 / (blinkHz * 2);
+      const bool redPhase = (millis() / halfPeriod) % 2 == 0;
+      if (redPhase) {
+        r = 255;
+        g = b = 0;
+      } else if (thermalLedBrightnessTarget <= 20) {
+        r = g = 255;  // yellow phase: above 80 C
+        b = 0;
+      } else if (thermalLedBrightnessTarget <= 64) {
+        r = b = 255;  // purple phase: above 75 C
+        g = 0;
+      } else {
+        r = b = 0;    // green phase: above 65 C
+        g = 255;
+      }
+    } else if (blinkHz > 0) {
       unsigned long period = 1000 / (blinkHz * 2);
       on = (millis() / period) % 2;
     }

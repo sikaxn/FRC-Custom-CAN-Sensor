@@ -19,6 +19,8 @@ The USB-C connector uses the ESP32-S3's direct USB CDC/JTAG interface. In Arduin
 IDE, select **Tools > USB CDC On Boot > Enabled**. The standard **Hardware CDC and
 JTAG** USB mode is supported and is the intended configuration.
 
+The firmware caps the ESP32-S3 CPU clock at 80 MHz during startup.
+
 
 # Please also read these documents
 
@@ -46,7 +48,7 @@ This firmware is mapped for the Waveshare ESP32-S3-Zero.
 
 | GPIO | Direction | Connected device | Notes |
 | ---- | --------- | ---------------- | ----- |
-| GPIO 21 | Output | Onboard WS281x RGB LED | Status / diagnostic LED (FastLED, RGB byte order) |
+| GPIO 21 | Output | Onboard WS281x RGB LED | Status / diagnostic LED (FastLED, RGB byte order, brightness 10/255) |
 | GPIO 9 | Output | CAN transceiver TXD | TWAI / CAN TX |
 | GPIO 10 | Input | CAN transceiver RXD | TWAI / CAN RX |
 | GPIO 7 | Output | External WS2812 LED strip DIN | Main addressable LED strip |
@@ -98,6 +100,14 @@ Both RC522 readers share the same SPI bus and reset line. Each reader gets its o
 - There is no separate local blackout button in this hardware revision.
 - Pressing GPIO 0 during normal operation cycles modes 0–34, then mode 255. Do
   not hold it while resetting the board, because it is also the ESP32-S3 boot pin.
+- The LED output is thermally capped using the ESP32 internal sensor: 255 at
+  55°C or below; 190 above 55°C; 128 above 65°C; 64 above 75°C; and 20 above
+  80°C. Each change fades to its new cap over one second. CAN brightness
+  commands still accept their normal 0–255 values.
+- The 190 brightness cap above 55°C does not change the status LED. At higher
+  temperatures, it alternates green/red at 4 Hz above 65°C, purple/red at 6 Hz
+  above 75°C, and yellow/red at 7 Hz above 80°C. These rates do not overlap
+  the RFID warning patterns.
 - The onboard WS281x status LED uses `GPIO 21`; the external LED strip uses `GPIO 7`.
 - The firmware uses a FreeRTOS task compatibility wrapper for ESP32-S3 builds.
 - Make sure the LED strip power ground, CAN transceiver ground, and ESP32 ground are common.
