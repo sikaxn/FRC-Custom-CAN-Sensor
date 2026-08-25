@@ -15,7 +15,7 @@ import java.util.TimerTask;
  *   0x360: Total pixel count + secondary color
  *
  * ESP32 -> RIO:
- *   0x359: Feedback frame (num LEDs, current mode)
+ *   0x359: Feedback frame (num LEDs, current mode, thermal stage, internal temperature)
  */
 public class addressableLEDCAN implements AutoCloseable {
   private static final int API_GENERAL_CMD = 0x350;
@@ -75,6 +75,8 @@ public class addressableLEDCAN implements AutoCloseable {
 
   private int feedbackLedCount = -1;
   private int feedbackMode = -1;
+  private int feedbackThermalProtectionStage = 0;
+  private int feedbackInternalTemperatureC = -1;
   private double lastUpdateSeconds = 0.0;
   private boolean espOnline = false;
 
@@ -206,6 +208,24 @@ public class addressableLEDCAN implements AutoCloseable {
     return feedbackLedCount;
   }
 
+  /** Returns whether the ESP32 has applied a thermal LED brightness cap. */
+  public synchronized boolean isFeedbackThermalProtectionActive() {
+    return feedbackThermalProtectionStage != 0;
+  }
+
+  /**
+   * Returns the ESP32 thermal protection stage: 0 = normal, 1 = 190 cap, 2 = 128 cap,
+   * 3 = 64 cap, and 4 = 20 cap.
+   */
+  public synchronized int getFeedbackThermalProtectionStage() {
+    return feedbackThermalProtectionStage;
+  }
+
+  /** Returns the ESP32 internal temperature in degrees Celsius from the feedback frame. */
+  public synchronized int getFeedbackInternalTemperatureC() {
+    return feedbackInternalTemperatureC;
+  }
+
   @Override
   public void close() {
     updateTimer.cancel();
@@ -331,6 +351,10 @@ public class addressableLEDCAN implements AutoCloseable {
 
     feedbackLedCount = ((frame.data[0] & 0xFF) << 8) | (frame.data[1] & 0xFF);
     feedbackMode = frame.data[2] & 0xFF;
+    if (frame.length >= 8) {
+      feedbackThermalProtectionStage = frame.data[6] & 0xFF;
+      feedbackInternalTemperatureC = (frame.data[7] & 0xFF) - 10;
+    }
   }
 
   private boolean writePacket(int apiId, byte[] payload, String label) {

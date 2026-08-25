@@ -26,7 +26,7 @@ The firmware caps the ESP32-S3 CPU clock at 80 MHz during startup.
 
 Battery Tracking: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/Battery_Tracking
 
-Addressable LED: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/addressableLED
+Historical LED-only firmware: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/tree/dev-board/Arduino/addressableLED
 
 Battery Tracking Wiki: https://github.com/sikaxn/FRC-Custom-CAN-Sensor/wiki/900.-IronMaple-RFID-Battery-Tracking-Solution
 
@@ -111,6 +111,75 @@ Both RC522 readers share the same SPI bus and reset line. Each reader gets its o
 - The onboard WS281x status LED uses `GPIO 21`; the external LED strip uses `GPIO 7`.
 - The firmware uses a FreeRTOS task compatibility wrapper for ESP32-S3 builds.
 - Make sure the LED strip power ground, CAN transceiver ground, and ESP32 ground are common.
+
+# LED CAN Protocol
+
+This section is the current CAN specification for this combined ESP32-S3
+firmware. It supersedes the older LED-only firmware documentation.
+
+All LED frames use the FRC extended 29-bit ID:
+
+```text
+CAN ID = (deviceType << 24) | (manufacturer << 16) | (apiId << 6) | deviceNumber
+```
+
+| Field | Value |
+| --- | --- |
+| Device type | `0x0A` |
+| Manufacturer | `0x08` |
+| Device number | Configurable, `0–63` |
+| General command API | `0x350` |
+| Custom-pixel APIs | `0x351–0x358` |
+| System-core feedback API | `0x359` |
+| Extended LED command API | `0x360` |
+
+Commands must use the configured device number. The firmware publishes its
+system-core feedback frame every 100 ms (10 Hz).
+
+## General LED command (`0x350`)
+
+| Byte | Field | Range / meaning |
+| ---: | --- | --- |
+| 0 | Mode | `0–255` |
+| 1 | Red | `0–255` |
+| 2 | Green | `0–255` |
+| 3 | Blue | `0–255` |
+| 4 | Brightness | `0–255`; subject to the thermal output cap |
+| 5 | On/off | `1` on, `0` off |
+| 6 | Param0 | Effect speed / option 1 |
+| 7 | Param1 | Effect-specific option 2 |
+
+## Custom pixel write (`0x351–0x358`)
+
+Set mode `255` first. Each API ID may carry one pixel update.
+
+| Bytes | Field | Meaning |
+| --- | --- | --- |
+| 0–1 | Pixel index | Big-endian index |
+| 2 | Red | `0–255` |
+| 3 | Green | `0–255` |
+| 4 | Blue | `0–255` |
+| 5–7 | Reserved | Set to `0` |
+
+## Extended LED command (`0x360`)
+
+| Bytes | Field | Meaning |
+| --- | --- | --- |
+| 0–1 | Active pixel count | Big-endian; clamped to the compiled maximum |
+| 2–4 | Color 2 R/G/B | Secondary effect color |
+| 5 | Color 2 brightness | `0–255` |
+| 6 | Color 2 enable | `1` on, `0` off |
+| 7 | Reboot request | Any nonzero value restarts the ESP32 |
+
+## System-core feedback (`0x359`)
+
+| Bytes | Field | Meaning |
+| --- | --- | --- |
+| 0–1 | Active LED count | Big-endian |
+| 2 | Current mode | Current `canMode` |
+| 3–5 | Reserved | Always `0` |
+| 6 | Thermal protection stage | `0`: no cap; `1`: 190 cap (>55°C); `2`: 128 cap (>65°C); `3`: 64 cap (>75°C); `4`: 20 cap (>80°C) |
+| 7 | ESP32 internal temperature | Unsigned encoding of whole °C: `encoded = clamp(round(tempC), -10, 100) + 10`; decode with `byte7 - 10` |
 
 # LED Modes
 

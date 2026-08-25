@@ -82,6 +82,10 @@ public class Robot extends TimedRobot {
   private NetworkTableEntry ledWritePixelEntry;
   private NetworkTableEntry ledFeedbackModeEntry;
   private NetworkTableEntry ledFeedbackLedCountEntry;
+  private NetworkTableEntry ledFeedbackThermalProtectionEntry;
+  private NetworkTableEntry ledFeedbackThermalStageEntry;
+  private NetworkTableEntry ledFeedbackThermalStageTextEntry;
+  private NetworkTableEntry ledFeedbackInternalTemperatureEntry;
   private NetworkTableEntry ledOnlineEntry;
 
   private NetworkTableEntry espREntry;
@@ -155,6 +159,10 @@ public class Robot extends TimedRobot {
     ledWritePixelEntry = ledTable.getEntry("WritePixel");
     ledFeedbackModeEntry = ledTable.getEntry("FeedbackMode");
     ledFeedbackLedCountEntry = ledTable.getEntry("FeedbackLedCount");
+    ledFeedbackThermalProtectionEntry = ledTable.getEntry("FeedbackThermalProtection");
+    ledFeedbackThermalStageEntry = ledTable.getEntry("FeedbackThermalStage");
+    ledFeedbackThermalStageTextEntry = ledTable.getEntry("FeedbackThermalStageText");
+    ledFeedbackInternalTemperatureEntry = ledTable.getEntry("FeedbackInternalTemperatureC");
     ledOnlineEntry = ledTable.getEntry("Online");
 
     ledModeEntry.setDefaultDouble(1);
@@ -179,6 +187,10 @@ public class Robot extends TimedRobot {
     ledWritePixelEntry.setDefaultBoolean(false);
     ledFeedbackModeEntry.setDouble(-1);
     ledFeedbackLedCountEntry.setDouble(-1);
+    ledFeedbackThermalProtectionEntry.setBoolean(false);
+    ledFeedbackThermalStageEntry.setDouble(0);
+    ledFeedbackThermalStageTextEntry.setString("Normal (no thermal cap)");
+    ledFeedbackInternalTemperatureEntry.setDouble(-1);
     ledOnlineEntry.setBoolean(false);
 
     espREntry = espTable.getEntry("R");
@@ -304,6 +316,11 @@ public class Robot extends TimedRobot {
 
     ledFeedbackModeEntry.setDouble(leds.getFeedbackMode());
     ledFeedbackLedCountEntry.setDouble(leds.getFeedbackLedCount());
+    int thermalStage = leds.getFeedbackThermalProtectionStage();
+    ledFeedbackThermalProtectionEntry.setBoolean(leds.isFeedbackThermalProtectionActive());
+    ledFeedbackThermalStageEntry.setDouble(thermalStage);
+    ledFeedbackThermalStageTextEntry.setString(thermalStageText(thermalStage));
+    ledFeedbackInternalTemperatureEntry.setDouble(leds.getFeedbackInternalTemperatureC());
     ledOnlineEntry.setBoolean(leds.getIsESPOnline());
 
     boolean rainbowEnabled = espRainbowEntry.getBoolean(false);
@@ -431,6 +448,17 @@ public class Robot extends TimedRobot {
 
   private static int getInt(NetworkTableEntry entry, int defaultValue) {
     return (int) entry.getDouble(defaultValue);
+  }
+
+  private static String thermalStageText(int stage) {
+    return switch (stage) {
+      case 0 -> "Normal (no thermal cap)";
+      case 1 -> "Stage 1: brightness capped at 190";
+      case 2 -> "Stage 2: brightness capped at 128";
+      case 3 -> "Stage 3: brightness capped at 64";
+      case 4 -> "Stage 4: brightness capped at 20";
+      default -> "Unknown thermal stage: " + stage;
+    };
   }
 
   private static double applyDeadband(double value, double deadband) {

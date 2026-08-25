@@ -69,6 +69,9 @@ CRGB statusLeds[1];
 // maximum FastLED output brightness allowed by the ESP32-S3 temperature.
 volatile uint8_t thermalLedBrightnessLimit = LED_BRIGHTNESS;
 volatile uint8_t thermalLedBrightnessTarget = LED_BRIGHTNESS;
+// Byte 7 of the 0x359 system-core feedback frame encodes -10 to 100 C as
+// (temperature + 10). Byte 6 reports the thermal-protection stage.
+volatile uint8_t thermalTemperatureFeedback = 35;  // 25 C at startup
 
 #define DISABLE_WRITE_DELAY_MS 1000
 
@@ -341,6 +344,16 @@ void showLeds() {
   FastLED.show();
 }
 
+uint8_t encodeThermalTemperature(float temperatureC) {
+  int temperature = (int)roundf(temperatureC);
+  if (temperature < -10) {
+    temperature = -10;
+  } else if (temperature > 100) {
+    temperature = 100;
+  }
+  return (uint8_t)(temperature + 10);
+}
+
 void updateThermalLedBrightnessLimit() {
   static uint32_t lastTemperatureCheckMs = 0;
   static uint32_t fadeStartMs = 0;
@@ -350,6 +363,7 @@ void updateThermalLedBrightnessLimit() {
     lastTemperatureCheckMs = now;
 
     const float internalTempC = temperatureRead();
+    thermalTemperatureFeedback = encodeThermalTemperature(internalTempC);
     uint8_t brightnessTarget = LED_BRIGHTNESS;
     if (internalTempC > 80.0f) {
       brightnessTarget = 20;
@@ -393,6 +407,25 @@ uint8_t thermalWarningBlinkHz() {
     return 4;  // Above 65 C
   }
   return 0;  // No status warning at the 190 cap (above 55 C)
+}
+
+// System-core feedback stage: 0 = normal, 1 = 190 cap, 2 = 128 cap,
+// 3 = 64 cap, 4 = 20 cap. Use the target so the stage is visible while
+// the one-second brightness fade is in progress.
+uint8_t thermalProtectionStage() {
+  if (thermalLedBrightnessTarget <= 20) {
+    return 4;
+  }
+  if (thermalLedBrightnessTarget <= 64) {
+    return 3;
+  }
+  if (thermalLedBrightnessTarget <= 128) {
+    return 2;
+  }
+  if (thermalLedBrightnessTarget <= 190) {
+    return 1;
+  }
+  return 0;
 }
 
 void setup() {
@@ -514,6 +547,7 @@ void setup() {
   FastLED.addLeds<STATUS_LED_TYPE, STATUS_LED_PIN, STATUS_LED_COLOR_ORDER>(statusLeds, 1)
          .setCorrection(TypicalLEDStrip);
   FastLED.setBrightness(LED_BRIGHTNESS);
+  updateThermalLedBrightnessLimit();
   fill_solid(leds, NUM_LEDS, CRGB::Black);
   setStatusLedState(0, 0, 0, false);
   showLeds();
@@ -826,7 +860,9 @@ void sendLedFeedback() {
   tx.data[0]          = (NUM_LEDS >> 8) & 0xFF;
   tx.data[1]          = NUM_LEDS & 0xFF;
   tx.data[2]          = canMode;
-  for (int i = 3; i < 8; i++) tx.data[i] = 0;
+  for (int i = 3; i < 6; i++) tx.data[i] = 0;
+  tx.data[6] = thermalProtectionStage();
+  tx.data[7] = thermalTemperatureFeedback;
   twai_transmit(&tx, pdMS_TO_TICKS(10));
 }
 
