@@ -17,7 +17,7 @@ import frc.robot.drivers.addressableLEDCAN;
 import frc.robot.drivers.imesp32demofw;
 
 public class Robot extends TimedRobot {
-  private static final int SYSTEMCORE_CAN_BUS = 1;
+  private static final int SYSTEMCORE_CAN_BUS = 2;
   private static final double ESP_INPUTS_STALE_MS = 500.0;
 
   private static final int LEDS_DN = 33;
